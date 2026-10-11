@@ -1,0 +1,66 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Kafe personeli ve sipariş akışı
+    match /orders/{orderId} {
+      allow read, write: if true;
+    }
+    
+    match /tables/{tableId} {
+      allow read, write: if true;
+    }
+    
+    match /categories/{categoryId} {
+      allow read, write: if true;
+    }
+    
+    match /products/{productId} {
+      allow read, write: if true;
+    }
+    
+    // 3 Ayrı Personel Tablosu (Garsonlar, Mutfak, Yöneticiler)
+    match /waiters/{waiterId} {
+      allow read, write: if true;
+    }
+    
+    match /kitchen_staff/{staffId} {
+      allow read, write: if true;
+    }
+    
+    match /managers/{managerId} {
+      allow read, write: if true;
+    }
+
+    // Eski personel tablosu (uyumluluk için)
+    match /staff/{staffId} {
+      allow read, write: if true;
+    }
+    
+    match /completed_orders/{orderId} {
+      allow read, write: if true;
+    }
+    
+    match /staff_activity_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    match /staff_stats/{statId} {
+      allow read, write: if true;
+    }
+
+    match /expenses/{expenseId} {
+      allow read, write: if true;
+    }
+    
+    match /daily_reports/{reportId} {
+      allow read, write: if true;
+    }
+
+    // Diğer tüm bilinmeyen koleksiyonları varsayılan olarak koru
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

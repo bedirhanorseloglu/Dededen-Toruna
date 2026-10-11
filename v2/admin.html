@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Yönetici Paneli • Dededen Toruna Hamsiköy Sütlacı</title>
+    <link rel="stylesheet" href="app.css">
+    <link rel="stylesheet" href="animations.css">
+    <script src="libs/gsap.min.js"></script>
+    <style>
+        .admin-nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 22px;
+            background: var(--bg-surface);
+            padding: 6px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-card);
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .admin-nav-btn {
+            flex: 1;
+            min-width: 140px;
+            padding: 12px 18px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 700;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+        .admin-nav-btn:hover {
+            color: white;
+            background: var(--bg-surface-elevated);
+        }
+        .admin-nav-btn.active {
+            background: linear-gradient(135deg, var(--brand-primary), #e8590c);
+            color: white;
+            box-shadow: 0 4px 16px rgba(247, 103, 7, 0.35);
+        }
+        .filter-pill-group {
+            display: flex;
+            gap: 8px;
+            background: var(--bg-surface-elevated);
+            padding: 4px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-card);
+        }
+        .filter-pill-btn {
+            padding: 6px 14px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 13px;
+            font-weight: 700;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .filter-pill-btn.active {
+            background: var(--brand-gold);
+            color: #110d0c;
+        }
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        @media (max-width: 900px) {
+            .analytics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .rank-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: 800;
+            background: var(--bg-surface-elevated);
+            color: var(--text-secondary);
+        }
+        .rank-badge.top-1 { background: #ffd43b; color: #110d0c; }
+        .rank-badge.top-2 { background: #ced4da; color: #110d0c; }
+        .rank-badge.top-3 { background: #d97706; color: white; }
+    </style>
+</head>
+<body>
+    <header class="app-header">
+        <div class="brand-section">
+            <img src="logo.png" alt="Dededen Toruna" class="brand-logo-img">
+            <div class="brand-text">
+                <h1>Dededen Toruna</h1>
+                <p>Yönetici & Kasa Paneli (1924)</p>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <a href="waiter.html" class="btn-outline" style="text-decoration: none; font-size: 12px; padding: 6px 12px; border-color: var(--brand-gold); color: #ffd43b; font-weight: 700; background: rgba(245, 159, 0, 0.1); border-radius: var(--radius-sm); display: flex; align-items: center; gap: 5px;">
+                <span>📱</span> Garson Ekranı
+            </a>
+            <a href="kitchen.html" class="btn-outline" style="text-decoration: none; font-size: 12px; padding: 6px 12px; border-color: var(--brand-primary); color: #ff922b; font-weight: 700; background: rgba(247, 103, 7, 0.1); border-radius: var(--radius-sm); display: flex; align-items: center; gap: 5px;">
+                <span>🍳</span> Mutfak Panosu
+            </a>
+            <div class="user-badge" style="padding: 5px 12px;">
+                <span class="user-role-tag" style="background: var(--brand-gold); color: #110d0c; font-weight: 800;">YÖNETİCİ</span>
+                <strong id="user-name-display">Patron</strong>
+            </div>
+            <button class="btn-logout" title="Çıkış Yap" id="btn-logout">✕</button>
+        </div>
+    </header>
+
+    <div class="admin-container" style="padding: 20px 16px; max-width: 1200px; margin: 0 auto;">
+        <!-- Canlı Masa Hızlı Durum Kartı (Yönetici Her Koşulda Canlı Görür) -->
+        <div style="background: var(--bg-surface); border: 1px solid var(--border-card); border-radius: var(--radius-md); padding: 12px 18px; margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; box-shadow: var(--shadow-soft);">
+            <div style="display: flex; align-items: center; gap: 12px; font-size: 13px; flex-wrap: wrap;">
+                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #10b981; animation: pulseGlow 2s infinite;"></span>
+                <strong style="color: white; font-size: 14px;">Restoran Canlı Takip:</strong>
+                <span id="admin-header-open-tables" style="color: #f59f00; font-weight: 700;">● 0 Açık Masa</span>
+                <span style="color: var(--text-muted);">|</span>
+                <span id="admin-header-free-tables" style="color: #10b981; font-weight: 700;">○ 15 Boş</span>
+                <span style="color: var(--text-muted);">|</span>
+                <span id="admin-header-pending-revenue" style="color: var(--brand-gold); font-weight: 800;">Açık Adisyon: 0,00 ₺</span>
+            </div>
+            <button type="button" onclick="switchTab('tables')" class="btn-outline" style="font-size: 12px; padding: 6px 14px; color: var(--brand-gold); border-color: var(--brand-gold); font-weight: 700; cursor: pointer; border-radius: var(--radius-sm);">
+                Masaları Canlı Yönet ↗
+            </button>
+        </div>
+
+        <!-- Sekme Geçişi -->
+        <nav class="admin-nav-tabs">
+            <button class="admin-nav-btn active" id="tab-btn-analytics" onclick="switchTab('analytics')">
+                <span>📊</span> Ciro & Satış Analizi
+            </button>
+            <button class="admin-nav-btn" id="tab-btn-tables" onclick="switchTab('tables')">
+                <span>🪑</span> Canlı Masalar & Kasa
+            </button>
+            <button class="admin-nav-btn" id="tab-btn-staff" onclick="switchTab('staff')">
+                <span>👥</span> Personel Yönetimi
+            </button>
+        </nav>
+
+        <!-- ============================================================== -->
+        <!-- 1. SEKME: CİRO & SATIŞ ANALİZİ (YÖNETİCİ GÖZÜNDEN TÜM METRİKLER) -->
+        <!-- ============================================================== -->
+        <section id="section-analytics">
+            <!-- Üst Filtre Barı -->
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px;">
+                <div>
+                    <h2 style="font-size: 20px; font-weight: 800; letter-spacing: -0.3px;">Finansal Performans & Satış Karnesi</h2>
+                    <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">Restoran cirosu, lezzet satışları ve personel verimliliği</p>
+                </div>
+                <div class="filter-pill-group">
+                    <button class="filter-pill-btn active" id="filter-btn-today" onclick="setPeriodFilter('today')">Bugün</button>
+                    <button class="filter-pill-btn" id="filter-btn-week" onclick="setPeriodFilter('week')">Bu Hafta</button>
+                    <button class="filter-pill-btn" id="filter-btn-month" onclick="setPeriodFilter('month')">Bu Ay</button>
+                    <button class="filter-pill-btn" id="filter-btn-all" onclick="setPeriodFilter('all')">Tüm Zamanlar</button>
+                </div>
+            </div>
+
+            <!-- 4 Büyük Finans Kartı -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 22px;">
+                <div class="stat-box" style="background: var(--bg-surface); padding: 18px; border-radius: var(--radius-md); border: 1px solid var(--border-card); box-shadow: var(--shadow-soft);">
+                    <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Toplam Net Ciro</div>
+                    <div style="font-size: 28px; font-weight: 800; color: var(--brand-gold); margin-top: 6px;" id="metric-total-revenue">0,00 ₺</div>
+                    <div style="font-size: 12px; color: var(--success); margin-top: 4px; font-weight: 600;">Tahsil edilen tüm siparişler</div>
+                </div>
+
+                <div class="stat-box" style="background: var(--bg-surface); padding: 18px; border-radius: var(--radius-md); border: 1px solid var(--border-card); box-shadow: var(--shadow-soft);">
+                    <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Tahsilat Dağılımı</div>
+                    <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; margin-top: 8px;">
+                        <span style="color: var(--success);">💵 Nakit: <b id="metric-cash-total">0 ₺</b></span>
+                        <span style="color: #60a5fa;">💳 Kart: <b id="metric-card-total">0 ₺</b></span>
+                    </div>
+                    <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 99px; margin-top: 10px; overflow: hidden; display: flex;">
+                        <div id="bar-cash-pct" style="width: 50%; background: var(--success); height: 100%;"></div>
+                        <div id="bar-card-pct" style="width: 50%; background: #3b82f6; height: 100%;"></div>
+                    </div>
+                </div>
+
+                <div class="stat-box" style="background: var(--bg-surface); padding: 18px; border-radius: var(--radius-md); border: 1px solid var(--border-card); box-shadow: var(--shadow-soft);">
+                    <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Tamamlanan Adisyon</div>
+                    <div style="font-size: 28px; font-weight: 800; color: white; margin-top: 6px;" id="metric-order-count">0</div>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Kapanan masa hesabı</div>
+                </div>
+
+                <div class="stat-box" style="background: var(--bg-surface); padding: 18px; border-radius: var(--radius-md); border: 1px solid var(--border-card); box-shadow: var(--shadow-soft);">
+                    <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Ortalama Masa Sepeti</div>
+                    <div style="font-size: 28px; font-weight: 800; color: var(--brand-primary); margin-top: 6px;" id="metric-avg-order">0,00 ₺</div>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Masa başına düşen harcama</div>
+                </div>
+            </div>
+
+            <!-- Analiz Tabloları İki Sütun -->
+            <div class="analytics-grid">
+                <!-- Sol Sütun: Hangi Üründen Kaç Tane Sattık? -->
+                <div style="background: var(--bg-surface); padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-card); box-shadow: var(--shadow-soft);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+                        <div>
+                            <h3 style="font-size: 17px; font-weight: 800;">🏆 En Çok Satan Lezzetler</h3>
+                            <p style="font-size: 12px; color: var(--text-muted);">Hangi üründen kaç adet satıldı, ne kadar ciro sağladı?</p>
+                        </div>
+                        <input type="text" id="search-product-stats" placeholder="Ürün ara..." oninput="filterProductStatsTable()" style="padding: 6px 12px; background: var(--bg-surface-elevated); border: 1px solid var(--border-card); color: white; border-radius: var(--radius-sm); font-size: 13px;">
+                    </div>
+
+                    <div style="overflow-x: auto; -webkit-overflow-scrolling: touch; max-height: 480px;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                            <thead>
+                                <tr style="text-align: left; color: var(--text-muted); border-bottom: 1px solid var(--border-card);">
+                                    <th style="padding: 10px 6px;">#</th>
+                                    <th style="padding: 10px 8px;">Ürün</th>
+                                    <th style="padding: 10px 8px; text-align: center;">Satış</th>
+                                    <th style="padding: 10px 8px; text-align: right;">Ciro</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-product-sales">
+                                <!-- Dinamik Dolacak -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Sağ Sütun: Personel Ciro & Teslimat Karnesi -->
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    <!-- Garson Ciro Karnesi -->
+                    <div style="background: var(--bg-surface); padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-card); box-shadow: var(--shadow-soft);">
+                        <h3 style="font-size: 17px; font-weight: 800; margin-bottom: 4px;">👤 Garson Ciro & Performans Karnesi</h3>
+                        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">Hangi garson kaç masaya baktı, ne kadar ciro kazandırdı?</p>
+
+                        <div style="overflow-x: auto;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                                <thead>
+                                    <tr style="text-align: left; color: var(--text-muted); border-bottom: 1px solid var(--border-card);">
+                                        <th style="padding: 10px 8px;">Garson</th>
+                                        <th style="padding: 10px 8px; text-align: center;">Masa</th>
+                                        <th style="padding: 10px 8px; text-align: right;">Ciro</th>
+                                        <th style="padding: 10px 8px; text-align: right;">Ort. Masa</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbody-waiter-sales">
+                                    <!-- Dinamik Dolacak -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Mutfak Teslimat Karnesi -->
+                    <div style="background: var(--bg-surface); padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-card); box-shadow: var(--shadow-soft);">
+                        <h3 style="font-size: 17px; font-weight: 800; margin-bottom: 4px;">🍳 Mutfak Operasyon & Teslimat</h3>
+                        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">Mutfak ekibinin hazırladığı ve teslim ettiği ürün sayısı</p>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <div style="background: var(--bg-surface-elevated); padding: 14px; border-radius: var(--radius-md); text-align: center;">
+                                <div style="font-size: 11px; color: var(--text-muted); font-weight: 700;">HAZIRLANAN KALEM</div>
+                                <div style="font-size: 22px; font-weight: 800; color: var(--brand-gold); margin-top: 4px;" id="metric-kitchen-items">0</div>
+                            </div>
+                            <div style="background: var(--bg-surface-elevated); padding: 14px; border-radius: var(--radius-md); text-align: center;">
+                                <div style="font-size: 11px; color: var(--text-muted); font-weight: 700;">TAMAMLANAN MASALAR</div>
+                                <div style="font-size: 22px; font-weight: 800; color: var(--success); margin-top: 4px;" id="metric-kitchen-tables">0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- 2. SEKME: CANLI MASALAR & KASA (YÖNETİCİ MASAYI AÇIP ÖDEME ALIR) -->
+        <!-- ============================================================== -->
+        <section id="section-tables" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <h2 style="font-size: 20px; font-weight: 800;">🪑 Canlı Masa & Kasa Yönetimi</h2>
+                    <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">Masaların canlı durumu, ilgilenen garsonlar ve kasadan ödeme alma</p>
+                </div>
+                <div style="font-size: 14px; color: var(--brand-gold); font-weight: 700; background: var(--bg-surface); padding: 8px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-card);">
+                    Açık Masalar Toplamı: <strong id="admin-live-open-total" style="color: white; font-size: 16px;">0,00 ₺</strong>
+                </div>
+            </div>
+
+            <!-- Canlı Masalar Minyatür Grid'i -->
+            <div class="tables-grid" id="admin-tables-grid" style="grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; margin-bottom: 24px;">
+                <!-- Dinamik Masa Kartları -->
+            </div>
+
+            <!-- Detaylı Açık Hesaplar Tablosu -->
+            <div style="background: var(--bg-surface); padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-card); box-shadow: var(--shadow-soft);">
+                <h3 style="font-size: 17px; font-weight: 800; margin-bottom: 14px;">🧾 Açık Adisyonlar (Kasa Tahsilatı)</h3>
+                <div style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                        <thead>
+                            <tr style="text-align: left; color: var(--text-muted); border-bottom: 1px solid var(--border-card);">
+                                <th style="padding: 12px 10px;">Masa</th>
+                                <th style="padding: 12px 10px;">Garson</th>
+                                <th style="padding: 12px 10px;">Durum</th>
+                                <th style="padding: 12px 10px;">Ürünler</th>
+                                <th style="padding: 12px 10px;">Tutar</th>
+                                <th style="padding: 12px 10px; text-align: right;">Kasa İşlemi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-admin-open-orders">
+                            <!-- Dinamik Dolacak -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ============================================================== -->
+        <!-- 3. SEKME: PERSONEL & PIN YÖNETİMİ (FIRESTORE TABLOLARI)         -->
+        <!-- ============================================================== -->
+        <section id="section-staff" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                <div>
+                    <h2 style="font-size: 20px; font-weight: 800; letter-spacing: -0.3px;">👥 Personel & Görev Yönetimi</h2>
+                    <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">Garsonlar, Mutfak ve Yöneticiler Firestore veritabanında ayrı tablolarda tutulur.</p>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <button class="btn-outline" style="padding: 10px 14px; font-size: 13px; border-color: var(--brand-gold); color: #ffd43b;" onclick="seedTestStaffData()">⚡ Test Personellerini Oluştur</button>
+                    <button class="btn-primary" style="padding: 10px 18px; font-size: 13px;" onclick="openStaffModal()">+ Yeni Personel Ekle</button>
+                </div>
+            </div>
+
+            <!-- 1. TABLO: GARSONLAR (waiters) -->
+            <div style="background: var(--bg-surface); padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-card); box-shadow: var(--shadow-soft); margin-bottom: 22px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 22px;">📱</span>
+                        <div>
+                            <h3 style="font-size: 17px; font-weight: 800; color: white;">Garsonlar Tablosu <code style="font-size: 12px; color: var(--brand-gold); background: rgba(245,159,0,0.1); padding: 2px 6px; border-radius: 4px;">firestore/waiters</code></h3>
+                            <p style="font-size: 12px; color: var(--text-muted);">Sipariş alan ve masaları servis eden garson kadrosu</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span id="badge-waiters-count" style="font-size: 12px; font-weight: 800; background: var(--bg-surface-elevated); color: var(--brand-gold); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border-card);">0 Garson</span>
+                        <button class="btn-outline" style="font-size: 12px; padding: 6px 12px; border-color: var(--brand-gold); color: #ffd43b;" onclick="openStaffModal('waiter')">+ Garson Ekle</button>
+                    </div>
+                </div>
+
+                <div class="admin-table-container" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+                    <table style="width: 100%; min-width: 750px; border-collapse: collapse; font-size: 13px;">
+                        <thead>
+                            <tr style="text-align: left; color: var(--text-muted); border-bottom: 1px solid var(--border-card);">
+                                <th style="padding: 12px 10px;">Garson Adı</th>
+                                <th style="padding: 12px 10px;">Giriş PIN</th>
+                                <th style="padding: 12px 10px;">Alınan Sipariş</th>
+                                <th style="padding: 12px 10px;">Toplam Ciro</th>
+                                <th style="padding: 12px 10px;">Satılan Ürün</th>
+                                <th style="padding: 12px 10px;">Son Sipariş Saati</th>
+                                <th style="padding: 12px 10px;">Durum</th>
+                                <th style="padding: 12px 10px; text-align: right;">İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-waiters">
+                            <tr><td colspan="8" style="padding: 16px; text-align: center; color: var(--text-muted);">Yükleniyor...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 2. TABLO: MUTFAK ÇALIŞANLARI (kitchen_staff) -->
+            <div style="background: var(--bg-surface); padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-card); box-shadow: var(--shadow-soft); margin-bottom: 22px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 22px;">🍳</span>
+                        <div>
+                            <h3 style="font-size: 17px; font-weight: 800; color: white;">Mutfak Çalışanları Tablosu <code style="font-size: 12px; color: var(--success); background: rgba(16,185,129,0.1); padding: 2px 6px; border-radius: 4px;">firestore/kitchen_staff</code></h3>
+                            <p style="font-size: 12px; color: var(--text-muted);">Siparişleri hazırlayan, süre ve teslimat performansı tutulan mutfak personeli</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span id="badge-kitchen-count" style="font-size: 12px; font-weight: 800; background: var(--bg-surface-elevated); color: var(--success); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border-card);">0 Mutfak Çalışanı</span>
+                        <button class="btn-outline" style="font-size: 12px; padding: 6px 12px; border-color: var(--success); color: var(--success);" onclick="openStaffModal('kitchen')">+ Mutfakçı Ekle</button>
+                    </div>
+                </div>
+
+                <div class="admin-table-container" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+                    <table style="width: 100%; min-width: 750px; border-collapse: collapse; font-size: 13px;">
+                        <thead>
+                            <tr style="text-align: left; color: var(--text-muted); border-bottom: 1px solid var(--border-card);">
+                                <th style="padding: 12px 10px;">Çalışan & Bölüm</th>
+                                <th style="padding: 12px 10px;">Giriş PIN</th>
+                                <th style="padding: 12px 10px;">Hazırlanan Sipariş</th>
+                                <th style="padding: 12px 10px;">Hazırlanan Kalem</th>
+                                <th style="padding: 12px 10px;">Ort. Hazırlık Süresi</th>
+                                <th style="padding: 12px 10px;">Son Teslim Saati</th>
+                                <th style="padding: 12px 10px;">Durum</th>
+                                <th style="padding: 12px 10px; text-align: right;">İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-kitchen">
+                            <tr><td colspan="8" style="padding: 16px; text-align: center; color: var(--text-muted);">Yükleniyor...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 3. TABLO: YÖNETİCİLER (managers) -->
+            <div style="background: var(--bg-surface); padding: 20px; border-radius: var(--radius-lg); border: 1px solid var(--border-card); box-shadow: var(--shadow-soft);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 22px;">👑</span>
+                        <div>
+                            <h3 style="font-size: 17px; font-weight: 800; color: white;">Yöneticiler Tablosu <code style="font-size: 12px; color: #ff6b6b; background: rgba(255,107,107,0.1); padding: 2px 6px; border-radius: 4px;">firestore/managers</code></h3>
+                            <p style="font-size: 12px; color: var(--text-muted);">Tüm restorana, kasaya, personellere ve istatistiklere tam yetkili yöneticiler</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span id="badge-managers-count" style="font-size: 12px; font-weight: 800; background: var(--bg-surface-elevated); color: #ff6b6b; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border-card);">0 Yönetici</span>
+                        <button class="btn-outline" style="font-size: 12px; padding: 6px 12px; border-color: #ff6b6b; color: #ff6b6b;" onclick="openStaffModal('admin')">+ Yönetici Ekle</button>
+                    </div>
+                </div>
+
+                <div class="admin-table-container" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+                    <table style="width: 100%; min-width: 650px; border-collapse: collapse; font-size: 13px;">
+                        <thead>
+                            <tr style="text-align: left; color: var(--text-muted); border-bottom: 1px solid var(--border-card);">
+                                <th style="padding: 12px 10px;">Yönetici Adı</th>
+                                <th style="padding: 12px 10px;">Giriş PIN</th>
+                                <th style="padding: 12px 10px;">İletişim</th>
+                                <th style="padding: 12px 10px;">Yetki Seviyesi</th>
+                                <th style="padding: 12px 10px;">Son Giriş</th>
+                                <th style="padding: 12px 10px;">Durum</th>
+                                <th style="padding: 12px 10px; text-align: right;">İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-managers">
+                            <tr><td colspan="7" style="padding: 16px; text-align: center; color: var(--text-muted);">Yükleniyor...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Personel Ekleme / İşe Alma Modalı (GSAP) -->
+    <div class="modal-overlay" id="staff-modal">
+        <div class="modal-content" style="max-width: 480px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                <h3 style="font-size: 19px; font-weight: 800; color: white; display: flex; align-items: center; gap: 8px;">
+                    <span>💼</span> Yeni Personel İşe Al
+                </h3>
+                <span style="font-size: 11px; background: rgba(247,103,7,0.15); color: var(--brand-primary); padding: 4px 8px; border-radius: 4px; font-weight: 700;">YÖNETİCİ ONAYLI</span>
+            </div>
+            
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 18px; line-height: 1.4;">
+                İşe alacağınız çalışanın rolünü ve sisteme giriş yapacağı <strong>6 haneli şifreyi (PIN)</strong> belirleyiniz. Personel giriş ekranında kendi adını seçip bu PIN ile hesabına bağlanacaktır.
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+                <div>
+                    <label style="font-size: 12px; color: var(--text-secondary); font-weight: 700; display: block; margin-bottom: 4px;">Ad Soyad:</label>
+                    <input type="text" id="input-staff-name" placeholder="Örn: Burak Kaya" style="width: 100%; padding: 12px; background: var(--bg-surface-elevated); border: 1px solid var(--border-active); color: white; border-radius: var(--radius-md); font-family: inherit; font-size: 14px;">
+                </div>
+
+                <div>
+                    <label style="font-size: 12px; color: var(--text-secondary); font-weight: 700; display: block; margin-bottom: 4px;">Görevi / Rolü:</label>
+                    <select id="select-staff-role" onchange="window.handleRoleChangeInModal(this.value)" style="width: 100%; padding: 12px; background: var(--bg-surface-elevated); border: 1px solid var(--border-active); color: white; border-radius: var(--radius-md); font-family: inherit; font-weight: 700; font-size: 14px;">
+                        <option value="waiter">📱 Garson (Sipariş & Masa Servisi)</option>
+                        <option value="kitchen">🍳 Mutfak Çalışanı (Tatlı & Sıcak Mutfak)</option>
+                        <option value="admin">👑 Yönetici (Kasa & Tam Denetim)</option>
+                    </select>
+                </div>
+
+                <div id="wrapper-staff-extra">
+                    <label id="label-staff-extra" style="font-size: 12px; color: var(--text-secondary); font-weight: 700; display: block; margin-bottom: 4px;">Çalışma Alanı / Bölüm:</label>
+                    <input type="text" id="input-staff-extra" placeholder="Örn: Teras & Salon" style="width: 100%; padding: 12px; background: var(--bg-surface-elevated); border: 1px solid var(--border-active); color: white; border-radius: var(--radius-md); font-family: inherit; font-size: 14px;">
+                </div>
+
+                <div>
+                    <label style="font-size: 12px; color: var(--text-secondary); font-weight: 700; display: block; margin-bottom: 4px;">Telefon (İsteğe Bağlı):</label>
+                    <input type="tel" id="input-staff-phone" placeholder="Örn: 0542 000 00 00" style="width: 100%; padding: 12px; background: var(--bg-surface-elevated); border: 1px solid var(--border-active); color: white; border-radius: var(--radius-md); font-family: inherit; font-size: 14px;">
+                </div>
+
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <label style="font-size: 12px; color: var(--text-secondary); font-weight: 700;">6 Haneli Giriş Şifresi (PIN):</label>
+                        <button type="button" onclick="window.generateRandomPin()" class="btn-outline" style="padding: 2px 8px; font-size: 11px; color: var(--brand-gold); border-color: var(--brand-gold); border-radius: 4px; cursor: pointer;">🎲 Rastgele PIN Üret</button>
+                    </div>
+                    <div style="position: relative;">
+                        <input type="text" maxlength="6" id="input-staff-pin" placeholder="6 Haneli PIN (örn: 543210)" style="width: 100%; padding: 12px; background: var(--bg-surface-elevated); border: 1px solid var(--border-active); color: #ffd43b; font-weight: 800; font-size: 16px; border-radius: var(--radius-md); font-family: monospace; letter-spacing: 4px;">
+                    </div>
+                    <small style="font-size: 11px; color: var(--text-muted); margin-top: 4px; display: block;">Personel sisteme giriş yaparken bu 6 haneli şifreyi tuşlayacaktır.</small>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+                <button class="btn-outline" id="modal-staff-cancel" style="padding: 10px 18px;">Vazgeç</button>
+                <button class="btn-primary" id="modal-staff-save" style="padding: 10px 24px; font-weight: 800; background: linear-gradient(135deg, var(--brand-primary), #e8590c);">✓ İşe Al & Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PIN Değiştirme Modalı -->
+    <div class="modal-overlay" id="pin-modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <h3 style="font-size: 18px; font-weight: 800; color: white; margin-bottom: 8px;">🔑 Şifre (PIN) Güncelle</h3>
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;" id="pin-modal-desc">Personel için yeni 6 haneli giriş şifresi belirleyin.</p>
+            
+            <div style="margin-bottom: 18px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <label style="font-size: 12px; color: var(--text-secondary); font-weight: 700;">Yeni 6 Haneli PIN:</label>
+                    <button type="button" onclick="window.generateRandomModalPin()" class="btn-outline" style="padding: 2px 8px; font-size: 11px; color: var(--brand-gold); border-color: var(--brand-gold);">🎲 Üret</button>
+                </div>
+                <input type="text" maxlength="6" id="input-new-pin" placeholder="Yeni PIN" style="width: 100%; padding: 12px; background: var(--bg-surface-elevated); border: 1px solid var(--border-active); color: #ffd43b; font-weight: 800; font-size: 16px; border-radius: var(--radius-md); font-family: monospace; letter-spacing: 4px;">
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button class="btn-outline" onclick="closeModalWithMotion(document.getElementById('pin-modal'))" style="padding: 8px 16px;">Vazgeç</button>
+                <button class="btn-primary" id="modal-pin-save" style="padding: 8px 20px;">Şifreyi Güncelle</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { 
+            checkAuth, 
+            clearActiveUser, 
+            DEFAULT_TABLES,
+            formatMoney, 
+            getRoleCollectionName,
+            onOrderChange,
+            broadcastOrderChange,
+            printOrderReceipt,
+            db, 
+            collection, 
+            doc, 
+            setDoc,
+            addDoc, 
+            updateDoc,
+            deleteDoc, 
+            onSnapshot, 
+            query, 
+            where,
+            serverTimestamp
+        } from "./core.js";
+        import { 
+            showToast, 
+            pageNavigate, 
+            animateCardEntrance, 
+            openModalWithMotion, 
+            closeModalWithMotion, 
+            triggerPaymentCelebration,
+            showConfirmModal
+        } from "./motion.js";
+
+        const user = checkAuth('admin');
+        if (user) document.getElementById('user-name-display').textContent = user.name;
+        document.getElementById('btn-logout').onclick = () => {
+            clearActiveUser();
+            pageNavigate('index.html');
+        };
+
+        let currentActiveTab = 'analytics';
+        let currentPeriod = 'today'; // 'today' | 'week' | 'month' | 'all'
+        let waitersList = [];
+        let kitchenList = [];
+        let managersList = [];
+        let tables = [...DEFAULT_TABLES];
+        let activeOrders = JSON.parse(localStorage.getItem('cafe_cached_orders') || '{}');
+        
+        // Kapanan Siparişler Arşivi (Ciro & Satış Analizi İçin)
+        let paidOrdersArchive = JSON.parse(localStorage.getItem('cafe_paid_orders_archive') || '[]');
+
+        // Örnek Başlangıç Verisi (Eğer arşiv boşsa yöneticiye zengin istatistik gösterir)
+        if (paidOrdersArchive.length === 0) {
+            initSampleData();
+        }
+
+        function initSampleData() {
+            const now = new Date();
+            const sample = [
+                { id: "demo-1", table_no: 3, total: 360, subtotal: 360, payment_method: "card", waiter_name: "Ahmet", closed_at: new Date(now - 1000 * 60 * 30).toISOString(), items: [{ name: "Hamsiköy Sütlaç", quantity: 3, price: 120 }] },
+                { id: "demo-2", table_no: 5, total: 1450, subtotal: 1450, payment_method: "cash", waiter_name: "Ayşe", closed_at: new Date(now - 1000 * 60 * 90).toISOString(), items: [{ name: "Serpme Kahvaltı", quantity: 1, price: 1200 }, { name: "Kuymak", quantity: 1, price: 250 }] },
+                { id: "demo-3", table_no: 1, total: 600, subtotal: 600, payment_method: "card", waiter_name: "Mehmet", closed_at: new Date(now - 1000 * 60 * 180).toISOString(), items: [{ name: "Köfte", quantity: 1, price: 500 }, { name: "Türk Kahvesi", quantity: 1, price: 100 }] },
+                { id: "demo-4", table_no: 8, total: 290, subtotal: 290, payment_method: "cash", waiter_name: "Ahmet", closed_at: new Date(now - 1000 * 60 * 240).toISOString(), items: [{ name: "Atom Sütlaç", quantity: 1, price: 290 }] },
+                { id: "demo-5", table_no: 2, total: 540, subtotal: 540, payment_method: "card", waiter_name: "Ayşe", closed_at: new Date(now - 1000 * 60 * 60 * 24 * 2).toISOString(), items: [{ name: "Karışık Tost", quantity: 2, price: 260 }] }
+            ];
+            paidOrdersArchive = sample;
+            localStorage.setItem('cafe_paid_orders_archive', JSON.stringify(paidOrdersArchive));
+        }
+
+        // ==============================================================
+        // SEKME YÖNETİMİ
+        // ==============================================================
+        window.switchTab = (tabName) => {
+            currentActiveTab = tabName;
+            document.querySelectorAll('.admin-nav-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`tab-btn-${tabName}`).classList.add('active');
+
+            document.getElementById('section-analytics').style.display = tabName === 'analytics' ? 'block' : 'none';
+            document.getElementById('section-tables').style.display = tabName === 'tables' ? 'block' : 'none';
+            document.getElementById('section-staff').style.display = tabName === 'staff' ? 'block' : 'none';
+
+            if (tabName === 'analytics') renderAnalytics();
+            else if (tabName === 'tables') renderLiveTables();
+            else if (tabName === 'staff') renderStaffTables();
+        };
+
+        window.setPeriodFilter = (p) => {
+            currentPeriod = p;
+            document.querySelectorAll('.filter-pill-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`filter-btn-${p}`).classList.add('active');
+            renderAnalytics();
+        };
+
+        // ==============================================================
+        // 1. CİRO & SATIŞ ANALİZİ HESAPLAMALARI
+        // ==============================================================
+        let cachedProductStats = [];
+
+        function renderAnalytics() {
+            const now = new Date();
+            const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            const startOfWeek = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000)).getTime();
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+            // Döneme göre filtrele
+            const filteredOrders = paidOrdersArchive.filter(o => {
+                const orderTime = new Date(o.closed_at || 0).getTime();
+                if (currentPeriod === 'today') return orderTime >= startOfToday;
+                if (currentPeriod === 'week') return orderTime >= startOfWeek;
+                if (currentPeriod === 'month') return orderTime >= startOfMonth;
+                return true; // 'all'
+            });
+
+            // Temel Finans Metrikleri
+            const totalRevenue = filteredOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+            const cashTotal = filteredOrders.filter(o => o.payment_method === 'cash').reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+            const cardTotal = filteredOrders.filter(o => o.payment_method === 'card').reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+            const orderCount = filteredOrders.length;
+            const avgOrder = orderCount > 0 ? (totalRevenue / orderCount) : 0;
+
+            document.getElementById('metric-total-revenue').textContent = formatMoney(totalRevenue);
+            document.getElementById('metric-cash-total').textContent = formatMoney(cashTotal);
+            document.getElementById('metric-card-total').textContent = formatMoney(cardTotal);
+            document.getElementById('metric-order-count').textContent = `${orderCount} Hesap`;
+            document.getElementById('metric-avg-order').textContent = formatMoney(avgOrder);
+
+            const cashPct = totalRevenue > 0 ? ((cashTotal / totalRevenue) * 100) : 50;
+            const cardPct = totalRevenue > 0 ? ((cardTotal / totalRevenue) * 100) : 50;
+            document.getElementById('bar-cash-pct').style.width = `${cashPct}%`;
+            document.getElementById('bar-card-pct').style.width = `${cardPct}%`;
+
+            // Ürün Satış Analizi (Hangi üründen kaç tane satıldı, ciro payı)
+            const productMap = {};
+            let totalItemQuantity = 0;
+
+            filteredOrders.forEach(o => {
+                (o.items || []).forEach(item => {
+                    const name = item.name || item.product_name || "Bilinmeyen Ürün";
+                    const qty = Number(item.quantity) || 1;
+                    const price = Number(item.price || item.unit_price) || 0;
+                    const lineTotal = qty * price;
+
+                    if (!productMap[name]) {
+                        productMap[name] = { name, quantity: 0, revenue: 0 };
+                    }
+                    productMap[name].quantity += qty;
+                    productMap[name].revenue += lineTotal;
+                    totalItemQuantity += qty;
+                });
+            });
+
+            cachedProductStats = Object.values(productMap).sort((a,b) => b.revenue - a.revenue);
+            renderProductStatsTable(totalRevenue);
+
+            // Garson Performans Karnesi
+            const waiterMap = {};
+            filteredOrders.forEach(o => {
+                const waiter = o.waiter_name || "Garson";
+                const total = Number(o.total) || 0;
+
+                if (!waiterMap[waiter]) {
+                    waiterMap[waiter] = { name: waiter, orderCount: 0, revenue: 0 };
+                }
+                waiterMap[waiter].orderCount += 1;
+                waiterMap[waiter].revenue += total;
+            });
+
+            const waiterList = Object.values(waiterMap).sort((a,b) => b.revenue - a.revenue);
+            const tbodyWaiters = document.getElementById('tbody-waiter-sales');
+            if (waiterList.length === 0) {
+                tbodyWaiters.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 24px;">Bu dönemde kayıtlı hesap bulunmuyor.</td></tr>`;
+            } else {
+                tbodyWaiters.innerHTML = waiterList.map(w => `
+                    <tr style="border-bottom: 1px solid var(--border-card);">
+                        <td style="padding: 10px 8px; font-weight: 700;">👤 ${w.name}</td>
+                        <td style="padding: 10px 8px; text-align: center; color: var(--brand-gold); font-weight: 700;">${w.orderCount} Masa</td>
+                        <td style="padding: 10px 8px; text-align: right; font-weight: 800; color: white;">${formatMoney(w.revenue)}</td>
+                        <td style="padding: 10px 8px; text-align: right; color: var(--text-muted);">${formatMoney(w.revenue / w.orderCount)}</td>
+                    </tr>
+                `).join('');
+            }
+
+            // Mutfak Metrikleri
+            document.getElementById('metric-kitchen-items').textContent = `${totalItemQuantity} Adet`;
+            document.getElementById('metric-kitchen-tables').textContent = `${orderCount} Masa`;
+        }
+
+        window.filterProductStatsTable = () => {
+            const query = document.getElementById('search-product-stats').value.trim().toLocaleLowerCase('tr-TR');
+            renderProductStatsTable(null, query);
+        };
+
+        function renderProductStatsTable(totalRevenueParam = null, filterQuery = '') {
+            const totalRevenue = totalRevenueParam !== null ? totalRevenueParam : cachedProductStats.reduce((sum, p) => sum + p.revenue, 0);
+            const tbody = document.getElementById('tbody-product-sales');
+            
+            const list = filterQuery 
+                ? cachedProductStats.filter(p => p.name.toLocaleLowerCase('tr-TR').includes(filterQuery))
+                : cachedProductStats;
+
+            if (list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 24px;">Satış kaydı bulunamadı.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = list.map((p, idx) => {
+                const sharePct = totalRevenue > 0 ? ((p.revenue / totalRevenue) * 100).toFixed(1) : 0;
+                let rankClass = idx === 0 ? 'top-1' : (idx === 1 ? 'top-2' : (idx === 2 ? 'top-3' : ''));
+
+                return `
+                    <tr style="border-bottom: 1px solid var(--border-card);">
+                        <td style="padding: 10px 6px;">
+                            <span class="rank-badge ${rankClass}">${idx + 1}</span>
+                        </td>
+                        <td style="padding: 10px 8px; font-weight: 700;">
+                            <div>${p.name}</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">${sharePct}% Ciro Payı</div>
+                        </td>
+                        <td style="padding: 10px 8px; text-align: center; font-weight: 800; color: var(--brand-primary);">${p.quantity}x</td>
+                        <td style="padding: 10px 8px; text-align: right; font-weight: 800; color: white;">${formatMoney(p.revenue)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // ==============================================================
+        // 2. CANLI MASALAR & KASA YÖNETİMİ
+        // ==============================================================
+        function renderLiveTables() {
+            const grid = document.getElementById('admin-tables-grid');
+            const tbody = document.getElementById('tbody-admin-open-orders');
+            const openOrdersList = Object.values(activeOrders).filter(o => o.status === 'open');
+
+            const openTotal = openOrdersList.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+            const openCount = openOrdersList.length;
+            const freeCount = Math.max(0, tables.length - openCount);
+
+            document.getElementById('admin-live-open-total').textContent = formatMoney(openTotal);
+
+            // Üst Canlı Barı Güncelle
+            const openTablesEl = document.getElementById('admin-header-open-tables');
+            const freeTablesEl = document.getElementById('admin-header-free-tables');
+            const pendingRevEl = document.getElementById('admin-header-pending-revenue');
+            if (openTablesEl) openTablesEl.textContent = `● ${openCount} Açık Masa`;
+            if (freeTablesEl) freeTablesEl.textContent = `○ ${freeCount} Boş`;
+            if (pendingRevEl) pendingRevEl.textContent = `Açık Adisyon: ${formatMoney(openTotal)}`;
+
+            // Minyatür Masa Kartları
+            grid.innerHTML = tables.map((t, idx) => {
+                const tableNum = Number(t.table_no ?? t.id ?? (idx + 1));
+                const order = activeOrders[tableNum] || activeOrders[String(tableNum)];
+                const isBusy = !!order;
+                const allDelivered = isBusy && (order.items || []).length > 0 && order.items.every(i => i.status === 'delivered');
+
+                let wName = (order?.waiter_name || '').trim();
+                let waiterHtml = '';
+                if (isBusy) {
+                    if (!wName || wName.includes('Yönetici') || wName.includes('Patron')) {
+                        waiterHtml = `<div style="font-size: 10px; color: #f59f00; margin-top: 2px; font-weight: 700;">👤 Garson Seçilmedi</div>`;
+                    } else {
+                        waiterHtml = `<div style="font-size: 10px; color: var(--brand-gold); margin-top: 2px; font-weight: 700;">👤 ${wName}</div>`;
+                    }
+                }
+
+                return `
+                    <div class="table-card ${allDelivered ? 'delivered' : (isBusy ? 'busy' : '')}" 
+                         style="padding: 12px; cursor: pointer;"
+                         onclick="openTableAsCashier(${tableNum})">
+                        <div style="font-size: 14px; font-weight: 800;">Masa ${tableNum}</div>
+                        <div style="font-size: 11px; margin-top: 2px; color: ${allDelivered ? 'var(--success)' : (isBusy ? 'var(--brand-gold)' : 'var(--text-muted)')};">
+                            ${allDelivered ? '✓ Servis Edildi' : (isBusy ? '● Açık Hesap' : 'Boş')}
+                        </div>
+                        ${waiterHtml}
+                        <div style="font-size: 13px; font-weight: 800; margin-top: 4px;">${isBusy ? formatMoney(order.total) : '0,00 ₺'}</div>
+                    </div>
+                `;
+            }).join('');
+
+            // Detaylı Açık Hesaplar Tablosu
+            if (openOrdersList.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 36px;">Şu an açık hesap bulunmuyor. Tüm masalar boş.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = openOrdersList.map(order => {
+                const tableNo = order.table_no || order.table_id;
+                const allDelivered = (order.items || []).every(i => i.status === 'delivered');
+                const itemsSummary = (order.items || []).map(i => `${i.quantity}x ${i.name}`).join(', ');
+
+                return `
+                    <tr style="border-bottom: 1px solid var(--border-card);">
+                        <td style="padding: 12px 10px; font-weight: 800; font-size: 16px;">Masa ${tableNo}</td>
+                        <td style="padding: 12px 10px; font-weight: 700; color: var(--brand-gold);">👤 ${order.waiter_name || 'Personel'}</td>
+                        <td style="padding: 12px 10px;">
+                            <span class="user-role-tag" style="background: ${allDelivered ? 'var(--success)' : 'var(--danger)'};">
+                                ${allDelivered ? 'SERVİS EDİLDİ' : 'MUTFAKTA'}
+                            </span>
+                        </td>
+                        <td style="padding: 12px 10px; max-width: 280px; font-size: 12px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${itemsSummary}">
+                            ${itemsSummary}
+                        </td>
+                        <td style="padding: 12px 10px; font-weight: 800; font-size: 16px; color: white;">${formatMoney(order.total)}</td>
+                        <td style="padding: 12px 10px; text-align: right;">
+                            <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                                <button class="btn-outline" style="padding: 6px 12px; font-size: 12px;" onclick="openTableAsCashier(${tableNo})">Adisyon ↗</button>
+                                <button class="btn-success" style="padding: 6px 12px; font-size: 12px;" onclick="adminDirectCheckout(${tableNo}, 'cash')">💵 Nakit</button>
+                                <button class="btn-primary" style="padding: 6px 12px; font-size: 12px;" onclick="adminDirectCheckout(${tableNo}, 'card')">💳 Kart</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        window.openTableAsCashier = (tableNo) => {
+            localStorage.setItem('cafe_selected_table', String(tableNo));
+            pageNavigate(`table.html?id=${tableNo}&from=admin`);
+        };
+
+        window.adminDirectCheckout = async (tableNo, method) => {
+            const order = activeOrders[tableNo] || activeOrders[String(tableNo)];
+            if (!order) return;
+
+            const isCard = method === 'card';
+            const ok = await showConfirmModal({
+                title: isCard ? 'Kasadan Kartla Tahsilat' : 'Kasadan Nakit Tahsilat',
+                message: `Masa ${tableNo} toplam tutarı (${formatMoney(order.total)}) ${isCard ? 'KART ile tahsil edilip fiş yazdırılacaktır' : 'NAKİT olarak kasaya alınıp kapatılacaktır'}. Onaylıyor musunuz?`,
+                confirmText: isCard ? '💳 Fiş Yazdır & Kapat' : '💵 Kasaya Al & Kapat',
+                cancelText: 'Vazgeç',
+                type: isCard ? 'primary' : 'warning'
+            });
+
+            if (!ok) return;
+
+            if (isCard) {
+                printOrderReceipt({
+                    table_no: tableNo,
+                    items: order.items,
+                    subtotal: order.subtotal || order.total,
+                    total: order.total,
+                    payment_method: method,
+                    waiter_name: order.waiter_name
+                });
+            }
+
+            const paidRecord = {
+                id: order.id || ("paid-" + Date.now()),
+                table_id: tableNo,
+                table_no: tableNo,
+                items: order.items || [],
+                subtotal: order.total,
+                total: order.total,
+                payment_method: method,
+                waiter_name: order.waiter_name || 'Personel',
+                closed_by: user?.name || 'Patron',
+                status: 'paid',
+                closed_at: new Date().toISOString()
+            };
+
+            paidOrdersArchive.unshift(paidRecord);
+            localStorage.setItem('cafe_paid_orders_archive', JSON.stringify(paidOrdersArchive.slice(0, 1000)));
+
+            try {
+                if (order.id && !order.id.startsWith("order-")) {
+                    await updateDoc(doc(db, "orders", order.id), {
+                        status: 'paid',
+                        payment_method: method,
+                        closed_by: user?.name,
+                        closed_at: serverTimestamp()
+                    });
+                }
+            } catch(e) {}
+
+            delete activeOrders[tableNo];
+            delete activeOrders[String(tableNo)];
+            localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
+            broadcastOrderChange('order_closed', { tableNo, paidRecord });
+
+            triggerPaymentCelebration();
+            showToast(`Masa ${tableNo} hesabı kasadan kapatıldı (${formatMoney(order.total)})`, "success");
+            renderLiveTables();
+            renderAnalytics();
+        };
+
+        // ==============================================================
+        // 3. PERSONEL YÖNETİMİ (3 AYRI FIRESTORE TABLOSU VE İSTATİSTİKLER)
+        // ==============================================================
+        function renderStaffTables() {
+            // 1. Garsonlar (waiters)
+            const tbodyWaiters = document.getElementById('tbody-waiters');
+            const badgeWaiters = document.getElementById('badge-waiters-count');
+            if (badgeWaiters) badgeWaiters.textContent = `${waitersList.length} Garson`;
+            if (tbodyWaiters) {
+                if (waitersList.length === 0) {
+                    tbodyWaiters.innerHTML = `<tr><td colspan="8" style="padding: 16px; text-align: center; color: var(--text-muted);">Kayıtlı garson bulunmuyor</td></tr>`;
+                } else {
+                    tbodyWaiters.innerHTML = waitersList.map(w => {
+                        const lastTime = w.last_order_at ? new Date(w.last_order_at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) : '—';
+                        return `
+                        <tr style="border-bottom: 1px solid var(--border-card);">
+                            <td style="padding: 14px 10px; font-weight: 700; color: white;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+                                    <span>${w.name}</span>
+                                    ${w.section || w.area ? `<span style="font-size: 10px; color: var(--brand-gold); background: rgba(245,159,0,0.1); padding: 2px 6px; border-radius: 3px;">${w.section || w.area}</span>` : ''}
+                                </div>
+                            </td>
+                            <td style="padding: 14px 10px; font-family: monospace; font-size: 14px; color: var(--brand-gold); font-weight: 800;">
+                                ${w.pin || '------'}
+                            </td>
+                            <td style="padding: 14px 10px; font-weight: 700; color: white;">${w.total_orders_count || 0} Adet</td>
+                            <td style="padding: 14px 10px; font-weight: 800; color: #ffd43b;">${formatMoney(w.total_revenue || 0)}</td>
+                            <td style="padding: 14px 10px; color: var(--text-secondary);">${w.total_items_sold || 0} Porsiyon</td>
+                            <td style="padding: 14px 10px; font-family: monospace; color: #a5d8ff;">${lastTime}</td>
+                            <td style="padding: 14px 10px;"><span style="color: var(--success); font-size: 12px; font-weight: 700; background: rgba(16,185,129,0.1); padding: 3px 8px; border-radius: 4px;">● Aktif</span></td>
+                            <td style="padding: 14px 10px; text-align: right;">
+                                <div style="display: inline-flex; gap: 6px;">
+                                    <button class="btn-outline" style="padding: 4px 8px; font-size: 11px; color: var(--brand-gold); border-color: rgba(245,159,0,0.4);" onclick="openPinModal('${w.id}', 'waiter', '${w.name}')" title="Şifreyi Değiştir">🔑 PIN</button>
+                                    <button class="btn-outline" style="padding: 4px 8px; font-size: 11px; color: var(--danger); border-color: rgba(239, 68, 68, 0.4);" onclick="deleteStaff('${w.id}', 'waiter')">Sil</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `}).join('');
+                }
+            }
+
+            // 2. Mutfak Çalışanları (kitchen_staff)
+            const tbodyKitchen = document.getElementById('tbody-kitchen');
+            const badgeKitchen = document.getElementById('badge-kitchen-count');
+            if (badgeKitchen) badgeKitchen.textContent = `${kitchenList.length} Mutfak Çalışanı`;
+            if (tbodyKitchen) {
+                if (kitchenList.length === 0) {
+                    tbodyKitchen.innerHTML = `<tr><td colspan="8" style="padding: 16px; text-align: center; color: var(--text-muted);">Kayıtlı mutfak personeli bulunmuyor</td></tr>`;
+                } else {
+                    tbodyKitchen.innerHTML = kitchenList.map(k => {
+                        const lastTime = k.last_delivery_at ? new Date(k.last_delivery_at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) : '—';
+                        const avgPrep = k.avg_prep_time_minutes ? `${k.avg_prep_time_minutes} dk` : (k.total_prep_seconds ? `${(k.total_prep_seconds/60/Math.max(1,k.total_orders_prepared||1)).toFixed(1)} dk` : '7.2 dk');
+                        return `
+                        <tr style="border-bottom: 1px solid var(--border-card);">
+                            <td style="padding: 14px 10px; font-weight: 700; color: white;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;"></span>
+                                    <span>${k.name}</span>
+                                    ${k.section ? `<span style="font-size: 10px; color: var(--text-muted); background: var(--bg-surface-elevated); padding: 2px 6px; border-radius: 3px;">${k.section}</span>` : ''}
+                                </div>
+                            </td>
+                            <td style="padding: 14px 10px; font-family: monospace; font-size: 14px; color: var(--brand-gold); font-weight: 800;">
+                                ${k.pin || '------'}
+                            </td>
+                            <td style="padding: 14px 10px; font-weight: 700; color: white;">${k.total_orders_prepared || 0} Masa</td>
+                            <td style="padding: 14px 10px; color: var(--text-secondary);">${k.total_items_prepared || 0} Kalem</td>
+                            <td style="padding: 14px 10px; font-weight: 800; color: #10b981;">⏱️ ${avgPrep}</td>
+                            <td style="padding: 14px 10px; font-family: monospace; color: #a5d8ff;">${lastTime}</td>
+                            <td style="padding: 14px 10px;"><span style="color: var(--success); font-size: 12px; font-weight: 700; background: rgba(16,185,129,0.1); padding: 3px 8px; border-radius: 4px;">● Aktif</span></td>
+                            <td style="padding: 14px 10px; text-align: right;">
+                                <div style="display: inline-flex; gap: 6px;">
+                                    <button class="btn-outline" style="padding: 4px 8px; font-size: 11px; color: var(--brand-gold); border-color: rgba(245,159,0,0.4);" onclick="openPinModal('${k.id}', 'kitchen', '${k.name}')" title="Şifreyi Değiştir">🔑 PIN</button>
+                                    <button class="btn-outline" style="padding: 4px 8px; font-size: 11px; color: var(--danger); border-color: rgba(239, 68, 68, 0.4);" onclick="deleteStaff('${k.id}', 'kitchen')">Sil</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `}).join('');
+                }
+            }
+
+            // 3. Yöneticiler (managers)
+            const tbodyManagers = document.getElementById('tbody-managers');
+            const badgeManagers = document.getElementById('badge-managers-count');
+            if (badgeManagers) badgeManagers.textContent = `${managersList.length} Yönetici`;
+            if (tbodyManagers) {
+                if (managersList.length === 0) {
+                    tbodyManagers.innerHTML = `<tr><td colspan="7" style="padding: 16px; text-align: center; color: var(--text-muted);">Kayıtlı yönetici bulunmuyor</td></tr>`;
+                } else {
+                    tbodyManagers.innerHTML = managersList.map(m => {
+                        const lastLogin = m.last_login_at ? new Date(m.last_login_at).toLocaleTimeString('tr-TR', {hour:'2-digit', minute:'2-digit'}) : 'Bugün';
+                        return `
+                        <tr style="border-bottom: 1px solid var(--border-card);">
+                            <td style="padding: 14px 10px; font-weight: 700; color: white;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ffd43b;"></span>
+                                    <span>${m.name}</span>
+                                </div>
+                            </td>
+                            <td style="padding: 14px 10px; font-family: monospace; font-size: 14px; color: #ff6b6b; font-weight: 800;">
+                                ${m.pin || '------'}
+                            </td>
+                            <td style="padding: 14px 10px; color: var(--text-secondary); font-size: 12px;">${m.phone || '0532 100 20 30'}</td>
+                            <td style="padding: 14px 10px;"><span style="color: var(--brand-gold); font-size: 11px; font-weight: 800; background: rgba(245,159,0,0.15); padding: 3px 8px; border-radius: 4px;">👑 Tam Yetki & Denetim</span></td>
+                            <td style="padding: 14px 10px; font-family: monospace; color: #a5d8ff;">${lastLogin}</td>
+                            <td style="padding: 14px 10px;"><span style="color: var(--brand-gold); font-size: 12px; font-weight: 700;">● Aktif</span></td>
+                            <td style="padding: 14px 10px; text-align: right;">
+                                <div style="display: inline-flex; gap: 6px;">
+                                    <button class="btn-outline" style="padding: 4px 8px; font-size: 11px; color: var(--brand-gold); border-color: rgba(245,159,0,0.4);" onclick="openPinModal('${m.id}', 'admin', '${m.name}')" title="Şifreyi Değiştir">🔑 PIN</button>
+                                    <button class="btn-outline" style="padding: 4px 8px; font-size: 11px; color: var(--danger); border-color: rgba(239, 68, 68, 0.4);" onclick="deleteStaff('${m.id}', 'admin')">Sil</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `}).join('');
+                }
+            }
+        }
+
+        const staffModal = document.getElementById('staff-modal');
+        const pinModal = document.getElementById('pin-modal');
+        let editingStaffForPin = null;
+
+        window.handleRoleChangeInModal = (role) => {
+            const labelEl = document.getElementById('label-staff-extra');
+            const inputEl = document.getElementById('input-staff-extra');
+            if (!labelEl || !inputEl) return;
+            if (role === 'waiter') {
+                labelEl.textContent = 'Çalışma Alanı / Sorumluluk:';
+                inputEl.placeholder = 'Örn: Salon, Teras, Bahçe';
+            } else if (role === 'kitchen') {
+                labelEl.textContent = 'Mutfak Bölümü / Unvan:';
+                inputEl.placeholder = 'Örn: Tatlı & Fırın Şefi, Sıcak Mutfak, Barista';
+            } else {
+                labelEl.textContent = 'Yönetici Unvanı / Not:';
+                inputEl.placeholder = 'Örn: Genel Müdür, Vardiya Sorumlusu';
+            }
+        };
+
+        window.generateRandomPin = () => {
+            const pin = Math.floor(100000 + Math.random() * 900000).toString();
+            document.getElementById('input-staff-pin').value = pin;
+        };
+
+        window.generateRandomModalPin = () => {
+            const pin = Math.floor(100000 + Math.random() * 900000).toString();
+            document.getElementById('input-new-pin').value = pin;
+        };
+
+        window.openStaffModal = (preferredRole = 'waiter') => {
+            document.getElementById('input-staff-name').value = '';
+            document.getElementById('input-staff-pin').value = '';
+            document.getElementById('input-staff-phone').value = '';
+            document.getElementById('input-staff-extra').value = '';
+            if (preferredRole) {
+                document.getElementById('select-staff-role').value = preferredRole;
+                window.handleRoleChangeInModal(preferredRole);
+            }
+            openModalWithMotion(staffModal);
+        };
+
+        window.openPinModal = (id, role, name) => {
+            editingStaffForPin = { id, role, name };
+            document.getElementById('pin-modal-desc').innerHTML = `<strong>${name}</strong> için yeni 6 haneli giriş şifresi (PIN) belirleyin:`;
+            document.getElementById('input-new-pin').value = '';
+            openModalWithMotion(pinModal);
+        };
+
+        document.getElementById('modal-pin-save').onclick = async () => {
+            if (!editingStaffForPin) return;
+            const newPin = document.getElementById('input-new-pin').value.trim();
+            if (!newPin || newPin.length !== 6 || !/^\d+$/.test(newPin)) {
+                return showToast("PIN 6 haneli rakam olmalıdır.", "warning");
+            }
+
+            const { id, role, name } = editingStaffForPin;
+            const colName = getRoleCollectionName(role);
+            const list = role === 'admin' ? managersList : (role === 'kitchen' ? kitchenList : waitersList);
+            const staff = list.find(s => s.id === id);
+            if (staff) staff.pin = newPin;
+            renderStaffTables();
+
+            closeModalWithMotion(pinModal);
+            showToast(`${name} için yeni PIN (${newPin}) kaydedildi!`, "success");
+
+            try {
+                await updateDoc(doc(db, colName, id), { pin: newPin });
+            } catch(e) {
+                console.error("PIN güncelleme hatası:", e);
+                showToast("Şifre güncellenirken hata: " + e.message, "danger");
+            }
+        };
+
+        document.getElementById('modal-staff-cancel').onclick = () => {
+            closeModalWithMotion(staffModal);
+        };
+
+        document.getElementById('modal-staff-save').onclick = async () => {
+            const name = document.getElementById('input-staff-name').value.trim();
+            const role = document.getElementById('select-staff-role').value;
+            const pin = document.getElementById('input-staff-pin').value.trim();
+            const phone = document.getElementById('input-staff-phone').value.trim();
+            const extra = document.getElementById('input-staff-extra').value.trim();
+
+            if (!name) return showToast("Lütfen personel adını giriniz.", "warning");
+            if (!pin || pin.length !== 6 || !/^\d+$/.test(pin)) return showToast("PIN 6 haneli rakam olmalıdır.", "warning");
+
+            const colName = getRoleCollectionName(role);
+            const prefix = role === 'admin' ? 'mgr-' : (role === 'kitchen' ? 'ktc-' : 'wtr-');
+            const newId = prefix + Date.now();
+            
+            const newStaff = { 
+                id: newId, 
+                name, 
+                role, 
+                pin, 
+                phone: phone || '',
+                active: true, 
+                created_at: new Date().toISOString() 
+            };
+
+            if (role === 'waiter') {
+                newStaff.section = extra || 'Salon';
+                newStaff.total_orders_count = 0;
+                newStaff.total_revenue = 0;
+                newStaff.total_items_sold = 0;
+            } else if (role === 'kitchen') {
+                newStaff.section = extra || 'Mutfak Şefi';
+                newStaff.total_orders_prepared = 0;
+                newStaff.total_items_prepared = 0;
+                newStaff.total_prep_seconds = 0;
+                newStaff.avg_prep_time_minutes = 0;
+            } else {
+                newStaff.title = extra || 'Yönetici';
+                newStaff.permissions = ["all"];
+            }
+
+            // ANINDA EKRANI GÜNCELLE (Yenileme gerektirmez)
+            if (role === 'admin') managersList.push(newStaff);
+            else if (role === 'kitchen') kitchenList.push(newStaff);
+            else waitersList.push(newStaff);
+            renderStaffTables();
+
+            closeModalWithMotion(staffModal);
+            showToast(`${name} (${colName} tablosuna) başarıyla eklendi!`, "success");
+
+            try {
+                await setDoc(doc(db, colName, newId), newStaff);
+            } catch(e) {
+                console.error("Firestore kayıt hatası:", e);
+                showToast("Kaydedilirken hata oluştu: " + e.message, "danger");
+            }
+        };
+
+        window.deleteStaff = async (id, role) => {
+            const colName = getRoleCollectionName(role);
+            const list = role === 'admin' ? managersList : (role === 'kitchen' ? kitchenList : waitersList);
+            const staff = list.find(s => s.id === id);
+            const staffName = staff ? staff.name : 'Bu personeli';
+
+            const ok = await showConfirmModal({
+                title: 'Personeli Sil',
+                message: `${staffName} adlı personeli Firestore veritabanındaki "${colName}" tablosundan silmek istediğinize emin misiniz?`,
+                confirmText: 'Evet, Sil',
+                cancelText: 'Vazgeç',
+                type: 'danger'
+            });
+            if (ok) {
+                // ANINDA EKRANDAN KALDIR (Yenileme gerektirmez)
+                if (role === 'admin') managersList = managersList.filter(s => s.id !== id);
+                else if (role === 'kitchen') kitchenList = kitchenList.filter(s => s.id !== id);
+                else waitersList = waitersList.filter(s => s.id !== id);
+                renderStaffTables();
+                showToast(`${staffName} silindi`, "info");
+
+                try {
+                    await deleteDoc(doc(db, colName, id));
+                } catch(e) {
+                    showToast("Silinirken hata oluştu: " + e.message, "danger");
+                }
+            }
+        };
+
+        window.seedTestStaffData = async () => {
+            const ok = await showConfirmModal({
+                title: 'Test Personelleri & İstatistik Tabloları',
+                message: 'Firestore veritabanına 3 ayrı personel tablosu (Garsonlar, Mutfak, Yöneticiler) ve tamamlanmış sipariş performans verileri yüklensin mi?',
+                confirmText: 'Evet, Yükle',
+                cancelText: 'Vazgeç',
+                type: 'primary'
+            });
+            if (!ok) return;
+
+            showToast("Test verileri ve istatistik tabloları Firestore'a yükleniyor...", "info");
+            try {
+                const { seedCompleteStaffAndAnalytics } = await import("./seed-stats.js");
+                const result = await seedCompleteStaffAndAnalytics();
+
+                // Anında ekrana yansıt
+                managersList = result.managers;
+                waitersList = result.waiters;
+                kitchenList = result.kitchenStaff;
+                renderStaffTables();
+
+                showToast("3 ayrı personel tablosu ve istatistikler başarıyla hazırlandı!", "success");
+            } catch(err) {
+                console.error("Firestore test verisi hatası:", err);
+                showToast("Hata oluştu: " + err.message, "danger");
+            }
+        };
+
+        // ==============================================================
+        // CANLI VERİ DİNLEYİCİLERİ (FIRESTORE & BROADCAST)
+        // ==============================================================
+        onOrderChange((ev) => {
+            activeOrders = JSON.parse(localStorage.getItem('cafe_cached_orders') || '{}');
+            paidOrdersArchive = JSON.parse(localStorage.getItem('cafe_paid_orders_archive') || '[]');
+            if (currentActiveTab === 'analytics') renderAnalytics();
+            if (currentActiveTab === 'tables') renderLiveTables();
+        });
+
+        try {
+            // 3 Ayrı Koleksiyon Canlı Dinlenir
+            onSnapshot(collection(db, "waiters"), snap => {
+                waitersList = snap.docs.map(d => ({ id: d.id, ...d.data(), role: 'waiter' }));
+                if (currentActiveTab === 'staff') renderStaffTables();
+            }, () => {});
+
+            onSnapshot(collection(db, "kitchen_staff"), snap => {
+                kitchenList = snap.docs.map(d => ({ id: d.id, ...d.data(), role: 'kitchen' }));
+                if (currentActiveTab === 'staff') renderStaffTables();
+            }, () => {});
+
+            onSnapshot(collection(db, "managers"), snap => {
+                managersList = snap.docs.map(d => ({ id: d.id, ...d.data(), role: 'admin' }));
+                if (currentActiveTab === 'staff') renderStaffTables();
+            }, () => {});
+
+            onSnapshot(collection(db, "tables"), snap => {
+                if (!snap.empty) {
+                    tables = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => {
+                        const noA = Number(a.table_no ?? a.id ?? 0);
+                        const noB = Number(b.table_no ?? b.id ?? 0);
+                        return noA - noB;
+                    });
+                    if (currentActiveTab === 'tables') renderLiveTables();
+                }
+            }, () => {});
+
+            const q = query(collection(db, "orders"), where("status", "==", "open"));
+            onSnapshot(q, snap => {
+                activeOrders = {};
+                snap.forEach(d => {
+                    const data = d.data();
+                    const tId = Number(data.table_id || data.table_no);
+                    activeOrders[tId] = { id: d.id, ...data };
+                });
+                localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
+                renderLiveTables(); // Her an üst canlı durum barını da günceller
+                if (currentActiveTab === 'analytics') renderAnalytics();
+            }, () => {});
+
+            // Farklı cihazlardan kapatılan hesapların patronun paneline canlı yansıması
+            const qPaid = query(collection(db, "orders"), where("status", "==", "paid"));
+            onSnapshot(qPaid, snap => {
+                if (!snap.empty) {
+                    const firestorePaid = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                    const existingMap = new Map();
+                    paidOrdersArchive.forEach(p => existingMap.set(p.id, p));
+                    firestorePaid.forEach(p => existingMap.set(p.id, p));
+                    paidOrdersArchive = Array.from(existingMap.values()).sort((a,b) => new Date(b.closed_at || 0) - new Date(a.closed_at || 0));
+                    localStorage.setItem('cafe_paid_orders_archive', JSON.stringify(paidOrdersArchive.slice(0, 1000)));
+                    if (currentActiveTab === 'analytics') renderAnalytics();
+                }
+            }, () => {});
+        } catch(e) {}
+
+        renderLiveTables();
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('tab') === 'tables') {
+            switchTab('tables');
+        } else {
+            renderAnalytics();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+# Dependencies
+node_modules/
+.firebase/
+
+# OS and temp files
+.DS_Store
+Thumbs.db
+*.log

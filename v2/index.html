@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Giriş • Dededen Toruna Hamsiköy Sütlacı</title>
+    <link rel="stylesheet" href="app.css">
+    <link rel="stylesheet" href="animations.css">
+    <script src="libs/gsap.min.js"></script>
+</head>
+
+<body>
+    <div class="login-screen">
+        <div class="login-card">
+            <div style="margin-bottom: 14px;">
+                <img src="logo.png" alt="Dededen Toruna"
+                    style="width: 88px; height: 88px; border-radius: 50%; border: 3px solid var(--brand-primary); box-shadow: 0 0 24px rgba(247, 103, 7, 0.45); object-fit: cover;">
+            </div>
+            <h1 style="font-size: 24px; font-weight: 800; letter-spacing: -0.5px; color: white;">Dededen Toruna</h1>
+            <p
+                style="font-size: 13px; color: var(--brand-gold); font-weight: 700; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px;">
+                Hamsiköy Sütlacı & Cafe</p>
+
+            <div class="role-selector">
+                <button class="role-btn active" id="btn-role-waiter" onclick="selectRole('waiter')">
+                    <span style="font-size: 24px;">📱</span> Garson
+                </button>
+                <button class="role-btn" id="btn-role-kitchen" onclick="selectRole('kitchen')">
+                    <span style="font-size: 24px;">🍳</span> Mutfak
+                </button>
+                <button class="role-btn" id="btn-role-admin" onclick="selectRole('admin')">
+                    <span style="font-size: 24px;">👑</span> Yönetici
+                </button>
+            </div>
+
+            <div style="text-align: left; margin-bottom: 14px;">
+                <label style="font-size: 12px; color: var(--text-secondary); font-weight: 700;">Personel
+                    Seçiniz:</label>
+                <select id="staff-select"
+                    style="width: 100%; padding: 14px; background: var(--bg-surface-elevated); border: 1px solid var(--border-card); color: white; border-radius: var(--radius-md); margin-top: 6px; font-size: 15px; font-weight: 700;">
+                </select>
+            </div>
+
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 15px; font-weight: 600;">6 Haneli PIN
+                Kodunu Giriniz:</div>
+            <div class="pin-display">
+                <div class="pin-dot" id="dot-0"></div>
+                <div class="pin-dot" id="dot-1"></div>
+                <div class="pin-dot" id="dot-2"></div>
+                <div class="pin-dot" id="dot-3"></div>
+                <div class="pin-dot" id="dot-4"></div>
+                <div class="pin-dot" id="dot-5"></div>
+            </div>
+
+            <div class="numpad">
+                <button class="num-btn" onclick="pressNum('1')">1</button>
+                <button class="num-btn" onclick="pressNum('2')">2</button>
+                <button class="num-btn" onclick="pressNum('3')">3</button>
+                <button class="num-btn" onclick="pressNum('4')">4</button>
+                <button class="num-btn" onclick="pressNum('5')">5</button>
+                <button class="num-btn" onclick="pressNum('6')">6</button>
+                <button class="num-btn" onclick="pressNum('7')">7</button>
+                <button class="num-btn" onclick="pressNum('8')">8</button>
+                <button class="num-btn" onclick="pressNum('9')">9</button>
+                <button class="num-btn" style="color: var(--danger);" onclick="clearPin()">C</button>
+                <button class="num-btn" onclick="pressNum('0')">0</button>
+                <button class="num-btn" style="color: var(--brand-primary); font-size: 26px;"
+                    onclick="submitPin()">✓</button>
+            </div>
+
+            <div style="margin-top: 16px; text-align: center;">
+                <button type="button" onclick="seedTestStaffDataFromLogin()" style="background: transparent; border: 1px dashed var(--border-card); color: var(--text-muted); font-size: 11px; padding: 6px 14px; border-radius: var(--radius-sm); cursor: pointer; transition: 0.2s;">
+                    ⚡ Test Personellerini Firestore'a Ekle
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import {
+            setActiveUser,
+            db,
+            collection,
+            onSnapshot
+        } from "./core.js";
+        import { showToast, pageNavigate, triggerPaymentCelebration } from "./motion.js";
+
+        let currentRole = localStorage.getItem('cafe_active_role') || 'waiter';
+        const DEFAULT_WAITERS = [
+            { id: "wtr-1", name: "Ahmet", role: "waiter", pin: "123456", section: "Salon", active: true },
+            { id: "wtr-2", name: "Mehmet", role: "waiter", pin: "654321", section: "Teras", active: true },
+            { id: "wtr-3", name: "Ayşe", role: "waiter", pin: "111111", section: "Bahçe", active: true }
+        ];
+        const DEFAULT_KITCHEN = [
+            { id: "ktc-1", name: "Fadime", role: "kitchen", pin: "112233", section: "Tatlı & Fırın Şefi", active: true },
+            { id: "ktc-2", name: "Emre Usta", role: "kitchen", pin: "223344", section: "Sıcak Mutfak", active: true }
+        ];
+        const DEFAULT_MANAGERS = [
+            { id: "mgr-1", name: "Yönetici (Patron)", role: "admin", pin: "197300", title: "Genel Müdür", active: true }
+        ];
+
+        let waitersList = [...DEFAULT_WAITERS];
+        let kitchenList = [...DEFAULT_KITCHEN];
+        let managersList = [...DEFAULT_MANAGERS];
+        let enteredPin = "";
+
+        // 3 Ayrı Firestore Tablosunu Canlı Dinle
+        try {
+            onSnapshot(collection(db, "waiters"), (snap) => {
+                if (!snap.empty) {
+                    waitersList = snap.docs.map(d => ({ id: d.id, ...d.data(), role: 'waiter' }));
+                    if (currentRole === 'waiter') populateStaffDropdown();
+                }
+            }, () => { });
+
+            onSnapshot(collection(db, "kitchen_staff"), (snap) => {
+                if (!snap.empty) {
+                    kitchenList = snap.docs.map(d => ({ id: d.id, ...d.data(), role: 'kitchen' }));
+                    if (currentRole === 'kitchen') populateStaffDropdown();
+                }
+            }, () => { });
+
+            onSnapshot(collection(db, "managers"), (snap) => {
+                if (!snap.empty) {
+                    managersList = snap.docs.map(d => ({ id: d.id, ...d.data(), role: 'admin' }));
+                    if (currentRole === 'admin') populateStaffDropdown();
+                }
+            }, () => { });
+        } catch (e) { }
+
+        function getActiveRoleStaffList() {
+            if (currentRole === 'admin') return managersList;
+            if (currentRole === 'kitchen') return kitchenList;
+            return waitersList;
+        }
+
+        function populateStaffDropdown() {
+            const selectEl = document.getElementById('staff-select');
+            const list = getActiveRoleStaffList().filter(s => s.active !== false);
+            if (list.length === 0) {
+                selectEl.innerHTML = `<option value="">Personel kaydı bulunamadı</option>`;
+                return;
+            }
+            selectEl.innerHTML = list.map(s => {
+                const extra = s.section || s.title || '';
+                return `<option value="${s.id}">${s.name}${extra ? ' (' + extra + ')' : ''}</option>`;
+            }).join('');
+        }
+
+        window.selectRole = (r) => {
+            currentRole = r;
+            localStorage.setItem('cafe_active_role', r);
+            document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`btn-role-${r}`).classList.add('active');
+            populateStaffDropdown();
+            clearPin();
+        };
+
+        window.pressNum = (n) => {
+            if (enteredPin.length < 6) {
+                enteredPin += n;
+                updateDots();
+                if (enteredPin.length === 6) setTimeout(submitPin, 50);
+            }
+        };
+
+        window.clearPin = () => {
+            enteredPin = "";
+            updateDots();
+        };
+
+        function updateDots() {
+            for (let i = 0; i < 6; i++) {
+                const dot = document.getElementById(`dot-${i}`);
+                const isFilled = i < enteredPin.length;
+                dot.classList.toggle('filled', isFilled);
+                if (isFilled && window.gsap) {
+                    window.gsap.fromTo(dot, { scale: 1.4 }, { scale: 1, duration: 0.15, ease: 'back.out(2)' });
+                }
+            }
+        }
+
+        window.submitPin = () => {
+            const staffId = document.getElementById('staff-select').value;
+            const staff = getActiveRoleStaffList().find(s => s.id === staffId);
+            if (!staff) return showToast("Lütfen personel seçiniz.", "warning");
+
+            if (staff.pin === enteredPin) {
+                setActiveUser(staff);
+                showToast(`Hoş geldiniz, ${staff.name}!`, "success");
+                triggerPaymentCelebration();
+
+                setTimeout(() => {
+                    if (staff.role === 'waiter') pageNavigate('waiter.html');
+                    else if (staff.role === 'kitchen') pageNavigate('kitchen.html');
+                    else if (staff.role === 'admin') pageNavigate('admin.html');
+                }, 80);
+            } else {
+                showToast("Hatalı PIN Kodu!", "danger");
+                if (window.gsap) {
+                    window.gsap.to('.login-card', {
+                        x: -12, repeat: 5, yoyo: true, duration: 0.05, onComplete: () => {
+                            window.gsap.set('.login-card', { x: 0 });
+                        }
+                    });
+                }
+                clearPin();
+            }
+        };
+
+        window.seedTestStaffDataFromLogin = async () => {
+            try {
+                showToast("Test personelleri ve istatistik tabloları Firestore'a yükleniyor...", "info");
+                const { setDoc, doc } = await import("./firebase-config.js");
+
+                // 1. YÖNETİCİLER TABLOSU (managers)
+                const mgr = {
+                    id: "mgr-1",
+                    name: "Yönetici (Patron)",
+                    role: "admin",
+                    pin: "197300",
+                    phone: "0532 100 20 30",
+                    active: true,
+                    permissions: ["all", "reports", "staff_management", "expenses", "discounts", "audit"],
+                    created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
+                    last_login_at: new Date().toISOString()
+                };
+
+                // 2. GARSONLAR TABLOSU (waiters) - Satış & Sipariş İstatistikleri
+                const w1 = {
+                    id: "wtr-1",
+                    name: "Ahmet",
+                    role: "waiter",
+                    pin: "123456",
+                    phone: "0541 222 33 44",
+                    active: true,
+                    total_orders_count: 24,
+                    total_revenue: 9480,
+                    total_items_sold: 72,
+                    top_selling_product: "Hamsiköy Sütlacı",
+                    created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
+                    last_order_at: new Date(Date.now() - 25 * 60000).toISOString()
+                };
+                const w2 = {
+                    id: "wtr-2",
+                    name: "Mehmet",
+                    role: "waiter",
+                    pin: "654321",
+                    phone: "0542 333 44 55",
+                    active: true,
+                    total_orders_count: 16,
+                    total_revenue: 6140,
+                    total_items_sold: 48,
+                    top_selling_product: "Karışık Tost",
+                    created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
+                    last_order_at: new Date(Date.now() - 45 * 60000).toISOString()
+                };
+                const w3 = {
+                    id: "wtr-3",
+                    name: "Ayşe",
+                    role: "waiter",
+                    pin: "111111",
+                    phone: "0543 444 55 66",
+                    active: true,
+                    total_orders_count: 20,
+                    total_revenue: 8320,
+                    total_items_sold: 61,
+                    top_selling_product: "Fincan Çay",
+                    created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
+                    last_order_at: new Date(Date.now() - 12 * 60000).toISOString()
+                };
+
+                // 3. MUTFAK ÇALIŞANLARI TABLOSU (kitchen_staff) - Hazırlık & Teslim Süre İstatistikleri
+                const ktc1 = {
+                    id: "ktc-1",
+                    name: "Fadime",
+                    role: "kitchen",
+                    pin: "112233",
+                    section: "Tatlı & Fırın Şefi",
+                    active: true,
+                    total_orders_prepared: 42,
+                    total_items_prepared: 136,
+                    total_prep_seconds: 18144,
+                    avg_prep_time_minutes: 7.2,
+                    fastest_prep_minutes: 3.5,
+                    created_at: new Date(Date.now() - 25 * 86400000).toISOString(),
+                    last_delivery_at: new Date(Date.now() - 15 * 60000).toISOString()
+                };
+                const ktc2 = {
+                    id: "ktc-2",
+                    name: "Emre Usta",
+                    role: "kitchen",
+                    pin: "223344",
+                    section: "Sıcak Mutfak & Izgara",
+                    active: true,
+                    total_orders_prepared: 28,
+                    total_items_prepared: 84,
+                    total_prep_seconds: 14784,
+                    avg_prep_time_minutes: 8.8,
+                    fastest_prep_minutes: 4.0,
+                    created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
+                    last_delivery_at: new Date(Date.now() - 35 * 60000).toISOString()
+                };
+
+                // Yerel dropdown'a anında yansıt
+                managersList = [mgr];
+                waitersList = [w1, w2, w3];
+                kitchenList = [ktc1, ktc2];
+                populateStaffDropdown();
+
+                // Firestore'a 3 ayrı tabloya yaz
+                await Promise.all([
+                    setDoc(doc(db, "managers", "mgr-1"), mgr),
+                    setDoc(doc(db, "waiters", "wtr-1"), w1),
+                    setDoc(doc(db, "waiters", "wtr-2"), w2),
+                    setDoc(doc(db, "waiters", "wtr-3"), w3),
+                    setDoc(doc(db, "kitchen_staff", "ktc-1"), ktc1),
+                    setDoc(doc(db, "kitchen_staff", "ktc-2"), ktc2)
+                ]);
+
+                // Örnek tamamlanmış adisyonları da Firestore'a ekle (Zengin analiz için)
+                const { seedCompleteStaffAndAnalytics } = await import("./seed-stats.js");
+                await seedCompleteStaffAndAnalytics();
+
+                showToast("3 ayrı personel tablosu ve istatistikler başarıyla hazırlandı!", "success");
+            } catch(e) {
+                console.error("Test verisi hatası:", e);
+                showToast("Hata: " + e.message, "danger");
+            }
+        };
+
+        selectRole(currentRole);
+    </script>
+</body>
+
+</html>

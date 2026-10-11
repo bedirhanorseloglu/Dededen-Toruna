@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Masalar • Dededen Toruna Hamsiköy Sütlacı</title>
+    <link rel="stylesheet" href="app.css">
+    <link rel="stylesheet" href="animations.css">
+    <script src="libs/gsap.min.js"></script>
+</head>
+<body>
+    <header class="app-header">
+        <div class="brand-section">
+            <img src="logo.png" alt="Dededen Toruna" class="brand-logo-img">
+            <div class="brand-text">
+                <h1>Dededen Toruna</h1>
+                <p>1924 Hamsiköy Sütlacı</p>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;" id="user-actions-header">
+            <div class="user-badge" id="user-badge-box">
+                <span class="user-role-tag" id="user-role-tag">GARSON</span>
+                <strong id="user-name-display">...</strong>
+            </div>
+            <button class="btn-logout" title="Çıkış Yap" id="btn-logout">✕</button>
+        </div>
+    </header>
+
+    <!-- Masa Durum Çubuğu -->
+    <div style="max-width: 1400px; margin: 0 auto 16px auto; padding: 0 16px; display: flex; align-items: center; justify-content: flex-start; gap: 8px;">
+        <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #10b981; animation: pulseGlow 2s infinite;"></span>
+        <span style="color: var(--text-secondary); font-weight: 600; font-size: 13px;">Masalar</span>
+    </div>
+
+    <main class="tables-grid" id="tables-container">
+        <!-- Masalar dinamik listelenecek -->
+    </main>
+
+    <!-- Adisyon Görüntüle & Hızlı Hesap Kapatma Modalı -->
+    <div class="modal-overlay" id="receipt-modal">
+        <div class="modal-content" style="max-width: 480px; padding: 22px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-card); padding-bottom: 12px; margin-bottom: 16px;">
+                <div>
+                    <h3 style="font-size: 19px; font-weight: 800; color: white;" id="modal-receipt-title">Masa Adisyonu</h3>
+                    <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;" id="modal-receipt-waiter">Garson: ...</p>
+                </div>
+                <div id="modal-receipt-status-badge">
+                    <span style="font-size: 11px; padding: 4px 8px; border-radius: 4px; font-weight: 800; background: rgba(16,185,129,0.15); color: #10b981;">✓ Tüm Ürünler Hazır</span>
+                </div>
+            </div>
+
+            <!-- Ürün Listesi -->
+            <div style="max-height: 280px; overflow-y: auto; padding-right: 4px; margin-bottom: 16px;" id="modal-receipt-items">
+                <!-- Kalemler buraya render edilecek -->
+            </div>
+
+            <!-- Tutar Özeti -->
+            <div style="background: var(--bg-surface-elevated); padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border-card); margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 14px; font-weight: 700; color: var(--text-secondary);">Toplam Tutar:</span>
+                <span style="font-size: 24px; font-weight: 800; color: var(--brand-gold);" id="modal-receipt-total">0,00 ₺</span>
+            </div>
+
+            <!-- Aksiyon Butonları -->
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button class="btn-primary" id="btn-modal-pay-cash" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #10b981; font-weight: 800; padding: 12px; font-size: 14px;">
+                        💵 Nakit Kapat
+                    </button>
+                    <button class="btn-primary" id="btn-modal-pay-card" style="background: linear-gradient(135deg, var(--brand-primary), #e8590c); border-color: var(--brand-gold); font-weight: 800; padding: 12px; font-size: 14px;">
+                        💳 Kart & Fiş Yazdır
+                    </button>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button class="btn-outline" id="btn-modal-add-items" style="color: var(--brand-gold); border-color: var(--brand-gold); font-weight: 700; padding: 10px; font-size: 13px;">
+                        ➕ İlave Sipariş Ekle
+                    </button>
+                    <button class="btn-outline" id="btn-modal-close" style="padding: 10px; font-size: 13px;">
+                        ✕ Vazgeç / Kapat
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { 
+            checkAuth, 
+            clearActiveUser, 
+            DEFAULT_TABLES, 
+            formatMoney, 
+            onOrderChange, 
+            playOrderReadySound,
+            speakAnnouncement,
+            db, 
+            collection, 
+            doc,
+            updateDoc,
+            onSnapshot, 
+            query, 
+            where,
+            broadcastOrderChange
+        } from "./core.js";
+        import { animateCardEntrance, pageNavigate, showToast, openModalWithMotion, closeModalWithMotion, showConfirmModal } from "./motion.js";
+        import { printOrderReceipt } from "./printer.js";
+        import { recordCompletedOrder } from "./analytics-service.js";
+
+        let user = checkAuth('waiter');
+        if (!user) {
+            user = { id: "wtr-1", name: "Ahmet", role: "waiter", pin: "123456", active: true };
+        }
+
+        const userNameEl = document.getElementById('user-name-display');
+        if (userNameEl) userNameEl.textContent = user.name;
+
+        const roleTag = document.getElementById('user-role-tag');
+        if (roleTag) {
+            roleTag.textContent = 'GARSON';
+            roleTag.style.background = '';
+        }
+
+        document.getElementById('btn-logout').onclick = () => {
+            clearActiveUser();
+            pageNavigate('index.html');
+        };
+
+        let tables = [...DEFAULT_TABLES];
+        let activeOrders = JSON.parse(localStorage.getItem('cafe_cached_orders') || '{}');
+        
+        let initialRenderDone = false;
+        let knownDeliveredTables = new Set();
+        let selectedTableForReceipt = null;
+
+        window.openTableOrder = (tableNum) => {
+            const num = Number(tableNum) || 1;
+            localStorage.setItem('cafe_selected_table', String(num));
+            pageNavigate(`table.html?id=${num}`);
+        };
+
+        // Adisyon Görüntüle Modalı
+        const receiptModal = document.getElementById('receipt-modal');
+        window.viewReceiptModal = (tableNum) => {
+            const num = Number(tableNum) || 1;
+            selectedTableForReceipt = num;
+            const order = activeOrders[num] || activeOrders[String(num)];
+            if (!order || !order.items || order.items.length === 0) {
+                // Eğer adisyon boşsa direkt sipariş menüsünü aç
+                window.openTableOrder(num);
+                return;
+            }
+
+            document.getElementById('modal-receipt-title').textContent = `Masa ${num} Adisyonu`;
+            document.getElementById('modal-receipt-waiter').textContent = `Masaya Bakan Garson: ${order.waiter_name || user.name}`;
+            document.getElementById('modal-receipt-total').textContent = formatMoney(order.total);
+
+            const allDelivered = order.items.every(i => i.status === 'delivered');
+            const statusBadgeEl = document.getElementById('modal-receipt-status-badge');
+            if (statusBadgeEl) {
+                if (allDelivered) {
+                    statusBadgeEl.innerHTML = `<span style="font-size: 11px; padding: 4px 8px; border-radius: 4px; font-weight: 800; background: rgba(16,185,129,0.15); color: #10b981;">✓ Tüm Ürünler Hazır</span>`;
+                } else {
+                    statusBadgeEl.innerHTML = `<span style="font-size: 11px; padding: 4px 8px; border-radius: 4px; font-weight: 800; background: rgba(245,158,11,0.15); color: #f59e0b;">⏱️ Mutfakta Hazırlanıyor</span>`;
+                }
+            }
+
+            const itemsContainer = document.getElementById('modal-receipt-items');
+            itemsContainer.innerHTML = order.items.map(i => `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-weight: 800; color: var(--brand-gold);">${i.quantity}x</span>
+                        <div>
+                            <div style="color: white; font-weight: 600; font-size: 13px;">${i.name}</div>
+                            ${i.note ? `<div style="font-size: 11px; color: var(--text-muted);">📝 ${i.note}</div>` : ''}
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 3px; ${i.status === 'delivered' ? 'background: rgba(16,185,129,0.15); color: #10b981;' : 'background: rgba(245,158,11,0.15); color: #f59e0b;'}">
+                            ${i.status === 'delivered' ? '✓ Teslim' : 'Hazırlanıyor'}
+                        </span>
+                        <span style="font-weight: 700; color: white; font-size: 13px;">${formatMoney(i.price * i.quantity)}</span>
+                    </div>
+                </div>
+            `).join('');
+
+            openModalWithMotion(receiptModal);
+        };
+
+        document.getElementById('btn-modal-close').onclick = () => {
+            closeModalWithMotion(receiptModal);
+        };
+
+        document.getElementById('btn-modal-add-items').onclick = () => {
+            closeModalWithMotion(receiptModal);
+            if (selectedTableForReceipt) window.openTableOrder(selectedTableForReceipt);
+        };
+
+        // Hızlı Tahsilat Fonksiyonu (Mutfağa Asla Dokunmaz!)
+        async function handleFastCheckout(method) {
+            if (!selectedTableForReceipt) return;
+            const tableNum = selectedTableForReceipt;
+            const order = activeOrders[tableNum] || activeOrders[String(tableNum)];
+            if (!order) return;
+
+            const isCard = method === 'card';
+            const ok = await showConfirmModal({
+                title: isCard ? 'Kartla Ödeme & Fiş' : 'Nakit Ödeme',
+                message: `Masa ${tableNum} toplam tutarı (${formatMoney(order.total)}) ${isCard ? 'KART ile alınıp adisyon fişi yazdırılacaktır' : 'NAKİT olarak tahsil edilip kapatılacaktır'}. Onaylıyor musunuz?`,
+                confirmText: isCard ? '💳 Fiş Yazdır & Kapat' : '💵 Nakit Kapat',
+                cancelText: 'Vazgeç',
+                type: isCard ? 'primary' : 'warning'
+            });
+            if (!ok) return;
+
+            if (isCard) {
+                printOrderReceipt({
+                    table_no: tableNum,
+                    items: order.items,
+                    subtotal: order.subtotal || order.total,
+                    total: order.total,
+                    payment_method: 'card',
+                    waiter_name: order.waiter_name || user.name
+                });
+            }
+
+            const paidRecord = {
+                id: order.id || ("paid-" + Date.now()),
+                table_id: tableNum,
+                table_no: tableNum,
+                items: JSON.parse(JSON.stringify(order.items)),
+                subtotal: order.subtotal || order.total,
+                total: order.total,
+                payment_method: method,
+                waiter_id: order.waiter_id || user.id,
+                waiter_name: order.waiter_name || user.name,
+                order_taken_at: order.order_taken_at || new Date().toISOString(),
+                kitchen_delivered_at: order.kitchen_delivered_at || new Date().toISOString(),
+                closed_by: user.name,
+                status: 'paid',
+                closed_at: new Date().toISOString()
+            };
+
+            // Firestore completed_orders tablosuna kaydet & garson cirosunu artır
+            recordCompletedOrder(paidRecord, method);
+
+            // Masayı yerelden temizle
+            delete activeOrders[tableNum];
+            delete activeOrders[String(tableNum)];
+            localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
+
+            // Firestore'da siparişi kapat
+            try {
+                if (order.id && !order.id.startsWith("order-")) {
+                    await updateDoc(doc(db, "orders", order.id), {
+                        status: 'paid',
+                        closed_at: paidRecord.closed_at,
+                        payment_method: method
+                    });
+                }
+            } catch(e) {}
+
+            closeModalWithMotion(receiptModal);
+            showToast(`Masa ${tableNum} hesabı başarıyla kapatıldı!`, "success");
+            renderTables();
+            broadcastOrderChange('order_paid', { table_no: tableNum });
+        }
+
+        document.getElementById('btn-modal-pay-cash').onclick = () => handleFastCheckout('cash');
+        document.getElementById('btn-modal-pay-card').onclick = () => handleFastCheckout('card');
+
+        function highlightTableCard(tableNum) {
+            const card = document.getElementById(`table-card-${tableNum}`);
+            if (card && window.gsap) {
+                window.gsap.timeline()
+                    .to(card, { scale: 1.08, borderColor: '#10b981', duration: 0.25, ease: 'power2.out' })
+                    .to(card, { scale: 1, duration: 0.35, ease: 'bounce.out' });
+            }
+        }
+
+        function renderTables() {
+            const container = document.getElementById('tables-container');
+
+            container.innerHTML = tables.map((t, idx) => {
+                const tableNum = Number(t.table_no ?? t.id ?? (idx + 1));
+                const order = activeOrders[tableNum] || activeOrders[String(tableNum)];
+                const isBusy = !!order;
+                const allDelivered = isBusy && (order.items || []).length > 0 && order.items.every(i => i.status === 'delivered');
+
+                // Garson Bilgisi
+                let waiterHtml = '';
+                if (isBusy) {
+                    const wName = (order.waiter_name || '').trim() || user?.name || 'Garson';
+                    const isMyTable = user?.role === 'waiter' && (wName === user.name);
+                    waiterHtml = `
+                        <div style="font-size: 11px; color: ${isMyTable ? '#10b981' : 'var(--brand-gold)'}; margin-top: 4px; font-weight: 700; letter-spacing: 0.2px; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                            👤 ${wName}
+                            ${isMyTable ? '<span style="font-size: 9px; background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 1px 4px; border-radius: 3px; font-weight: 800;">BENİM</span>' : ''}
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div class="table-card ${allDelivered ? 'delivered' : (isBusy ? 'busy' : '')}" 
+                         id="table-card-${tableNum}"
+                         onclick="${isBusy ? `window.viewReceiptModal(${tableNum})` : `window.openTableOrder(${tableNum})`}">
+                        <div class="table-no">Masa ${tableNum}</div>
+                        <div class="table-status">
+                            ${allDelivered ? '✓ Tümü Teslim' : (isBusy ? '● Açık Hesap' : 'Boş')}
+                        </div>
+                        ${waiterHtml}
+                        <div class="table-total" style="margin-bottom: ${isBusy ? '10px' : '0'};">
+                            ${isBusy ? formatMoney(order.total) : '0,00 ₺'}
+                        </div>
+
+                        <!-- Kullanıcının İstediği Hızlı Aksiyon Butonları -->
+                        <div style="margin-top: auto; width: 100%; display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08);">
+                            ${isBusy ? `
+                                <button class="btn-primary" style="padding: 7px 10px; font-size: 12px; font-weight: 800; background: linear-gradient(135deg, #f59f00, #d97706); border: none; border-radius: var(--radius-sm); color: #110d0c; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;" onclick="event.stopPropagation(); window.viewReceiptModal(${tableNum})">
+                                    <span>🧾</span> Adisyon Gör & Kapat
+                                </button>
+                                <button class="btn-outline" style="padding: 5px 10px; font-size: 11px; font-weight: 700; color: var(--text-secondary); border-color: rgba(255,255,255,0.2); border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;" onclick="event.stopPropagation(); window.openTableOrder(${tableNum})">
+                                    <span>➕</span> Sipariş Ekle
+                                </button>
+                            ` : `
+                                <button class="btn-outline" style="padding: 7px 10px; font-size: 12px; font-weight: 700; color: #10b981; border-color: rgba(16,185,129,0.4); border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;" onclick="event.stopPropagation(); window.openTableOrder(${tableNum})">
+                                    <span>➕</span> Sipariş Aç
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if (!initialRenderDone) {
+                initialRenderDone = true;
+                setTimeout(() => animateCardEntrance('.table-card'), 50);
+            }
+        }
+
+        // Bildirimin SADECE bu masanın garsonuna gitmesini sağlayan güvenlik kontrolü
+        function isOrderBelongsToCurrentWaiter(orderOrData) {
+            if (!orderOrData || !user) return false;
+            const targetId = orderOrData.waiter_id;
+            const targetName = (orderOrData.waiter_name || '').trim().toLowerCase();
+            const myId = user.id;
+            const myName = (user.name || '').trim().toLowerCase();
+
+            // ID veya İsim eşleşmesi (Yönetici durumunda sessiz kalır)
+            if (targetId && myId && targetId === myId) return true;
+            if (targetName && myName && targetName === myName) return true;
+            return false;
+        }
+
+        // Mutfaktan gelen canlı yayın (BroadcastChannel / LocalStorage)
+        onOrderChange((ev) => {
+            activeOrders = JSON.parse(localStorage.getItem('cafe_cached_orders') || '{}');
+            if (ev?.type === 'all_delivered') {
+                const tableNum = ev.data?.table_no;
+                const order = activeOrders[tableNum] || activeOrders[String(tableNum)];
+                
+                // Sipariş veya yayındaki garson bilgisi kontrolü
+                const belongsToMe = isOrderBelongsToCurrentWaiter(order) || isOrderBelongsToCurrentWaiter(ev.data);
+
+                if (belongsToMe && tableNum) {
+                    playOrderReadySound();
+                    speakAnnouncement(`Masa ${tableNum} siparişiniz hazır`);
+                    showToast(`🔔 Masa ${tableNum} siparişiniz hazır! Servis edebilirsiniz.`, "success");
+                    highlightTableCard(tableNum);
+                }
+            }
+            renderTables();
+        });
+
+        // Firestore Masalar ve Canlı Siparişler (Farklı cihazlar için anlık senkron)
+        try {
+            onSnapshot(collection(db, "tables"), snap => {
+                if (!snap.empty) {
+                    tables = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => {
+                        const noA = Number(a.table_no ?? a.id ?? 0);
+                        const noB = Number(b.table_no ?? b.id ?? 0);
+                        return noA - noB;
+                    });
+                    renderTables();
+                }
+            }, () => {});
+
+            const q = query(collection(db, "orders"), where("status", "==", "open"));
+            onSnapshot(q, snap => {
+                const newOrders = {};
+                snap.forEach(d => {
+                    const data = d.data();
+                    const tId = Number(data.table_id || data.table_no);
+                    
+                    // Eğer dökümanda Yönetici yazıyorsa garsonun ekranını temizle
+                    let cleanWaiter = data.waiter_name;
+                    if (cleanWaiter && (cleanWaiter.includes('Yönetici') || cleanWaiter.includes('Patron'))) {
+                        cleanWaiter = ''; // Garson Seçilmedi durumuna çek
+                    }
+
+                    newOrders[tId] = { id: d.id, ...data, waiter_name: cleanWaiter };
+                    
+                    const isAllDelivered = data.items?.length > 0 && data.items.every(i => i.status === 'delivered');
+                    if (isAllDelivered && !knownDeliveredTables.has(tId)) {
+                        // SADECE ve SADECE siparişi alan garsonun ekranında ses ve toast bildirimi ver!
+                        const belongsToMe = isOrderBelongsToCurrentWaiter(data);
+                        if (belongsToMe && initialRenderDone) {
+                            playOrderReadySound();
+                            speakAnnouncement(`Masa ${tId} siparişiniz hazır`);
+                            showToast(`🔔 Masa ${tId} siparişiniz hazır! Servis edebilirsiniz.`, "success");
+                            highlightTableCard(tId);
+                        }
+                        knownDeliveredTables.add(tId);
+                    } else if (!isAllDelivered && knownDeliveredTables.has(tId)) {
+                        knownDeliveredTables.delete(tId);
+                    }
+                });
+                activeOrders = newOrders;
+                localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
+                renderTables();
+            }, () => {});
+        } catch(e) {}
+
+        renderTables();
+    </script>
+</body>
+</html>

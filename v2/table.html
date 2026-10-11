@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Masa Adisyonu • Dededen Toruna Hamsiköy Sütlacı</title>
+    <link rel="stylesheet" href="app.css">
+    <link rel="stylesheet" href="animations.css">
+    <script src="libs/gsap.min.js"></script>
+</head>
+<body>
+    <header class="app-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <button class="btn-outline" id="btn-back-nav" style="padding: 8px 12px; font-size: 13px; font-weight: 700; cursor: pointer;">← Geri</button>
+            <div class="brand-section">
+                <img src="logo.png" alt="Dededen Toruna" class="brand-logo-img">
+                <div class="brand-text">
+                    <h1 id="table-title">Masa Adisyonu</h1>
+                    <p>1924 Hamsiköy Sütlacı</p>
+                </div>
+            </div>
+        </div>
+        <div class="user-badge">
+            <span class="user-role-tag" id="user-role-badge">GARSON</span>
+            <strong id="waiter-name-display">...</strong>
+        </div>
+    </header>
+
+    <!-- Mobil Arka Plan Karartması (Backdrop) -->
+    <div class="receipt-backdrop" id="receipt-backdrop"></div>
+
+    <div class="order-screen-layout">
+        <!-- Sol: Menü & Kategoriler (68 Lezzet) -->
+        <section class="menu-side">
+            <div class="category-bar" id="category-tabs">
+                <!-- Kategoriler -->
+            </div>
+            <div class="products-grid" id="products-grid">
+                <!-- Ürünler -->
+            </div>
+        </section>
+
+        <!-- Sağ: Adisyon Sepeti & Ödeme (Mobilde Slide-up Bottom Sheet) -->
+        <aside class="receipt-side" id="receipt-side">
+            <div class="receipt-header">
+                <div style="flex: 1;">
+                    <div class="drawer-drag-pill" id="drawer-drag-pill"></div>
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div>
+                            <div style="font-size: 11px; color: var(--brand-gold); font-weight: 700; letter-spacing: 0.5px;">CANLI ADİSYON</div>
+                            <h2 style="font-size: 18px; font-weight: 800; letter-spacing: -0.3px;" id="receipt-table-title">Masa</h2>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <button class="btn-outline" style="font-size: 12px; padding: 4px 10px; color: var(--danger); border-color: rgba(239, 68, 68, 0.4);" id="btn-clear-cart">Temizle</button>
+                            <button class="btn-close-receipt-mobile" id="btn-close-receipt-mobile" title="Kapat">✕</button>
+                        </div>
+                    </div>
+                    <!-- Otomatik Sorumlu Garson Göstergesi -->
+                    <div style="margin-top: 10px; padding: 8px 12px; background: var(--bg-surface-elevated); border: 1px solid var(--border-card); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <div style="font-size: 12px; color: var(--text-muted); font-weight: 700; display: flex; align-items: center; gap: 5px;">
+                            <span>👤 Masaya Bakan Garson:</span>
+                        </div>
+                        <div style="font-size: 13px; font-weight: 800; color: #ffd43b; background: rgba(245, 159, 0, 0.12); padding: 3px 10px; border-radius: 4px; border: 1px solid rgba(245, 159, 0, 0.3);" id="display-order-waiter">
+                            ...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="receipt-items-list" id="cart-items-container">
+                <!-- Kalemler -->
+            </div>
+
+            <div class="receipt-footer">
+                <div class="total-summary">
+                    <span style="font-size: 16px; color: var(--text-secondary);">Genel Tutar</span>
+                    <span style="color: var(--brand-gold); font-size: 24px;" id="total-price-display">0,00 ₺</span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button class="btn-primary" id="btn-save-kitchen" style="width: 100%; padding: 14px; font-size: 16px; font-weight: 800; border-radius: var(--radius-md);">
+                        🍳 Mutfağa Gönder / Kaydet
+                    </button>
+                    <div class="payment-actions">
+                        <button class="btn-pay-cash" id="btn-pay-cash">
+                            💵 Nakit Kapat
+                        </button>
+                        <button class="btn-pay-card" id="btn-pay-card">
+                            💳 Kartla Kapat (Fiş)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Yüzen Mobil Sepet Barı (Garson Mobilde Masadayken) -->
+    <div class="mobile-cart-bar" id="mobile-cart-toggle">
+        <div class="mobile-cart-info">
+            <span class="mobile-cart-badge" id="mobile-cart-badge">0</span>
+            <div>
+                <div class="mobile-cart-title">Adisyon</div>
+                <div class="mobile-cart-total" id="mobile-cart-total">0,00 ₺</div>
+            </div>
+        </div>
+        <button class="mobile-cart-btn">Adisyonu Aç ↗</button>
+    </div>
+
+    <!-- Şık Not Ekleme Modalı (GSAP Animasyonlu) -->
+    <div class="modal-overlay" id="note-modal">
+        <div class="modal-content">
+            <h3 style="font-size: 18px; font-weight: 800; color: white; margin-bottom: 8px;" id="modal-item-title">Sipariş Notu</h3>
+            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">Mutfak çalışanına iletilecek özel istek:</p>
+            <textarea id="modal-note-input" rows="4" placeholder="Mutfak için özel not yazınız (Örn: Az pişmiş, Buzsuz vb.)..." style="width: 100%; background: var(--bg-surface-elevated); border: 1px solid var(--border-active); color: white; padding: 14px; border-radius: var(--radius-md); font-size: 15px; font-family: inherit; resize: none;"></textarea>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button class="btn-outline" id="modal-btn-cancel" style="padding: 10px 18px;">Vazgeç</button>
+                <button class="btn-primary" id="modal-btn-save" style="padding: 10px 22px;">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { 
+            checkAuth, 
+            getActiveUser,
+            setActiveUser,
+            formatMoney, 
+            onOrderChange, 
+            broadcastOrderChange, 
+            playOrderReadySound,
+            speakAnnouncement,
+            db, 
+            collection, 
+            doc, 
+            addDoc, 
+            updateDoc, 
+            onSnapshot, 
+            query,
+            where,
+            serverTimestamp 
+        } from "./core.js";
+        import { MENU_CATEGORIES, MENU_PRODUCTS, getProductCategoryId } from "./menu-data.js";
+        import { printOrderReceipt } from "./printer.js";
+        import { 
+            showToast, 
+            triggerPaymentCelebration, 
+            pageNavigate, 
+            animateCardEntrance, 
+            animateCartRowAdd, 
+            openModalWithMotion, 
+            closeModalWithMotion,
+            showConfirmModal
+        } from "./motion.js";
+        import { recordCompletedOrder } from "./analytics-service.js";
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const idParam = urlParams.get('id') || urlParams.get('table');
+        const fromParam = urlParams.get('from');
+
+        let rawUser = getActiveUser();
+        // SADECE ve SADECE Yönetici rolündeki kullanıcı masaya doğrudan Yönetici Paneli'nden geldiyse (?from=admin)
+        const isFromAdminPanel = (rawUser?.role === 'admin') && (fromParam === 'admin');
+
+        // Eğer kullanıcı masaya garson ekranından geldiyse ve oturumda başka bir rol (mutfak vs.) kalmışsa, bu sekmede Garson kimliğine geçir
+        if (!isFromAdminPanel && (!rawUser || rawUser.role !== 'waiter')) {
+            rawUser = { id: "wtr-1", name: "Ahmet", role: "waiter", pin: "123456", active: true };
+            setActiveUser(rawUser);
+        }
+
+        let user = checkAuth(isFromAdminPanel ? 'admin' : 'waiter');
+
+        if (user) {
+            document.getElementById('waiter-name-display').textContent = user.name;
+            const roleBadge = document.getElementById('user-role-badge');
+            if (roleBadge) {
+                if (isFromAdminPanel) {
+                    roleBadge.textContent = 'YÖNETİCİ';
+                    roleBadge.style.background = 'var(--brand-gold)';
+                    roleBadge.style.color = '#110d0c';
+                } else {
+                    roleBadge.textContent = 'GARSON';
+                    roleBadge.style.background = '';
+                    roleBadge.style.color = '';
+                }
+            }
+        }
+        
+        const backBtn = document.getElementById('btn-back-nav');
+        if (backBtn) {
+            backBtn.innerHTML = isFromAdminPanel ? '← Kasa Paneli' : '← Masalar';
+            backBtn.onclick = () => {
+                if (isFromAdminPanel) pageNavigate('admin.html?tab=tables');
+                else pageNavigate('waiter.html');
+            };
+        }
+
+        const tableNo = parseInt(idParam || localStorage.getItem('cafe_selected_table') || '1', 10) || 1;
+        localStorage.setItem('cafe_selected_table', String(tableNo));
+
+        document.getElementById('table-title').textContent = `Masa ${tableNo}`;
+        document.getElementById('receipt-table-title').textContent = `Masa ${tableNo} Adisyonu`;
+        document.title = `Masa ${tableNo} Adisyonu • Dededen Toruna`;
+
+        let categories = [...MENU_CATEGORIES];
+        let products = [...MENU_PRODUCTS];
+        let selectedCategoryId = 'all';
+
+        let cart = [];
+        let currentOrderId = null;
+        let editingItemIndex = -1;
+
+        // Garson Seçici Kontrolü
+        const displayWaiterEl = document.getElementById('display-order-waiter');
+
+        function updateWaiterUi(waiterName) {
+            if (!displayWaiterEl) return;
+            const target = waiterName || (user?.role === 'waiter' ? user.name : 'Ahmet');
+            displayWaiterEl.textContent = target;
+        }
+
+        // Mevcut masa siparişini yükle
+        const cachedOrders = JSON.parse(localStorage.getItem('cafe_cached_orders') || '{}');
+        const currentOrder = cachedOrders[tableNo] || cachedOrders[String(tableNo)];
+        if (currentOrder) {
+            cart = currentOrder.items || [];
+            currentOrderId = currentOrder.id || null;
+            updateWaiterUi(currentOrder.waiter_name);
+        } else {
+            updateWaiterUi(null);
+        }
+
+        // Firestore sipariş senkronizasyonu
+        try {
+            const qOrders = query(collection(db, "orders"), where("status", "==", "open"));
+            onSnapshot(qOrders, snap => {
+                const liveOrders = {};
+                snap.forEach(d => {
+                    const data = d.data();
+                    const tId = Number(data.table_id || data.table_no);
+                    liveOrders[tId] = { id: d.id, ...data };
+                });
+                localStorage.setItem('cafe_cached_orders', JSON.stringify(liveOrders));
+                const myOrder = liveOrders[tableNo] || liveOrders[String(tableNo)];
+                if (myOrder) {
+                    cart = myOrder.items || [];
+                    currentOrderId = myOrder.id;
+                    updateWaiterUi(myOrder.waiter_name);
+                    renderCart();
+                }
+            }, () => {});
+        } catch(e) {}
+
+        // Firestore ürün senkronizasyonu
+        try {
+            onSnapshot(collection(db, "products"), snap => {
+                if (!snap.empty) {
+                    const newProducts = snap.docs.map(d => {
+                        const data = d.data();
+                        return { id: d.id, ...data, category_id: getProductCategoryId(data) };
+                    });
+                    
+                    // Sadece ürün sayısı veya fiyatları gerçekten değiştiyse güncelle (çift animasyonu önle)
+                    const isDifferent = newProducts.length !== products.length ||
+                        newProducts.some((np, i) => np.id !== products[i]?.id || np.price !== products[i]?.price);
+                    
+                    if (isDifferent) {
+                        products = newProducts;
+                        renderProducts(false);
+                    }
+                }
+            }, () => {});
+        } catch(e) {}
+
+        function renderCategories() {
+            const tabsEl = document.getElementById('category-tabs');
+            tabsEl.innerHTML = [
+                `<button class="category-tab-btn ${selectedCategoryId === 'all' ? 'active' : ''}" onclick="selectCat('all')">Tümü</button>`,
+                ...categories.map(c => `
+                    <button class="category-tab-btn ${selectedCategoryId === c.id ? 'active' : ''}" onclick="selectCat('${c.id}')">
+                        ${c.name}
+                    </button>
+                `)
+            ].join('');
+        }
+
+        function renderProducts(animate = false) {
+            const gridEl = document.getElementById('products-grid');
+            const filtered = selectedCategoryId === 'all' 
+                ? products 
+                : products.filter(p => getProductCategoryId(p) === selectedCategoryId);
+
+            if (filtered.length === 0) {
+                gridEl.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 60px 20px;">Bu kategoride henüz lezzet bulunmuyor.</div>`;
+                return;
+            }
+
+            gridEl.innerHTML = filtered.map(p => `
+                <div class="product-item-card menu-card-anim" onclick="addToCart('${p.id}', event)">
+                    <div class="product-name">${p.name}</div>
+                    <div class="product-price">${formatMoney(p.price)}</div>
+                </div>
+            `).join('');
+
+            if (animate && window.gsap) {
+                const cards = gridEl.querySelectorAll('.menu-card-anim');
+                window.gsap.killTweensOf(cards);
+                const staggerStep = cards.length > 20 ? 0.006 : 0.018;
+                window.gsap.fromTo(cards,
+                    { opacity: 0, y: 10, scale: 0.98 },
+                    { opacity: 1, y: 0, scale: 1, duration: 0.22, stagger: staggerStep, ease: 'power2.out' }
+                );
+            } else {
+                gridEl.querySelectorAll('.menu-card-anim').forEach(c => {
+                    c.style.opacity = '1';
+                });
+            }
+        }
+
+        function renderCart() {
+            const container = document.getElementById('cart-items-container');
+            const totalEl = document.getElementById('total-price-display');
+            const subtotal = cart.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+            const totalQty = cart.reduce((sum, i) => sum + i.quantity, 0);
+            totalEl.textContent = formatMoney(subtotal);
+
+            // Mobil Yüzen Sepet Barı Güncellemesi
+            const mobileBadge = document.getElementById('mobile-cart-badge');
+            const mobileTotal = document.getElementById('mobile-cart-total');
+            if (mobileBadge) mobileBadge.textContent = String(totalQty);
+            if (mobileTotal) mobileTotal.textContent = formatMoney(subtotal);
+
+            if (cart.length === 0) {
+                container.innerHTML = `<div style="text-align: center; color: var(--text-muted); margin-top: 60px;">Henüz ürün eklenmedi.<br>Sol taraftan lezzet seçin.</div>`;
+                return;
+            }
+
+            container.innerHTML = cart.map((item, idx) => `
+                <div class="receipt-item-row" id="cart-row-${idx}" style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 700; font-size: 14px;">${item.name}</div>
+                            <div style="font-size: 13px; color: var(--brand-gold); font-weight: 700;">${formatMoney(item.price)}</div>
+                            ${item.status === 'delivered' 
+                                ? '<span style="font-size: 10px; color: #10b981; font-weight: 800; background: rgba(16,185,129,0.15); padding: 2px 6px; border-radius: 4px;">✓ TESLİM EDİLDİ</span>' 
+                                : '<span style="font-size: 10px; color: #f59e0b; font-weight: 800; background: rgba(245,158,11,0.15); padding: 2px 6px; border-radius: 4px;">⏱️ HAZIRLANACAK</span>'}
+                        </div>
+                        <div class="qty-counter">
+                            <button class="qty-btn" onclick="changeQty(${idx}, -1)">−</button>
+                            <span style="font-weight: 800; font-size: 14px; min-width: 18px; text-align: center;">${item.quantity}</span>
+                            <button class="qty-btn" onclick="changeQty(${idx}, 1)">+</button>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12px; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: var(--radius-sm);">
+                        <div style="color: var(--brand-gold); font-weight: 600;">
+                            ${item.note ? `📝 ${item.note}` : '<span style="color: var(--text-muted);">Özel not yok</span>'}
+                        </div>
+                        <button class="btn-outline" style="padding: 2px 8px; font-size: 11px;" onclick="openNoteModal(${idx})">
+                            ${item.note ? 'Düzenle' : '+ Not Ekle'}
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            // Mutfak Kaydet Butonunu Dinamik Olarak Güncelle
+            const btnSaveKitchen = document.getElementById('btn-save-kitchen');
+            if (btnSaveKitchen) {
+                const pendingCount = cart.filter(i => i.status !== 'delivered').reduce((sum, i) => sum + (Number(i.quantity) || 1), 0);
+                if (pendingCount > 0) {
+                    btnSaveKitchen.innerHTML = `🍳 Yeni Siparişi Mutfağa Gönder (${pendingCount} Kalem)`;
+                    btnSaveKitchen.style.background = 'linear-gradient(135deg, var(--brand-primary) 0%, var(--brand-dark) 100%)';
+                    btnSaveKitchen.style.border = '1px solid var(--brand-gold)';
+                } else {
+                    btnSaveKitchen.innerHTML = `✓ Adisyonu Kaydet (Yeni Sipariş Yok)`;
+                    btnSaveKitchen.style.background = 'linear-gradient(135deg, #059669 0%, #047857 100%)';
+                    btnSaveKitchen.style.border = '1px solid #10b981';
+                }
+            }
+        }
+
+        window.selectCat = (cId) => {
+            selectedCategoryId = cId;
+            renderCategories();
+            renderProducts(true);
+        };
+
+        window.addToCart = (pId, event) => {
+            const p = products.find(x => x.id === pId);
+            if (!p) return;
+
+            // Kart Tıklama Animasyonu (Spring Bounce) & Yukarı Uçan +1 Rozeti
+            const cardEl = event?.currentTarget || (event?.target ? event.target.closest('.product-item-card') : null);
+            if (cardEl) {
+                if (window.gsap) {
+                    window.gsap.timeline()
+                        .to(cardEl, { scale: 0.92, duration: 0.07, ease: 'power2.in' })
+                        .to(cardEl, { scale: 1.05, duration: 0.12, ease: 'back.out(2.5)' })
+                        .to(cardEl, { scale: 1, duration: 0.1, ease: 'power2.out' });
+                }
+
+                // Kart üzerinden süzülerek uçan altın/turuncu +1 rozeti
+                const badge = document.createElement('span');
+                badge.className = 'flying-add-badge';
+                badge.textContent = '+1';
+                cardEl.appendChild(badge);
+                setTimeout(() => badge.remove(), 650);
+
+                // Mobilde yüzen sepet barına yaylanma efekti
+                const mobileBar = document.getElementById('mobile-cart-toggle');
+                if (window.gsap && mobileBar) {
+                    window.gsap.fromTo(mobileBar,
+                        { scale: 0.94 },
+                        { scale: 1, duration: 0.28, ease: 'back.out(2.2)' }
+                    );
+                }
+            }
+
+            const existing = cart.find(i => i.product_id === pId && i.status !== 'delivered' && !i.note);
+            if (existing) {
+                existing.quantity += 1;
+                existing.is_new_item = true;
+            } else {
+                cart.push({
+                    product_id: p.id,
+                    name: p.name,
+                    price: p.price,
+                    quantity: 1,
+                    status: 'pending',
+                    is_new_item: true,
+                    note: ''
+                });
+            }
+            renderCart();
+            const lastRow = document.getElementById(`cart-row-${cart.length - 1}`);
+            if (lastRow) animateCartRowAdd(lastRow);
+            showToast(`${p.name} sepete eklendi`);
+        };
+
+        // GSAP Modal İle Not Ekleme
+        const modalOverlay = document.getElementById('note-modal');
+        const modalTitle = document.getElementById('modal-item-title');
+        const modalInput = document.getElementById('modal-note-input');
+
+        window.openNoteModal = (idx) => {
+            editingItemIndex = idx;
+            const item = cart[idx];
+            modalTitle.textContent = `${item.name} — Sipariş Notu`;
+            modalInput.value = item.note || '';
+
+            openModalWithMotion(modalOverlay);
+            setTimeout(() => modalInput.focus(), 150);
+        };
+
+        document.getElementById('modal-btn-cancel').onclick = () => {
+            closeModalWithMotion(modalOverlay);
+        };
+
+        document.getElementById('modal-btn-save').onclick = () => {
+            if (editingItemIndex >= 0 && cart[editingItemIndex]) {
+                cart[editingItemIndex].note = modalInput.value.trim();
+                renderCart();
+                showToast("Sipariş notu kaydedildi", "success");
+            }
+            closeModalWithMotion(modalOverlay);
+        };
+
+        window.changeQty = (idx, delta) => {
+            cart[idx].quantity += delta;
+            if (cart[idx].quantity <= 0) cart.splice(idx, 1);
+            renderCart();
+        };
+
+        document.getElementById('btn-clear-cart').onclick = async () => {
+            if (cart.length === 0) return;
+            const ok = await showConfirmModal({
+                title: 'Adisyonu Temizle',
+                message: `Masa ${tableNo} adisyonundaki tüm ürünler silinecektir. Devam etmek istiyor musunuz?`,
+                confirmText: 'Evet, Temizle',
+                cancelText: 'Vazgeç',
+                type: 'warning'
+            });
+            if (ok) {
+                cart = [];
+                renderCart();
+                showToast("Adisyon temizlendi", "info");
+            }
+        };
+
+        document.getElementById('btn-save-kitchen').onclick = async () => {
+            if (cart.length === 0) return showToast("Lütfen ürün ekleyiniz.", "warning");
+            const subtotal = cart.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+            const chosenWaiter = (user?.role === 'waiter' ? user.name : (currentOrder?.waiter_name || 'Ahmet'));
+            
+            const cachedOrders = JSON.parse(localStorage.getItem('cafe_cached_orders') || '{}');
+            const prevOrder = cachedOrders[tableNo] || cachedOrders[String(tableNo)];
+
+            // Masada GERÇEKTEN bu oturumda yeni eklenmiş bir ürün var mı?
+            const hasRealNewItems = cart.some(i => i.is_new_item === true);
+            const prevWasCompleted = prevOrder && (prevOrder.kitchen_status === 'completed' || prevOrder.all_delivered === true);
+
+            // Eğer masaya yeni bir ürün eklenmediyse ve daha önce mutfak tamamlandıysa KESİNLİKLE 'completed' kalır!
+            const newKitchenStatus = hasRealNewItems ? 'pending' : (prevWasCompleted ? 'completed' : (prevOrder?.kitchen_status || 'pending'));
+            const allDelivered = (newKitchenStatus === 'completed');
+
+            // Yeni eklenen ürünlerin bayrağını temizle (artık kaydedildiler)
+            cart.forEach(i => { delete i.is_new_item; });
+
+            const nowIso = new Date().toISOString();
+            const orderData = {
+                id: currentOrderId || ("order-" + Date.now()),
+                table_id: tableNo,
+                table_no: tableNo,
+                items: cart,
+                subtotal: subtotal,
+                total: subtotal,
+                status: 'open',
+                kitchen_status: newKitchenStatus,
+                all_delivered: allDelivered,
+                waiter_id: user?.id || 'wtr-1',
+                waiter_name: chosenWaiter,
+                order_taken_at: prevOrder?.order_taken_at || nowIso,
+                kitchen_queued_at: newKitchenStatus === 'pending' ? nowIso : (prevOrder?.kitchen_queued_at || nowIso),
+                updated_at: nowIso
+            };
+
+            cachedOrders[tableNo] = orderData;
+            localStorage.setItem('cafe_cached_orders', JSON.stringify(cachedOrders));
+
+            // SADECE ve SADECE masaya YENİ bir ürün eklendiyse mutfağa 'order_saved' yayını yap!
+            // Eğer yeni ürün yoksa garson/masa güncellemesi ('order_updated') yayını yap.
+            if (hasRealNewItems) {
+                broadcastOrderChange('order_saved', orderData);
+                showToast("🍳 Yeni sipariş mutfağa iletildi!", "success");
+            } else {
+                broadcastOrderChange('order_updated', orderData);
+                showToast("✓ Adisyon kaydedildi (Mutfak için yeni sipariş yok)", "info");
+            }
+
+            try {
+                if (currentOrderId && !currentOrderId.startsWith("order-")) {
+                    await updateDoc(doc(db, "orders", currentOrderId), orderData);
+                } else {
+                    const docRef = await addDoc(collection(db, "orders"), orderData);
+                    currentOrderId = docRef.id;
+                    cachedOrders[tableNo].id = currentOrderId;
+                    localStorage.setItem('cafe_cached_orders', JSON.stringify(cachedOrders));
+                }
+            } catch(e) {}
+
+            setTimeout(() => {
+                if (isFromAdminPanel) pageNavigate('admin.html?tab=tables');
+                else pageNavigate('waiter.html');
+            }, 60);
+        };
+
+        async function checkout(method) {
+            if (cart.length === 0) return showToast("Kapatılacak ürün yok.", "warning");
+            const subtotal = cart.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+            const chosenWaiter = (user?.role === 'waiter' ? user.name : (currentOrder?.waiter_name || 'Ahmet'));
+            const orderObj = {
+                table_no: tableNo,
+                items: cart,
+                subtotal: subtotal,
+                total: subtotal,
+                payment_method: method,
+                waiter_name: chosenWaiter
+            };
+
+            const isCard = method === 'card';
+            const ok = await showConfirmModal({
+                title: isCard ? 'Kartla Ödeme & Fiş' : 'Nakit Ödeme',
+                message: `Masa ${tableNo} toplam tutarı (${formatMoney(subtotal)}) ${isCard ? 'KART ile alınıp adisyon fişi yazdırılacaktır' : 'NAKİT olarak tahsil edilip kapatılacaktır'}. Onaylıyor musunuz?`,
+                confirmText: isCard ? '💳 Fiş Yazdır & Kapat' : '💵 Nakit Kapat',
+                cancelText: 'Vazgeç',
+                type: isCard ? 'primary' : 'warning'
+            });
+            
+            if (!ok) return;
+
+            if (method === 'card') {
+                printOrderReceipt(orderObj);
+            }
+
+            const paidRecord = {
+                id: currentOrderId || ("paid-" + Date.now()),
+                table_id: tableNo,
+                table_no: tableNo,
+                items: JSON.parse(JSON.stringify(cart)),
+                subtotal: subtotal,
+                total: subtotal,
+                payment_method: method,
+                waiter_id: user?.role === 'waiter' ? (user.id || 'wtr-1') : 'wtr-1',
+                waiter_name: chosenWaiter,
+                order_taken_at: currentOrder?.order_taken_at || new Date().toISOString(),
+                kitchen_queued_at: currentOrder?.kitchen_queued_at || new Date().toISOString(),
+                kitchen_delivered_at: currentOrder?.kitchen_delivered_at || new Date().toISOString(),
+                prep_duration_seconds: currentOrder?.prep_duration_seconds || 420,
+                kitchen_staff_name: currentOrder?.kitchen_staff_name || 'Fadime',
+                closed_by: user?.name || (isFromAdminPanel ? 'Patron' : 'Garson'),
+                status: 'paid',
+                closed_at: new Date().toISOString()
+            };
+
+            // Firestore completed_orders tablosuna kaydet ve garson istatistiğini artır
+            recordCompletedOrder(paidRecord, method);
+
+            // Yönetici analizleri için yerel arşive kaydet
+            try {
+                const archive = JSON.parse(localStorage.getItem('cafe_paid_orders_archive') || '[]');
+                archive.unshift(paidRecord);
+                localStorage.setItem('cafe_paid_orders_archive', JSON.stringify(archive.slice(0, 1000)));
+            } catch(e) {}
+
+            try {
+                if (currentOrderId && !currentOrderId.startsWith("order-")) {
+                    await updateDoc(doc(db, "orders", currentOrderId), {
+                        status: 'paid',
+                        payment_method: method,
+                        closed_by: user?.name,
+                        closed_at: serverTimestamp()
+                    });
+                }
+            } catch(e) {}
+
+            const orders = JSON.parse(localStorage.getItem('cafe_cached_orders') || '{}');
+            delete orders[tableNo];
+            localStorage.setItem('cafe_cached_orders', JSON.stringify(orders));
+
+            broadcastOrderChange('order_closed', { tableNo, paidRecord });
+
+            // Kutlama ve Sayfa Geçişi
+            triggerPaymentCelebration();
+            showToast(`Hesap kapatıldı (${formatMoney(subtotal)})`, "success");
+            setTimeout(() => {
+                if (isFromAdminPanel) pageNavigate('admin.html?tab=tables');
+                else pageNavigate('waiter.html');
+            }, 120);
+        }
+
+        document.getElementById('btn-pay-cash').onclick = () => checkout('cash');
+        document.getElementById('btn-pay-card').onclick = () => checkout('card');
+
+        onOrderChange((ev) => {
+            const currentOrders = JSON.parse(localStorage.getItem('cafe_cached_orders') || '{}');
+            const myOrder = currentOrders[tableNo] || currentOrders[String(tableNo)];
+            if (myOrder) {
+                cart = myOrder.items || [];
+                currentOrderId = myOrder.id;
+                renderCart();
+            }
+            if (ev?.type === 'all_delivered' && Number(ev.data?.table_no) === tableNo) {
+                // Sadece masaya bakan garsonun ekranında sesli ve görsel bildirim ver
+                const belongsToMe = (myOrder?.waiter_id && user?.id && myOrder.waiter_id === user.id) ||
+                                  (myOrder?.waiter_name && user?.name && myOrder.waiter_name.trim().toLowerCase() === user.name.trim().toLowerCase()) ||
+                                  (ev.data?.waiter_id && user?.id && ev.data.waiter_id === user.id) ||
+                                  (ev.data?.waiter_name && user?.name && ev.data.waiter_name.trim().toLowerCase() === user.name.trim().toLowerCase());
+
+                if (belongsToMe) {
+                    playOrderReadySound();
+                    speakAnnouncement(`Masa ${tableNo} siparişiniz hazır`);
+                    showToast(`🔔 Masa ${tableNo} siparişiniz hazır! Servis edebilirsiniz.`, "success");
+                }
+            }
+        });
+
+        // Mobil Bottom Sheet Çekmece Kontrolleri
+        const receiptSide = document.getElementById('receipt-side');
+        const receiptBackdrop = document.getElementById('receipt-backdrop');
+        const mobileToggle = document.getElementById('mobile-cart-toggle');
+        const btnCloseMobile = document.getElementById('btn-close-receipt-mobile');
+        const dragPill = document.getElementById('drawer-drag-pill');
+
+        function openMobileReceipt() {
+            if (receiptSide) receiptSide.classList.add('mobile-open');
+            if (receiptBackdrop) receiptBackdrop.classList.add('active');
+        }
+
+        function closeMobileReceipt() {
+            if (receiptSide) receiptSide.classList.remove('mobile-open');
+            if (receiptBackdrop) receiptBackdrop.classList.remove('active');
+        }
+
+        if (mobileToggle) mobileToggle.onclick = openMobileReceipt;
+        if (receiptBackdrop) receiptBackdrop.onclick = closeMobileReceipt;
+        if (btnCloseMobile) btnCloseMobile.onclick = closeMobileReceipt;
+        if (dragPill) dragPill.onclick = closeMobileReceipt;
+
+        renderCategories();
+        renderProducts(true);
+        renderCart();
+    </script>
+</body>
+</html>

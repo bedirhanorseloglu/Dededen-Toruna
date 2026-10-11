@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Mutfak KDS Panosu • Dededen Toruna Hamsiköy Sütlacı</title>
+    <link rel="stylesheet" href="app.css">
+    <link rel="stylesheet" href="animations.css">
+    <script src="libs/gsap.min.js"></script>
+</head>
+<body>
+    <header class="app-header">
+        <div class="brand-section">
+            <img src="logo.png" alt="Dededen Toruna" class="brand-logo-img">
+            <div class="brand-text">
+                <h1>Mutfak KDS Panosu</h1>
+                <p>Canlı Sipariş & Hazırlık İstasyonu</p>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <button class="btn-outline" id="btn-sound-toggle" style="padding: 7px 14px; font-size: 12px; color: var(--brand-gold); border-color: var(--brand-gold); display: flex; align-items: center; gap: 6px; cursor: pointer; border-radius: var(--radius-md);">
+                <span id="sound-indicator-dot" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+                <span id="sound-btn-text">Sesli Uyarı: Açık</span>
+            </button>
+            <div class="user-badge" style="padding: 6px 12px;">
+                <span class="user-role-tag" style="background: var(--brand-primary); font-weight: 800;">MUTFAK</span>
+                <strong id="user-name-display">Mutfak Ekibi</strong>
+            </div>
+            <button class="btn-logout" title="Çıkış Yap" id="btn-logout">✕</button>
+        </div>
+    </header>
+
+    <div class="kitchen-board-container">
+        <!-- Modern KDS Bilgi & Hızlı Kontrol Çubuğu -->
+        <div class="kds-top-bar">
+            <div class="kds-metrics">
+                <div class="kds-stat-pill active-orders">
+                    <span>⏱️</span>
+                    <span id="kds-stat-tables">0 Masa Hazırlanıyor</span>
+                </div>
+                <div class="kds-stat-pill items-count">
+                    <span>🍽️</span>
+                    <span id="kds-stat-items">0 Kalem Bekliyor</span>
+                </div>
+            </div>
+
+            <!-- Hızlı Filtre Sekmeleri -->
+            <div class="kds-filter-tabs">
+                <button class="kds-tab-btn active" id="tab-kds-all" onclick="setKdsFilter('all')">
+                    Tümü <span id="filter-badge-all" style="opacity: 0.8;">(0)</span>
+                </button>
+                <button class="kds-tab-btn" id="tab-kds-pending" onclick="setKdsFilter('pending')">
+                    🟡 Hazırlananlar <span id="filter-badge-pending" style="opacity: 0.8;">(0)</span>
+                </button>
+                <button class="kds-tab-btn" id="tab-kds-ready" onclick="setKdsFilter('ready')">
+                    🟢 Servise Hazır <span id="filter-badge-ready" style="opacity: 0.8;">(0)</span>
+                </button>
+            </div>
+
+            <!-- Canlı Mutfak Saati -->
+            <div class="kds-clock" id="kds-live-clock">
+                --:--:--
+            </div>
+        </div>
+
+        <main class="kitchen-board" id="kitchen-container">
+            <!-- Canlı Mutfak Kartları -->
+        </main>
+    </div>
+
+    <script type="module">
+        import { 
+            checkAuth, 
+            clearActiveUser, 
+            onOrderChange, 
+            broadcastOrderChange, 
+            initAudio, 
+            playNotificationSound, 
+            announceNewOrder,
+            db, 
+            collection, 
+            doc, 
+            updateDoc, 
+            onSnapshot, 
+            query, 
+            where 
+        } from "./core.js";
+        import { showToast, pageNavigate, animateCardEntrance, animateCardExit } from "./motion.js";
+        import { updateKitchenStats } from "./analytics-service.js";
+
+        const user = checkAuth('kitchen');
+        if (user) document.getElementById('user-name-display').textContent = user.name;
+        document.getElementById('btn-logout').onclick = () => {
+            clearActiveUser();
+            pageNavigate('index.html');
+        };
+
+        // Canlı Mutfak Saati
+        function updateClock() {
+            const clockEl = document.getElementById('kds-live-clock');
+            if (clockEl) {
+                const now = new Date();
+                clockEl.textContent = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+
+        let soundEnabled = true;
+        const soundBtn = document.getElementById('btn-sound-toggle');
+        soundBtn.onclick = () => {
+            soundEnabled = !soundEnabled;
+            const dot = document.getElementById('sound-indicator-dot');
+            const txt = document.getElementById('sound-btn-text');
+            if (dot) dot.style.background = soundEnabled ? '#10b981' : '#ef4444';
+            if (txt) txt.textContent = soundEnabled ? 'Sesli Uyarı: Açık' : 'Sesli Uyarı: Kapalı';
+            if (soundEnabled) {
+                initAudio();
+                playNotificationSound();
+                showToast("Sesli Uyarı ve Anons Açıldı 🔔", "success");
+            } else {
+                showToast("Sesli Uyarı Kapatıldı 🔇", "info");
+            }
+        };
+
+        let currentFilter = 'all'; // 'all' | 'pending' | 'ready'
+        window.setKdsFilter = (filter) => {
+            currentFilter = filter;
+            document.querySelectorAll('.kds-tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`tab-kds-${filter}`)?.classList.add('active');
+            renderKitchen();
+        };
+
+        function formatElapsedTime(isoString) {
+            if (!isoString) return 'Yeni';
+            const diffMs = Date.now() - new Date(isoString).getTime();
+            const diffMins = Math.floor(diffMs / 60000);
+            if (diffMins < 1) return 'Yeni sipariş';
+            if (diffMins < 60) return `${diffMins} dk önce`;
+            const diffHours = Math.floor(diffMins / 60);
+            return `${diffHours} sa ${diffMins % 60} dk`;
+        }
+
+        let activeOrders = JSON.parse(localStorage.getItem('cafe_cached_orders') || '{}');
+        let initialRenderDone = false;
+
+        function renderKitchen() {
+            const container = document.getElementById('kitchen-container');
+            
+            // Tüm aktif mutfak siparişleri
+            const allOrders = Object.values(activeOrders)
+                .filter(o => o.status === 'open' && o.items?.length > 0 && (o.kitchen_status !== 'completed' || o.items.some(i => i.status !== 'delivered')))
+                .sort((a,b) => new Date(a.updated_at || 0) - new Date(b.updated_at || 0));
+
+            // Metrikler
+            const totalOrdersCount = allOrders.length;
+            let pendingItemsCount = 0;
+            let readyOrdersCount = 0;
+            let pendingOrdersCount = 0;
+
+            allOrders.forEach(o => {
+                const isAllReady = o.items.every(i => i.status === 'delivered');
+                if (isAllReady) readyOrdersCount++;
+                else pendingOrdersCount++;
+
+                o.items.forEach(i => {
+                    if (i.status !== 'delivered') pendingItemsCount += (Number(i.quantity) || 1);
+                });
+            });
+
+            // Metrikleri üst bara yaz
+            const statTablesEl = document.getElementById('kds-stat-tables');
+            const statItemsEl = document.getElementById('kds-stat-items');
+            if (statTablesEl) statTablesEl.textContent = `${totalOrdersCount} Masa Hazırlanıyor`;
+            if (statItemsEl) statItemsEl.textContent = `${pendingItemsCount} Kalem Bekliyor`;
+
+            document.getElementById('filter-badge-all').textContent = `(${totalOrdersCount})`;
+            document.getElementById('filter-badge-pending').textContent = `(${pendingOrdersCount})`;
+            document.getElementById('filter-badge-ready').textContent = `(${readyOrdersCount})`;
+
+            // Filtreleme uygula
+            const filteredOrders = allOrders.filter(order => {
+                const isAllReady = order.items.every(i => i.status === 'delivered');
+                if (currentFilter === 'pending') return !isAllReady;
+                if (currentFilter === 'ready') return isAllReady;
+                return true; // 'all'
+            });
+
+            if (filteredOrders.length === 0) {
+                container.innerHTML = `
+                    <div style="grid-column: 1/-1; text-align: center; padding: 80px 20px; background: var(--bg-surface); border: 1px dashed var(--border-card); border-radius: var(--radius-lg);">
+                        <div style="font-size: 54px; margin-bottom: 12px;">👨‍🍳✨</div>
+                        <h3 style="font-size: 20px; font-weight: 800; color: white;">
+                            ${currentFilter === 'ready' ? 'Hazır bekleyen masa bulunmuyor' : (currentFilter === 'pending' ? 'Tüm siparişler hazırlandı!' : 'Mutfak Tertemiz!')}
+                        </h3>
+                        <p style="font-size: 13px; color: var(--text-muted); margin-top: 6px;">
+                            ${currentFilter === 'all' ? 'Şu anda hazırlanması gereken yeni bir sipariş bulunmuyor.' : 'Diğer sekmelerden sipariş durumlarını görebilirsiniz.'}
+                        </p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filteredOrders.map(order => {
+                const allDelivered = order.items?.every(i => i.status === 'delivered');
+                const orderKey = order.id || order.table_no;
+                const elapsedText = formatElapsedTime(order.updated_at || order.created_at);
+
+                const itemsRows = (order.items || []).map((item, idx) => {
+                    const isDelivered = item.status === 'delivered';
+                    return `
+                        <div class="kds-item-row ${isDelivered ? 'is-done' : ''}">
+                            <div class="kds-item-left">
+                                <span class="kds-qty">${item.quantity}x</span>
+                                <div class="kds-name-box">
+                                    <div class="kds-name">${item.name}</div>
+                                    ${item.note ? `
+                                        <div class="kds-note">
+                                            <span>📝</span>
+                                            <span>${item.note}</span>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            <button class="kds-check-btn" onclick="toggleDelivered('${orderKey}', ${idx})" title="${isDelivered ? 'Geri Al' : 'Hazırlandı Olarak İşaretle'}">
+                                ${isDelivered ? '✓ Hazır' : 'Hazırla ○'}
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="kitchen-card ${allDelivered ? 'all-done' : ''}" id="kitchen-card-${orderKey}">
+                        <div class="kds-card-header">
+                            <div>
+                                <div class="kds-table-badge">Masa ${order.table_no}</div>
+                                <div class="kds-waiter-info">Garson: <strong>${order.waiter_name || 'Personel'}</strong></div>
+                            </div>
+                            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                                ${allDelivered ? `
+                                    <span class="kds-status-pill ready">✓ Servise Hazır</span>
+                                ` : `
+                                    <span class="kds-status-pill preparing">⏱️ ${elapsedText}</span>
+                                `}
+                            </div>
+                        </div>
+
+                        <div class="kds-card-items">
+                            ${itemsRows}
+                        </div>
+                        
+                        <div class="kds-card-footer">
+                            ${allDelivered ? `
+                                <button class="kds-btn-dismiss" onclick="dismissOrderFromKitchen('${orderKey}')">
+                                    🚀 Garsona Teslim Edildi (Kaldır)
+                                </button>
+                            ` : `
+                                <button class="kds-btn-deliver-all" onclick="deliverAll('${orderKey}')">
+                                    ✓ Masayı Tamamla (Garsona Bildir)
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if (!initialRenderDone) {
+                initialRenderDone = true;
+                setTimeout(() => animateCardEntrance('.kitchen-card'), 50);
+            }
+        }
+
+        window.toggleDelivered = async (orderId, idx) => {
+            const order = Object.values(activeOrders).find(o => (o.id === orderId) || (String(o.table_no) === String(orderId)));
+            if (!order) return;
+
+            order.items[idx].status = order.items[idx].status === 'delivered' ? 'pending' : 'delivered';
+            const allDelivered = order.items.every(i => i.status === 'delivered');
+            order.all_delivered = allDelivered;
+            
+            localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
+            if (allDelivered) {
+                broadcastOrderChange('all_delivered', { 
+                    orderId, 
+                    table_no: order.table_no,
+                    waiter_id: order.waiter_id,
+                    waiter_name: order.waiter_name
+                });
+                showToast(`Masa ${order.table_no} tüm ürünleri hazır! (${order.waiter_name || 'Garson'} bilgilendirildi)`, "success");
+            } else {
+                broadcastOrderChange('item_delivered', { orderId, idx, table_no: order.table_no });
+            }
+            renderKitchen();
+
+            try {
+                if (order.id && !order.id.startsWith("order-")) {
+                    await updateDoc(doc(db, "orders", order.id), { 
+                        items: order.items,
+                        all_delivered: allDelivered
+                    });
+                }
+            } catch(e) {}
+        };
+
+        window.deliverAll = async (orderId) => {
+            const order = Object.values(activeOrders).find(o => (o.id === orderId) || (String(o.table_no) === String(orderId)));
+            if (!order) return;
+
+            const nowIso = new Date().toISOString();
+            const queuedAt = new Date(order.kitchen_queued_at || order.order_taken_at || order.updated_at || Date.now()).getTime();
+            const prepSecs = Math.max(60, Math.round((Date.now() - queuedAt) / 1000));
+
+            order.items.forEach(i => i.status = 'delivered');
+            order.all_delivered = true;
+            order.kitchen_status = 'completed';
+            order.delivered_at = nowIso;
+            order.kitchen_delivered_at = nowIso;
+            order.kitchen_staff_id = user?.id || 'ktc-1';
+            order.kitchen_staff_name = user?.name || 'Fadime';
+            order.prep_duration_seconds = prepSecs;
+
+            // Mutfak personeli istatistiğini artır
+            updateKitchenStats(order.kitchen_staff_id, prepSecs, order.items.length);
+
+            const cardEl = document.getElementById(`kitchen-card-${orderId}`);
+            const completeDelivery = async () => {
+                localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
+                broadcastOrderChange('all_delivered', { 
+                    orderId, 
+                    table_no: order.table_no,
+                    waiter_id: order.waiter_id,
+                    waiter_name: order.waiter_name
+                });
+                showToast(`Masa ${order.table_no} tüm ürünleri hazır! ${order.waiter_name ? `(${order.waiter_name} bilgilendirildi)` : ''}`, "success");
+                renderKitchen();
+
+                try {
+                    if (order.id && !order.id.startsWith("order-")) {
+                        await updateDoc(doc(db, "orders", order.id), { 
+                            items: order.items,
+                            all_delivered: true,
+                            kitchen_status: 'completed',
+                            delivered_at: order.delivered_at
+                        });
+                    }
+                } catch(e) {}
+            };
+
+            if (cardEl) {
+                animateCardExit(cardEl, completeDelivery);
+            } else {
+                completeDelivery();
+            }
+        };
+
+        window.dismissOrderFromKitchen = async (orderId) => {
+            const order = Object.values(activeOrders).find(o => (o.id === orderId) || (String(o.table_no) === String(orderId)));
+            if (!order) return;
+
+            const cardEl = document.getElementById(`kitchen-card-${orderId}`);
+            const doDismiss = async () => {
+                order.kitchen_status = 'completed';
+                localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
+                broadcastOrderChange('order_dismissed', { orderId });
+                showToast(`Masa ${order.table_no} ekrandan kaldırıldı`, "info");
+                renderKitchen();
+
+                try {
+                    if (order.id && !order.id.startsWith("order-")) {
+                        await updateDoc(doc(db, "orders", order.id), { kitchen_status: 'completed' });
+                    }
+                } catch(e) {}
+            };
+
+            if (cardEl) {
+                animateCardExit(cardEl, doDismiss);
+            } else {
+                doDismiss();
+            }
+        };
+
+        // Yeni sipariş gelince ses çal & Türkçe sesli oku & bildirim ver
+        onOrderChange((ev) => {
+            activeOrders = JSON.parse(localStorage.getItem('cafe_cached_orders') || '{}');
+            if (ev?.type === 'order_saved') {
+                const hasPending = ev.data?.items?.some(i => i.status !== 'delivered');
+                const isCompleted = ev.data?.kitchen_status === 'completed';
+                if (hasPending && !isCompleted) {
+                    if (soundEnabled) {
+                        playNotificationSound();
+                        announceNewOrder(ev.data?.table_no, ev.data?.items);
+                    }
+                    showToast(`🔔 Yeni Sipariş: Masa ${ev.data?.table_no}`, "warning");
+                }
+            }
+            renderKitchen();
+        });
+
+        try {
+            const q = query(collection(db, "orders"), where("status", "==", "open"));
+            onSnapshot(q, snap => {
+                let newlyAddedOrder = null;
+                const freshOrders = {};
+                snap.forEach(d => {
+                    const data = d.data();
+                    const existing = activeOrders[data.table_id];
+                    // Yeni sipariş veya bekleyen yeni ürünler eklendiyse (ve mutfak durumu tamamlanmamışsa)
+                    const hadPending = existing?.items?.some(i => i.status !== 'delivered');
+                    const hasPendingNow = data.items?.some(i => i.status !== 'delivered');
+                    const isCompleted = data.kitchen_status === 'completed';
+                    if (!isCompleted && hasPendingNow && (!existing || !hadPending)) {
+                        newlyAddedOrder = data;
+                    }
+                    freshOrders[data.table_id] = { id: d.id, ...data };
+                });
+                activeOrders = freshOrders;
+                localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
+                if (newlyAddedOrder && initialRenderDone) {
+                    if (soundEnabled) {
+                        playNotificationSound();
+                        announceNewOrder(newlyAddedOrder.table_no, newlyAddedOrder.items);
+                    }
+                    showToast(`🔔 Masa ${newlyAddedOrder.table_no} yeni sipariş!`, "warning");
+                }
+                renderKitchen();
+            }, () => {});
+        } catch(e) {}
+
+        renderKitchen();
+    </script>
+</body>
+</html>
