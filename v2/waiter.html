@@ -94,7 +94,9 @@
             onOrderChange, 
             playOrderReadySound,
             speakAnnouncement,
-            initAudio,
+            requestNotificationPermission,
+            showSystemNotification,
+            flashTabTitle,
             db, 
             collection, 
             doc,
@@ -103,31 +105,10 @@
             query, 
             where,
             broadcastOrderChange
-        } from "./core.js?v=2.4";
+        } from "./core.js?v=2.5";
         import { animateCardEntrance, pageNavigate, showToast, openModalWithMotion, closeModalWithMotion, showConfirmModal } from "./motion.js";
         import { printOrderReceipt } from "./printer.js";
         import { recordCompletedOrder } from "./analytics-service.js";
-
-        function requestNotificationPermission() {
-            try {
-                if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-                    Notification.requestPermission();
-                }
-            } catch(e) {}
-        }
-
-        function showSystemNotification(title, body) {
-            try {
-                if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-                    new Notification(title, {
-                        body: body,
-                        icon: 'logo.png',
-                        tag: 'order-' + Date.now(),
-                        renotify: true
-                    });
-                }
-            } catch(e) {}
-        }
 
         let user = checkAuth('waiter');
         if (!user) {
@@ -498,7 +479,8 @@
                                 playOrderReadySound();
                                 speakAnnouncement(`Masa ${tId} siparişiniz hazır`);
                                 showToast(`🔔 Masa ${tId} siparişiniz hazır! Servis edebilirsiniz.`, "success");
-                                showSystemNotification(`Masa ${tId} Siparişi Hazır!`, `Masa ${tId} siparişiniz mutfakta hazırlandı, servis edebilirsiniz.`);
+                                showSystemNotification(`Masa ${tId} Siparişi Hazır!`, `Masa ${tId} siparişiniz mutfakta hazırlandı, servis edebilirsiniz.`, `ready-${tId}-${notifiedTime}`);
+                                flashTabTitle(`🔔 (1) MASA ${tId} HAZIR!`);
                                 highlightTableCard(tId);
                             }
                         } else if (notifiedTime > 0) {

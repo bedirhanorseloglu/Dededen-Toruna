@@ -77,6 +77,8 @@
             initAudio, 
             playNotificationSound, 
             announceNewOrder,
+            showSystemNotification,
+            flashTabTitle,
             db, 
             collection, 
             doc, 
@@ -85,7 +87,7 @@
             onSnapshot, 
             query, 
             where 
-        } from "./core.js?v=2.4";
+        } from "./core.js?v=2.5";
         import { showToast, pageNavigate, animateCardEntrance, animateCardExit } from "./motion.js";
         import { updateKitchenStats } from "./analytics-service.js";
 
@@ -524,7 +526,11 @@
                                 playNotificationSound();
                                 announceNewOrder(tId, pendingItems);
                             }
-                            showToast(isExtra ? `🔔 Masa ${tId} Ek Sipariş Geldi!` : `🔔 Masa ${tId} Yeni Sipariş!`, "warning");
+                            const orderTitle = isExtra ? `Masa ${tId} Ek Sipariş!` : `Yeni Sipariş: Masa ${tId}!`;
+                            const orderBody = `${pendingItems.length} kalem: ${pendingItems.slice(0, 3).map(p => `${p.quantity}x ${p.name}`).join(', ')}`;
+                            showToast(`🔔 ${orderTitle}`, "warning");
+                            showSystemNotification(orderTitle, orderBody, `kds-${tId}-${queuedTime}`);
+                            flashTabTitle(`🔔 (1) MASA ${tId} SİPARİŞ!`);
                         } else if (queuedTime > 0) {
                             lastSeenKitchenQueuedTime.set(tId, queuedTime);
                         }
