@@ -85,7 +85,7 @@
             onSnapshot, 
             query, 
             where 
-        } from "./core.js";
+        } from "./core.js?v=2.2";
         import { showToast, pageNavigate, animateCardEntrance, animateCardExit } from "./motion.js";
         import { updateKitchenStats } from "./analytics-service.js";
 
@@ -299,6 +299,7 @@
             order.all_delivered = allDelivered;
             const nowTime = Date.now();
             if (allDelivered) {
+                knownKitchenOrderTimestamps.set(Number(order.table_no), Date.now() + 60000);
                 order.kitchen_status = 'completed';
                 order.kitchen_notified_at = nowTime;
             } else {
@@ -353,6 +354,9 @@
             const nowTime = Date.now();
             const queuedAt = new Date(order.kitchen_queued_at || order.order_taken_at || order.updated_at || Date.now()).getTime();
             const prepSecs = Math.max(60, Math.round((Date.now() - queuedAt) / 1000));
+
+            // Mutfak personeli "Masayı Tamamla" dediğinde telefonun KENDİNE "Yeni sipariş" anonsu yapmasını engelle:
+            knownKitchenOrderTimestamps.set(Number(order.table_no), Date.now() + 60000);
 
             order.items.forEach(i => i.status = 'delivered');
             order.all_delivered = true;
@@ -474,15 +478,17 @@
                     const tId = Number(data.table_id || data.table_no);
                     const queuedAt = new Date(data.kitchen_queued_at || data.updated_at || 0).getTime();
                     const lastQueued = knownKitchenOrderTimestamps.get(tId) || 0;
-                    const hasPendingNow = data.items?.some(i => i.status !== 'delivered');
-                    const isCompleted = data.kitchen_status === 'completed';
+                    const hasPendingNow = data.items?.some(i => i && i.status !== 'delivered');
+                    const isCompleted = data.kitchen_status === 'completed' || data.all_delivered === true;
 
                     // SADECE garson yeni bir sipariş gönderdiyse (ve mutfak henüz teslim etmediyse) mutfakta alarm çal:
                     if (!isFirstKitchenSnapshot && !isCompleted && hasPendingNow && queuedAt > lastQueued) {
                         newlyAddedOrder = data;
                     }
 
-                    knownKitchenOrderTimestamps.set(tId, queuedAt);
+                    if (queuedAt > lastQueued) {
+                        knownKitchenOrderTimestamps.set(tId, queuedAt);
+                    }
                     freshOrders[tId] = { ...data, id: d.id, firestore_id: d.id, table_no: tId };
                 });
 
@@ -491,13 +497,15 @@
                 localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
 
                 if (newlyAddedOrder && initialRenderDone) {
-                    const pendingOnly = newlyAddedOrder.items?.filter(i => i.status !== 'delivered') || [];
-                    const isExtra = newlyAddedOrder.items?.some(i => i.status === 'delivered');
+                    const pendingOnly = newlyAddedOrder.items?.filter(i => i && i.status !== 'delivered') || [];
+                    const isExtra = newlyAddedOrder.items?.some(i => i && i.status === 'delivered');
                     if (pendingOnly.length > 0 && soundEnabled) {
                         playNotificationSound();
                         announceNewOrder(newlyAddedOrder.table_no, pendingOnly);
                     }
-                    showToast(isExtra ? `🔔 Masa ${newlyAddedOrder.table_no} Ek Sipariş Geldi!` : `🔔 Masa ${newlyAddedOrder.table_no} Yeni Sipariş!`, "warning");
+                    if (pendingOnly.length > 0) {
+                        showToast(isExtra ? `🔔 Masa ${newlyAddedOrder.table_no} Ek Sipariş Geldi!` : `🔔 Masa ${newlyAddedOrder.table_no} Yeni Sipariş!`, "warning");
+                    }
                 }
                 renderKitchen();
             }, () => {});

@@ -95,8 +95,6 @@
             playOrderReadySound,
             speakAnnouncement,
             initAudio,
-            requestNotificationPermission,
-            showSystemNotification,
             db, 
             collection, 
             doc,
@@ -105,10 +103,31 @@
             query, 
             where,
             broadcastOrderChange
-        } from "./core.js";
+        } from "./core.js?v=2.2";
         import { animateCardEntrance, pageNavigate, showToast, openModalWithMotion, closeModalWithMotion, showConfirmModal } from "./motion.js";
         import { printOrderReceipt } from "./printer.js";
         import { recordCompletedOrder } from "./analytics-service.js";
+
+        function requestNotificationPermission() {
+            try {
+                if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+                    Notification.requestPermission();
+                }
+            } catch(e) {}
+        }
+
+        function showSystemNotification(title, body) {
+            try {
+                if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                    new Notification(title, {
+                        body: body,
+                        icon: 'logo.png',
+                        tag: 'order-' + Date.now(),
+                        renotify: true
+                    });
+                }
+            } catch(e) {}
+        }
 
         let user = checkAuth('waiter');
         if (!user) {

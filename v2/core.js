@@ -222,10 +222,10 @@ export function speakAnnouncement(text) {
 
 export function announceNewOrder(tableNo, items = []) {
     try {
-        const pendingItems = items.filter(i => i.status !== 'delivered');
-        const targetList = pendingItems.length > 0 ? pendingItems : items;
-        const isExtra = items.some(i => i.status === 'delivered');
-        const summary = targetList.slice(0, 4).map(i => `${i.quantity} ${i.name}`).join(', ');
+        const pendingItems = (items || []).filter(i => i && i.status !== 'delivered');
+        if (!pendingItems.length) return; // Teslim edilmiş/tamamlanmış siparişleri ASLA yeni sipariş diye mutfağa okuma!
+        const isExtra = (items || []).some(i => i && i.status === 'delivered');
+        const summary = pendingItems.slice(0, 4).map(i => `${i.quantity} ${i.name}`).join(', ');
         const text = isExtra ? `Masa ${tableNo} ek sipariş: ${summary}` : `Yeni sipariş: Masa ${tableNo}! ${summary}`;
         speakAnnouncement(text);
     } catch (e) { }
@@ -246,5 +246,8 @@ export {
     orderBy,
     serverTimestamp,
     formatMoney,
-    printOrderReceipt
+    printOrderReceipt,
+    requestNotificationPermission,
+    showSystemNotification
 };
+
