@@ -246,8 +246,7 @@ export {
     orderBy,
     serverTimestamp,
     formatMoney,
-    printOrderReceipt,
-    requestNotificationPermission,
-    showSystemNotification
+    printOrderReceipt
 };
+
 
