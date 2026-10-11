@@ -335,21 +335,56 @@
             }
         }
 
-        // Bildirimin SADECE bu masanın garsonuna gitmesini sağlayan güvenlik kontrolü
+        // Masa kartını yeşil parlama ve animasyonla vurgula
+        function highlightTableCard(tableNum) {
+            const card = document.getElementById(`table-card-${tableNum}`);
+            if (!card) return;
+            card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            if (window.gsap) {
+                window.gsap.timeline()
+                    .to(card, { scale: 1.05, boxShadow: '0 0 25px 8px rgba(16, 185, 129, 0.75)', borderColor: '#10b981', duration: 0.25, ease: 'power2.out' })
+                    .to(card, { scale: 0.98, duration: 0.18, ease: 'power2.in' })
+                    .to(card, { scale: 1.03, duration: 0.22, ease: 'power2.out' })
+                    .to(card, { scale: 1.0, boxShadow: '', duration: 0.25, ease: 'power2.out' });
+            }
+        }
+
+        // Bildirimin SADECE bu masanın garsonuna gitmesini sağlayan güvenlik kontrolü (Farklı cihaz ve isim yazımlarına dayanıklı)
         function isOrderBelongsToCurrentWaiter(orderOrData) {
             if (!orderOrData || !user) return false;
-            const targetId = orderOrData.waiter_id;
+            // Eğer aktif kullanıcı garson değilse (örneğin patron ekranındaysa) garson alarmı çalmasın
+            if (user.role && user.role !== 'waiter') return false;
+
+            const targetId = String(orderOrData.waiter_id || '').trim();
+            const myId = String(user.id || '').trim();
+            if (targetId && myId && targetId === myId) return true;
+
             const targetName = (orderOrData.waiter_name || '').trim().toLowerCase();
-            const myId = user.id;
             const myName = (user.name || '').trim().toLowerCase();
 
-            // ID veya İsim eşleşmesi (Yönetici durumunda sessiz kalır)
-            if (targetId && myId && targetId === myId) return true;
-            if (targetName && myName && targetName === myName) return true;
+            // Masada garson ismi henüz atanmamışsa bile açık garson ekranı haberdar olsun
+            if (!targetName) return true;
+
+            // Birebir eşleşme
+            if (targetName === myName) return true;
+
+            // Kelime veya alt dize eşleşmesi (Örn: "Ahmet" - "Ahmet (Salon)" veya "Garson Ahmet")
+            const cleanTarget = targetName.replace(/[^a-z0-9ğüşıöç]/g, ' ');
+            const cleanMy = myName.replace(/[^a-z0-9ğüşıöç]/g, ' ');
+            const targetWords = cleanTarget.split(/\s+/).filter(Boolean);
+            const myWords = cleanMy.split(/\s+/).filter(Boolean);
+
+            const hasCommonWord = targetWords.some(w => 
+                w !== 'garson' && w !== 'salon' && w !== 'teras' && w !== 'bahce' && myWords.includes(w)
+            );
+            if (hasCommonWord) return true;
+
+            if (myName.includes(targetName) || targetName.includes(myName)) return true;
+
             return false;
         }
 
-        // Mutfaktan gelen canlı yayın (BroadcastChannel / LocalStorage)
+        // Mutfaktan gelen canlı yayın (BroadcastChannel / LocalStorage - Aynı cihaz / sekmeler arası)
         onOrderChange((ev) => {
             activeOrders = JSON.parse(localStorage.getItem('cafe_cached_orders') || '{}');
             if (ev?.type === 'all_delivered') {
@@ -369,7 +404,11 @@
             renderTables();
         });
 
-        // Firestore Masalar ve Canlı Siparişler (Farklı cihazlar için anlık senkron)
+        // Firestore Masalar ve Canlı Siparişler (Farklı cihazlar - Telefon mutfak / PC garson anlık senkronu)
+        let isFirstOrdersSnapshot = true;
+        const pageLoadTime = Date.now();
+        const notifiedOrderTimestamps = new Map();
+
         try {
             onSnapshot(collection(db, "tables"), snap => {
                 if (!snap.empty) {
@@ -395,27 +434,48 @@
                         cleanWaiter = ''; // Garson Seçilmedi durumuna çek
                     }
 
-                    newOrders[tId] = { id: d.id, ...data, waiter_name: cleanWaiter };
+                    newOrders[tId] = { ...data, id: d.id, firestore_id: d.id, waiter_name: cleanWaiter };
                     
-                    const isAllDelivered = data.items?.length > 0 && data.items.every(i => i.status === 'delivered');
-                    if (isAllDelivered && !knownDeliveredTables.has(tId)) {
-                        // SADECE ve SADECE siparişi alan garsonun ekranında ses ve toast bildirimi ver!
-                        const belongsToMe = isOrderBelongsToCurrentWaiter(data);
-                        if (belongsToMe && initialRenderDone) {
-                            playOrderReadySound();
-                            speakAnnouncement(`Masa ${tId} siparişiniz hazır`);
-                            showToast(`🔔 Masa ${tId} siparişiniz hazır! Servis edebilirsiniz.`, "success");
-                            highlightTableCard(tId);
+                    const isAllDelivered = data.kitchen_status === 'completed' || 
+                        (data.items?.length > 0 && data.items.every(i => i.status === 'delivered'));
+
+                    const notifiedTime = Number(data.kitchen_notified_at || 0);
+                    const lastNotified = notifiedOrderTimestamps.get(tId) || 0;
+
+                    if (isAllDelivered) {
+                        // Yeni bir teslimat bildirimi geldi mi?
+                        const isNewDelivery = !isFirstOrdersSnapshot && (
+                            (notifiedTime > 0 && notifiedTime > lastNotified) ||
+                            (!knownDeliveredTables.has(tId) && lastNotified === 0)
+                        );
+
+                        if (isNewDelivery) {
+                            const belongsToMe = isOrderBelongsToCurrentWaiter(data);
+                            if (belongsToMe) {
+                                playOrderReadySound();
+                                speakAnnouncement(`Masa ${tId} siparişiniz hazır`);
+                                showToast(`🔔 Masa ${tId} siparişiniz hazır! Servis edebilirsiniz.`, "success");
+                                highlightTableCard(tId);
+                            }
+                            notifiedOrderTimestamps.set(tId, notifiedTime || Date.now());
+                        } else if (isFirstOrdersSnapshot) {
+                            // Sayfa ilk yüklendiğinde eski tamamlanmış siparişleri kaydet (gürültüyü önle)
+                            notifiedOrderTimestamps.set(tId, notifiedTime || pageLoadTime);
                         }
                         knownDeliveredTables.add(tId);
-                    } else if (!isAllDelivered && knownDeliveredTables.has(tId)) {
+                    } else {
                         knownDeliveredTables.delete(tId);
+                        notifiedOrderTimestamps.delete(tId);
                     }
                 });
+
+                isFirstOrdersSnapshot = false;
                 activeOrders = newOrders;
                 localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
                 renderTables();
-            }, () => {});
+            }, (err) => {
+                console.error("Waiter onSnapshot hatası:", err);
+            });
         } catch(e) {}
 
         renderTables();

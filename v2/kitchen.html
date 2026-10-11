@@ -80,6 +80,7 @@
             db, 
             collection, 
             doc, 
+            getDocs,
             updateDoc, 
             onSnapshot, 
             query, 
@@ -206,7 +207,16 @@
                 const orderKey = order.id || order.table_no;
                 const elapsedText = formatElapsedTime(order.updated_at || order.created_at);
 
-                const itemsRows = (order.items || []).map((item, idx) => {
+                // Masada önceden teslim edilmiş ürünler ve yeni bekleyen ürünler ayrımı
+                const deliveredItems = (order.items || []).filter(i => i.status === 'delivered');
+                const pendingItems = (order.items || []).map((item, idx) => ({ ...item, realIdx: idx })).filter(i => i.status !== 'delivered');
+                const isAdditionalOrder = deliveredItems.length > 0 && pendingItems.length > 0;
+
+                // Kullanıcının Talebi: "Sadece ek gelen sipariş gözükmeli, eski teslim edilmiş ürünler mutfağın önünü kapatmamalı"
+                const displayItems = allDelivered ? (order.items || []).map((item, idx) => ({ ...item, realIdx: idx })) : pendingItems;
+
+                const itemsRows = displayItems.map((item) => {
+                    const idx = item.realIdx;
                     const isDelivered = item.status === 'delivered';
                     return `
                         <div class="kds-item-row ${isDelivered ? 'is-done' : ''}">
@@ -239,9 +249,12 @@
                             <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
                                 ${allDelivered ? `
                                     <span class="kds-status-pill ready">✓ Servise Hazır</span>
+                                ` : (isAdditionalOrder ? `
+                                    <span class="kds-status-pill" style="background: rgba(245, 159, 0, 0.2); color: #f59f00; border: 1px solid rgba(245, 159, 0, 0.5); font-weight: 800;">🆕 EK SİPARİŞ (${pendingItems.length} Kalem)</span>
+                                    <span style="font-size: 11px; color: var(--text-muted);">⏱️ ${elapsedText}</span>
                                 ` : `
                                     <span class="kds-status-pill preparing">⏱️ ${elapsedText}</span>
-                                `}
+                                `)}
                             </div>
                         </div>
 
@@ -249,6 +262,13 @@
                             ${itemsRows}
                         </div>
                         
+                        ${isAdditionalOrder ? `
+                            <div style="margin-top: 8px; padding: 6px 10px; background: rgba(16, 185, 129, 0.08); border: 1px dashed rgba(16, 185, 129, 0.3); border-radius: var(--radius-sm); font-size: 11px; color: #10b981; display: flex; align-items: center; justify-content: space-between;">
+                                <span>✓ Önceki teslimat: ${deliveredItems.length} kalem</span>
+                                <span style="color: var(--text-muted); font-size: 10px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${deliveredItems.map(d => `${d.quantity}x ${d.name}`).join(', ')}</span>
+                            </div>
+                        ` : ''}
+
                         <div class="kds-card-footer">
                             ${allDelivered ? `
                                 <button class="kds-btn-dismiss" onclick="dismissOrderFromKitchen('${orderKey}')">
@@ -256,7 +276,7 @@
                                 </button>
                             ` : `
                                 <button class="kds-btn-deliver-all" onclick="deliverAll('${orderKey}')">
-                                    ✓ Masayı Tamamla (Garsona Bildir)
+                                    ${isAdditionalOrder ? '✓ Ek Siparişi Tamamla (Garsona Bildir)' : '✓ Masayı Tamamla (Garsona Bildir)'}
                                 </button>
                             `}
                         </div>
@@ -277,6 +297,13 @@
             order.items[idx].status = order.items[idx].status === 'delivered' ? 'pending' : 'delivered';
             const allDelivered = order.items.every(i => i.status === 'delivered');
             order.all_delivered = allDelivered;
+            const nowTime = Date.now();
+            if (allDelivered) {
+                order.kitchen_status = 'completed';
+                order.kitchen_notified_at = nowTime;
+            } else {
+                order.kitchen_status = 'pending';
+            }
             
             localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
             if (allDelivered) {
@@ -284,7 +311,8 @@
                     orderId, 
                     table_no: order.table_no,
                     waiter_id: order.waiter_id,
-                    waiter_name: order.waiter_name
+                    waiter_name: order.waiter_name,
+                    kitchen_notified_at: nowTime
                 });
                 showToast(`Masa ${order.table_no} tüm ürünleri hazır! (${order.waiter_name || 'Garson'} bilgilendirildi)`, "success");
             } else {
@@ -293,13 +321,28 @@
             renderKitchen();
 
             try {
-                if (order.id && !order.id.startsWith("order-")) {
-                    await updateDoc(doc(db, "orders", order.id), { 
-                        items: order.items,
-                        all_delivered: allDelivered
-                    });
+                const docIdToUpdate = order.firestore_id || order.doc_id || (order.id && !order.id.startsWith("order-") ? order.id : null);
+                const updatePayload = { 
+                    items: order.items,
+                    all_delivered: allDelivered,
+                    kitchen_status: allDelivered ? 'completed' : 'pending',
+                    kitchen_notified_at: allDelivered ? nowTime : null
+                };
+
+                if (docIdToUpdate) {
+                    await updateDoc(doc(db, "orders", docIdToUpdate), updatePayload);
+                } else {
+                    const qOrder = query(collection(db, "orders"), where("table_no", "==", Number(order.table_no)), where("status", "==", "open"));
+                    const snap = await getDocs(qOrder);
+                    if (!snap.empty) {
+                        for (const d of snap.docs) {
+                            await updateDoc(doc(db, "orders", d.id), updatePayload);
+                        }
+                    }
                 }
-            } catch(e) {}
+            } catch(e) {
+                console.error("Firestore toggleDelivered error:", e);
+            }
         };
 
         window.deliverAll = async (orderId) => {
@@ -307,6 +350,7 @@
             if (!order) return;
 
             const nowIso = new Date().toISOString();
+            const nowTime = Date.now();
             const queuedAt = new Date(order.kitchen_queued_at || order.order_taken_at || order.updated_at || Date.now()).getTime();
             const prepSecs = Math.max(60, Math.round((Date.now() - queuedAt) / 1000));
 
@@ -315,6 +359,7 @@
             order.kitchen_status = 'completed';
             order.delivered_at = nowIso;
             order.kitchen_delivered_at = nowIso;
+            order.kitchen_notified_at = nowTime;
             order.kitchen_staff_id = user?.id || 'ktc-1';
             order.kitchen_staff_name = user?.name || 'Fadime';
             order.prep_duration_seconds = prepSecs;
@@ -329,21 +374,39 @@
                     orderId, 
                     table_no: order.table_no,
                     waiter_id: order.waiter_id,
-                    waiter_name: order.waiter_name
+                    waiter_name: order.waiter_name,
+                    kitchen_notified_at: nowTime
                 });
                 showToast(`Masa ${order.table_no} tüm ürünleri hazır! ${order.waiter_name ? `(${order.waiter_name} bilgilendirildi)` : ''}`, "success");
                 renderKitchen();
 
                 try {
-                    if (order.id && !order.id.startsWith("order-")) {
-                        await updateDoc(doc(db, "orders", order.id), { 
-                            items: order.items,
-                            all_delivered: true,
-                            kitchen_status: 'completed',
-                            delivered_at: order.delivered_at
-                        });
+                    const docIdToUpdate = order.firestore_id || order.doc_id || (order.id && !order.id.startsWith("order-") ? order.id : null);
+                    const updatePayload = { 
+                        items: order.items,
+                        all_delivered: true,
+                        kitchen_status: 'completed',
+                        delivered_at: order.delivered_at,
+                        kitchen_delivered_at: order.kitchen_delivered_at,
+                        kitchen_notified_at: nowTime,
+                        kitchen_staff_id: order.kitchen_staff_id,
+                        kitchen_staff_name: order.kitchen_staff_name
+                    };
+
+                    if (docIdToUpdate) {
+                        await updateDoc(doc(db, "orders", docIdToUpdate), updatePayload);
+                    } else {
+                        const qOrder = query(collection(db, "orders"), where("table_no", "==", Number(order.table_no)), where("status", "==", "open"));
+                        const snap = await getDocs(qOrder);
+                        if (!snap.empty) {
+                            for (const d of snap.docs) {
+                                await updateDoc(doc(db, "orders", d.id), updatePayload);
+                            }
+                        }
                     }
-                } catch(e) {}
+                } catch(e) {
+                    console.error("Firestore teslimat güncelleme hatası:", e);
+                }
             };
 
             if (cardEl) {
@@ -411,7 +474,7 @@
                     if (!isCompleted && hasPendingNow && (!existing || !hadPending)) {
                         newlyAddedOrder = data;
                     }
-                    freshOrders[data.table_id] = { id: d.id, ...data };
+                    freshOrders[data.table_id] = { ...data, id: d.id, firestore_id: d.id, table_no: Number(data.table_no || data.table_id) };
                 });
                 activeOrders = freshOrders;
                 localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));

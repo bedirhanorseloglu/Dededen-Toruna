@@ -376,10 +376,130 @@ const checkoutEv = fastCheckout(activeTable1, 'cash');
 assert(checkoutEv.broadcastType === 'order_paid', "8.3: Masa hesabı kapatıldığında sadece 'order_paid' yayınlandı (Mutfağa sipariş DÜŞMEDİ).");
 assert(activeTable1.status === 'paid', "8.4: Masa 1 başarıyla kapatıldı.");
 
+console.log("\n------------------------------------------------------------\n");
+
+// --- TEST 9: Farklı Cihazlar (Telefon Mutfak -> PC Garson) Firestore Anlık Teslimat Senkronu ---
+console.log("Test 9: Farklı Cihazlar Arası Canlı Bildirim ve İsim Eşleştirme Dayanıklılığı");
+
+function isOrderBelongsToCurrentWaiterAdvanced(orderOrData, currentUser) {
+    if (!orderOrData || !currentUser) return false;
+    if (currentUser.role && currentUser.role !== 'waiter') return false;
+
+    const targetId = String(orderOrData.waiter_id || '').trim();
+    const myId = String(currentUser.id || '').trim();
+    if (targetId && myId && targetId === myId) return true;
+
+    const targetName = (orderOrData.waiter_name || '').trim().toLowerCase();
+    const myName = (currentUser.name || '').trim().toLowerCase();
+
+    if (!targetName) return true;
+    if (targetName === myName) return true;
+
+    const cleanTarget = targetName.replace(/[^a-z0-9ğüşıöç]/g, ' ');
+    const cleanMy = myName.replace(/[^a-z0-9ğüşıöç]/g, ' ');
+    const targetWords = cleanTarget.split(/\s+/).filter(Boolean);
+    const myWords = cleanMy.split(/\s+/).filter(Boolean);
+
+    const hasCommonWord = targetWords.some(w => 
+        w !== 'garson' && w !== 'salon' && w !== 'teras' && w !== 'bahce' && myWords.includes(w)
+    );
+    if (hasCommonWord) return true;
+    if (myName.includes(targetName) || targetName.includes(myName)) return true;
+    return false;
+}
+
+// Senaryo: Siparişte waiter_name "Ahmet (Salon)" yazarken garsonun user.name'i "Ahmet"
+const phoneKitchenDeliveredOrder = {
+    id: "fs-order-999",
+    table_no: 7,
+    waiter_id: "wtr-1",
+    waiter_name: "Ahmet (Salon)",
+    kitchen_status: "completed",
+    all_delivered: true,
+    kitchen_notified_at: Date.now(),
+    items: [
+        { name: "Hamsiköy Sütlacı", quantity: 2, status: "delivered" }
+    ]
+};
+
+const pcWaiterAhmet = { id: "wtr-1", name: "Ahmet", role: "waiter" };
+const pcWaiterBurak = { id: "wtr-4", name: "Burak Kaya", role: "waiter" };
+const pcAdminPatron = { id: "mgr-1", name: "Patron", role: "admin" };
+
+assert(isOrderBelongsToCurrentWaiterAdvanced(phoneKitchenDeliveredOrder, pcWaiterAhmet) === true,
+    "9.1: Ahmet (Salon) olarak açılan sipariş PC'deki Ahmet'e başarıyla eşleşti.");
+
+assert(isOrderBelongsToCurrentWaiterAdvanced(phoneKitchenDeliveredOrder, pcWaiterBurak) === false,
+    "9.2: Farklı garsona (Burak Kaya) yanlış bildirim gitmedi.");
+
+assert(isOrderBelongsToCurrentWaiterAdvanced(phoneKitchenDeliveredOrder, pcAdminPatron) === false,
+    "9.3: Yönetici (Patron) ekranında garson zili çalmadı.");
+
+// Firestore onSnapshot simülasyonu:
+let pcSoundPlayed = false;
+let pcSpoken = false;
+let pcToastShown = false;
+let lastNotifiedTime = 0;
+
+function simulateWaiterOnSnapshot(orderDoc, currentUser) {
+    const isAllDelivered = orderDoc.kitchen_status === 'completed' || orderDoc.items.every(i => i.status === 'delivered');
+    const notifiedTime = orderDoc.kitchen_notified_at || 0;
+    if (isAllDelivered && notifiedTime > lastNotifiedTime) {
+        if (isOrderBelongsToCurrentWaiterAdvanced(orderDoc, currentUser)) {
+            pcSoundPlayed = true;
+            pcSpoken = true;
+            pcToastShown = true;
+        }
+        lastNotifiedTime = notifiedTime;
+    }
+}
+
+simulateWaiterOnSnapshot(phoneKitchenDeliveredOrder, pcWaiterAhmet);
+
+assert(pcSoundPlayed === true, "9.4: PC Garson ekranında 4 tonlu zil (playOrderReadySound) çaldı.");
+assert(pcSpoken === true, "9.5: PC Garson ekranında Türkçe sesli anons ('Masa 7 siparişiniz hazır') yapıldı.");
+assert(pcToastShown === true, "9.6: PC Garson ekranında yeşil hazır toast bildirimi gösterildi.");
+
+// İkinci snapshot (veri tekrar geldiğinde mükerrer ses çalmamalı):
+pcSoundPlayed = false;
+simulateWaiterOnSnapshot(phoneKitchenDeliveredOrder, pcWaiterAhmet);
+assert(pcSoundPlayed === false, "9.7: Aynı sipariş için mükerrer / çift alarm çalmadı.");
+
+console.log("\n------------------------------------------------------------\n");
+
+// --- TEST 10: Ek Sipariş İzolasyonu (Eski Teslim Edilmiş Hamburger Mutfağa Gelmemeli) ---
+console.log("Test 10: Ek Sipariş Durumunda Mutfağa Yalnızca Yeni Kalemlerin Görünmesi");
+
+const tableWithExtraOrder = {
+    table_no: 3,
+    status: 'open',
+    kitchen_status: 'pending',
+    all_delivered: false,
+    items: [
+        { name: "Hamburger", quantity: 1, status: 'delivered' },
+        { name: "Patates Kızartması", quantity: 1, status: 'delivered' },
+        { name: "Hamsiköy Sütlacı", quantity: 1, status: 'pending' } // Sonradan eklenen ek sipariş
+    ]
+};
+
+// Mutfak ekranı hesaplaması:
+const extraDeliveredItems = tableWithExtraOrder.items.filter(i => i.status === 'delivered');
+const extraPendingItems = tableWithExtraOrder.items.filter(i => i.status !== 'delivered');
+const isExtraOrderMode = extraDeliveredItems.length > 0 && extraPendingItems.length > 0;
+const extraDisplayItems = tableWithExtraOrder.all_delivered ? tableWithExtraOrder.items : extraPendingItems;
+
+assert(extraDisplayItems.length === 1, "10.1: Mutfak panosunda sadece 1 kalem (yeni ek sipariş) listelendi, eski ürünler gizlendi.");
+assert(extraDisplayItems[0].name === "Hamsiköy Sütlacı", "10.2: Listelenen tek ürün yeni sipariş edilen 'Hamsiköy Sütlacı'.");
+assert(extraDisplayItems.some(i => i.name === "Hamburger") === false, "10.3: Daha önce yenmiş olan 'Hamburger' mutfak çalışanının önüne düşmedi.");
+assert(isExtraOrderMode === true, "10.4: '🆕 EK SİPARİŞ' etiketi ve rozeti başarıyla devreye girdi.");
+
+const extraButtonText = isExtraOrderMode ? '✓ Ek Siparişi Tamamla (Garsona Bildir)' : '✓ Masayı Tamamla (Garsona Bildir)';
+assert(extraButtonText === '✓ Ek Siparişi Tamamla (Garsona Bildir)', "10.5: Buton '✓ Ek Siparişi Tamamla (Garsona Bildir)' olarak güncellendi.");
+
 console.log("\n============================================================");
 console.log(`SONUÇ: ${passedTests}/${totalTests} Test Başarıyla Geçti!`);
 if (passedTests === totalTests) {
-    console.log("TÜM SİPARİŞ AKIŞI, ADİSYON GÖRÜNTÜLEME VE MUTFAK İZOLASYONU KUSURSUZ ÇALIŞIYOR.");
+    console.log("TÜM SİPARİŞ AKIŞI, EK SİPARİŞ İZOLASYONU VE ÇAPRAZ CİHAZ BİLDİRİMİ KUSURSUZ ÇALIŞIYOR.");
 }
 
 

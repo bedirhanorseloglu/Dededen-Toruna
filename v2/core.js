@@ -200,8 +200,9 @@ export function announceNewOrder(tableNo, items = []) {
     try {
         const pendingItems = items.filter(i => i.status !== 'delivered');
         const targetList = pendingItems.length > 0 ? pendingItems : items;
+        const isExtra = items.some(i => i.status === 'delivered');
         const summary = targetList.slice(0, 4).map(i => `${i.quantity} ${i.name}`).join(', ');
-        const text = `Yeni sipariş: Masa ${tableNo}! ${summary}`;
+        const text = isExtra ? `Masa ${tableNo} ek sipariş: ${summary}` : `Yeni sipariş: Masa ${tableNo}! ${summary}`;
         speakAnnouncement(text);
     } catch (e) { }
 }

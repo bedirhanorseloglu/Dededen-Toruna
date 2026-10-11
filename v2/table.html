@@ -543,15 +543,18 @@
                 } else {
                     const docRef = await addDoc(collection(db, "orders"), orderData);
                     currentOrderId = docRef.id;
-                    cachedOrders[tableNo].id = currentOrderId;
+                    orderData.id = currentOrderId;
+                    orderData.firestore_id = currentOrderId;
+                    cachedOrders[tableNo] = orderData;
                     localStorage.setItem('cafe_cached_orders', JSON.stringify(cachedOrders));
+                    await updateDoc(doc(db, "orders", currentOrderId), { id: currentOrderId, firestore_id: currentOrderId });
                 }
-            } catch(e) {}
+            } catch(e) {
+                console.error("Firestore sipariş kaydetme hatası:", e);
+            }
 
-            setTimeout(() => {
-                if (isFromAdminPanel) pageNavigate('admin.html?tab=tables');
-                else pageNavigate('waiter.html');
-            }, 60);
+            if (isFromAdminPanel) pageNavigate('admin.html?tab=tables');
+            else pageNavigate('waiter.html');
         };
 
         async function checkout(method) {
