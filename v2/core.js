@@ -119,13 +119,37 @@ export function onOrderChange(callback) {
 
 let audioCtx = null;
 export function initAudio() {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch(e) {}
+}
+
+export function requestNotificationPermission() {
+    try {
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    } catch(e) {}
+}
+
+export function showSystemNotification(title, body) {
+    try {
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+            new Notification(title, {
+                body: body,
+                icon: 'logo.png',
+                tag: 'order-' + Date.now(),
+                renotify: true
+            });
+        }
+    } catch(e) {}
 }
 
 if (typeof window !== 'undefined') {
     const unlockAudio = () => {
         initAudio();
+        requestNotificationPermission();
         window.removeEventListener('click', unlockAudio);
         window.removeEventListener('touchstart', unlockAudio);
     };

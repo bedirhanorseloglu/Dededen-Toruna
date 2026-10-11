@@ -17,7 +17,10 @@
                 <p>1924 Hamsiköy Sütlacı</p>
             </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 12px;" id="user-actions-header">
+        <div style="display: flex; align-items: center; gap: 10px;" id="user-actions-header">
+            <button class="btn-outline" id="btn-sound-test" style="font-size: 11px; padding: 5px 10px; color: #10b981; border-color: rgba(16,185,129,0.3); border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; gap: 4px;" title="Bildirim zilini test edin">
+                <span>🔔</span> Ses Testi
+            </button>
             <div class="user-badge" id="user-badge-box">
                 <span class="user-role-tag" id="user-role-tag">GARSON</span>
                 <strong id="user-name-display">...</strong>
@@ -91,6 +94,9 @@
             onOrderChange, 
             playOrderReadySound,
             speakAnnouncement,
+            initAudio,
+            requestNotificationPermission,
+            showSystemNotification,
             db, 
             collection, 
             doc,
@@ -116,6 +122,17 @@
         if (roleTag) {
             roleTag.textContent = 'GARSON';
             roleTag.style.background = '';
+        }
+
+        const btnSoundTest = document.getElementById('btn-sound-test');
+        if (btnSoundTest) {
+            btnSoundTest.onclick = () => {
+                initAudio();
+                requestNotificationPermission();
+                playOrderReadySound();
+                speakAnnouncement("Bildirim sesleri açık");
+                showToast("🔔 Bildirim sesleri ve canlı yayın aktif!", "success");
+            };
         }
 
         document.getElementById('btn-logout').onclick = () => {
@@ -288,7 +305,7 @@
                 let waiterHtml = '';
                 if (isBusy) {
                     const wName = (order.waiter_name || '').trim() || user?.name || 'Garson';
-                    const isMyTable = user?.role === 'waiter' && (wName === user.name);
+                    const isMyTable = user?.role === 'waiter' && isOrderBelongsToCurrentWaiter(order);
                     waiterHtml = `
                         <div style="font-size: 11px; color: ${isMyTable ? '#10b981' : 'var(--brand-gold)'}; margin-top: 4px; font-weight: 700; letter-spacing: 0.2px; display: flex; align-items: center; justify-content: center; gap: 4px;">
                             👤 ${wName}
@@ -455,6 +472,7 @@
                                 playOrderReadySound();
                                 speakAnnouncement(`Masa ${tId} siparişiniz hazır`);
                                 showToast(`🔔 Masa ${tId} siparişiniz hazır! Servis edebilirsiniz.`, "success");
+                                showSystemNotification(`Masa ${tId} Siparişi Hazır!`, `Masa ${tId} siparişiniz mutfakta hazırlandı, servis edebilirsiniz.`);
                                 highlightTableCard(tId);
                             }
                             notifiedOrderTimestamps.set(tId, notifiedTime || Date.now());
