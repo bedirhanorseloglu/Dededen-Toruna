@@ -139,7 +139,7 @@
             query,
             where,
             serverTimestamp 
-        } from "./core.js?v=2.3";
+        } from "./core.js?v=2.4";
         import { MENU_CATEGORIES, MENU_PRODUCTS, getProductCategoryId } from "./menu-data.js";
         import { printOrderReceipt } from "./printer.js";
         import { 
@@ -495,20 +495,27 @@
             const cachedOrders = JSON.parse(localStorage.getItem('cafe_cached_orders') || '{}');
             const prevOrder = cachedOrders[tableNo] || cachedOrders[String(tableNo)];
 
-            // Masada GERÇEKTEN bu oturumda yeni eklenmiş bir ürün var mı?
-            const hasRealNewItems = cart.some(i => i.is_new_item === true);
-            const prevWasCompleted = prevOrder && (prevOrder.kitchen_status === 'completed' || prevOrder.all_delivered === true);
+            // Masada hazırlanmayı bekleyen (henüz mutfakça teslim edilmemiş) ürün var mı?
+            const pendingItems = cart.filter(i => i && i.status !== 'delivered');
+            const hasPendingItems = pendingItems.length > 0;
+            const prevPendingCount = (prevOrder?.items || []).filter(i => i && i.status !== 'delivered').length;
+            const hasNewPendingToPrepare = hasPendingItems && (
+                cart.some(i => i.is_new_item === true) || 
+                pendingItems.length > prevPendingCount || 
+                !prevOrder || 
+                prevOrder.kitchen_status !== 'completed'
+            );
 
-            // Eğer masaya yeni bir ürün eklenmediyse ve daha önce mutfak tamamlandıysa KESİNLİKLE 'completed' kalır!
-            const newKitchenStatus = hasRealNewItems ? 'pending' : (prevWasCompleted ? 'completed' : (prevOrder?.kitchen_status || 'pending'));
-            const allDelivered = (newKitchenStatus === 'completed');
+            const newKitchenStatus = hasNewPendingToPrepare ? 'pending' : (hasPendingItems ? (prevOrder?.kitchen_status || 'pending') : 'completed');
+            const allDelivered = !hasPendingItems;
 
             // Yeni eklenen ürünlerin bayrağını temizle (artık kaydedildiler)
             cart.forEach(i => { delete i.is_new_item; });
 
             const nowIso = new Date().toISOString();
+            const nowTime = Date.now();
             const orderData = {
-                id: currentOrderId || ("order-" + Date.now()),
+                id: currentOrderId || ("order-" + nowTime),
                 table_id: tableNo,
                 table_no: tableNo,
                 items: cart,
@@ -520,7 +527,8 @@
                 waiter_id: user?.id || 'wtr-1',
                 waiter_name: chosenWaiter,
                 order_taken_at: prevOrder?.order_taken_at || nowIso,
-                kitchen_queued_at: newKitchenStatus === 'pending' ? nowIso : (prevOrder?.kitchen_queued_at || nowIso),
+                kitchen_queued_at: hasNewPendingToPrepare ? nowIso : (prevOrder?.kitchen_queued_at || nowIso),
+                kitchen_queued_time: hasNewPendingToPrepare ? nowTime : (Number(prevOrder?.kitchen_queued_time) || nowTime),
                 updated_at: nowIso
             };
 
@@ -529,7 +537,7 @@
 
             // SADECE ve SADECE masaya YENİ bir ürün eklendiyse mutfağa 'order_saved' yayını yap!
             // Eğer yeni ürün yoksa garson/masa güncellemesi ('order_updated') yayını yap.
-            if (hasRealNewItems) {
+            if (hasNewPendingToPrepare) {
                 broadcastOrderChange('order_saved', orderData);
                 showToast("🍳 Yeni sipariş mutfağa iletildi!", "success");
             } else {

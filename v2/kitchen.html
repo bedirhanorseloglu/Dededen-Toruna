@@ -85,7 +85,7 @@
             onSnapshot, 
             query, 
             where 
-        } from "./core.js?v=2.3";
+        } from "./core.js?v=2.4";
         import { showToast, pageNavigate, animateCardEntrance, animateCardExit } from "./motion.js";
         import { updateKitchenStats } from "./analytics-service.js";
 
@@ -118,11 +118,23 @@
             if (soundEnabled) {
                 initAudio();
                 playNotificationSound();
+                speakAnnouncement("Mutfak sesli bildirimleri açık");
                 showToast("Sesli Uyarı ve Anons Açıldı 🔔", "success");
             } else {
                 showToast("Sesli Uyarı Kapatıldı 🔇", "info");
             }
         };
+
+        const unlockMobileAudio = () => {
+            initAudio();
+            if ('speechSynthesis' in window && window.speechSynthesis.paused) {
+                window.speechSynthesis.resume();
+            }
+            window.removeEventListener('click', unlockMobileAudio);
+            window.removeEventListener('touchstart', unlockMobileAudio);
+        };
+        window.addEventListener('click', unlockMobileAudio, { passive: true });
+        window.addEventListener('touchstart', unlockMobileAudio, { passive: true });
 
         let currentFilter = 'all'; // 'all' | 'pending' | 'ready'
         window.setKdsFilter = (filter) => {
@@ -199,6 +211,7 @@
                         </p>
                     </div>
                 `;
+                initialRenderDone = true;
                 return;
             }
 
@@ -299,7 +312,6 @@
             order.all_delivered = allDelivered;
             const nowTime = Date.now();
             if (allDelivered) {
-                knownKitchenOrderTimestamps.set(Number(order.table_no), Date.now() + 60000);
                 order.kitchen_status = 'completed';
                 order.kitchen_notified_at = nowTime;
             } else {
@@ -354,9 +366,6 @@
             const nowTime = Date.now();
             const queuedAt = new Date(order.kitchen_queued_at || order.order_taken_at || order.updated_at || Date.now()).getTime();
             const prepSecs = Math.max(60, Math.round((Date.now() - queuedAt) / 1000));
-
-            // Mutfak personeli "Masayı Tamamla" dediğinde telefonun KENDİNE "Yeni sipariş" anonsu yapmasını engelle:
-            knownKitchenOrderTimestamps.set(Number(order.table_no), Date.now() + 60000);
 
             order.items.forEach(i => i.status = 'delivered');
             order.all_delivered = true;
@@ -465,50 +474,73 @@
 
         // Mutfakta sesli anons SADECE garson mutfağa YENİ bir sipariş gönderdiğinde çalar.
         let isFirstKitchenSnapshot = true;
-        const knownKitchenOrderTimestamps = new Map();
+        const lastSeenKitchenQueuedTime = new Map();
 
         try {
             const q = query(collection(db, "orders"), where("status", "==", "open"));
             onSnapshot(q, snap => {
-                let newlyAddedOrder = null;
                 const freshOrders = {};
-
                 snap.forEach(d => {
                     const data = d.data();
                     const tId = Number(data.table_id || data.table_no);
-                    const queuedAt = new Date(data.kitchen_queued_at || data.updated_at || 0).getTime();
-                    const lastQueued = knownKitchenOrderTimestamps.get(tId) || 0;
-                    const hasPendingNow = data.items?.some(i => i && i.status !== 'delivered');
-                    const isCompleted = data.kitchen_status === 'completed' || data.all_delivered === true;
-
-                    // SADECE garson yeni bir sipariş gönderdiyse (ve mutfak henüz teslim etmediyse) mutfakta alarm çal:
-                    if (!isFirstKitchenSnapshot && !isCompleted && hasPendingNow && queuedAt > lastQueued) {
-                        newlyAddedOrder = data;
-                    }
-
-                    if (queuedAt > lastQueued) {
-                        knownKitchenOrderTimestamps.set(tId, queuedAt);
-                    }
                     freshOrders[tId] = { ...data, id: d.id, firestore_id: d.id, table_no: tId };
                 });
 
-                isFirstKitchenSnapshot = false;
+                // İlk yüklemede geçmiş açık siparişlerin zaman damgalarını kaydet (Geçmiş için alarm çalma)
+                if (isFirstKitchenSnapshot) {
+                    snap.forEach(d => {
+                        const data = d.data();
+                        const tId = Number(data.table_id || data.table_no);
+                        const queuedTime = Number(data.kitchen_queued_time || new Date(data.kitchen_queued_at || 0).getTime() || 0);
+                        lastSeenKitchenQueuedTime.set(tId, queuedTime);
+                    });
+                    isFirstKitchenSnapshot = false;
+                    activeOrders = freshOrders;
+                    localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
+                    renderKitchen();
+                    return;
+                }
+
+                // SADECE değişen veya yeni eklenen siparişleri incele (docChanges):
+                snap.docChanges().forEach(change => {
+                    if (change.type === 'added' || change.type === 'modified') {
+                        const data = change.doc.data();
+                        const tId = Number(data.table_id || data.table_no);
+                        const isCompleted = data.kitchen_status === 'completed' || data.all_delivered === true;
+                        const pendingItems = (data.items || []).filter(i => i && i.status !== 'delivered');
+
+                        // Eğer siparişte hazırlanacak ürün yoksa veya mutfak tamamlandıysa ses çıkarma:
+                        if (isCompleted || pendingItems.length === 0) return;
+
+                        const queuedTime = Number(data.kitchen_queued_time || new Date(data.kitchen_queued_at || 0).getTime() || 0);
+                        const prevQueued = lastSeenKitchenQueuedTime.get(tId) || 0;
+
+                        // Garson YENİ bir sipariş veya ek sipariş gönderdiyse:
+                        if (queuedTime > 0 && queuedTime > prevQueued) {
+                            lastSeenKitchenQueuedTime.set(tId, queuedTime);
+                            const isExtra = (data.items || []).some(i => i && i.status === 'delivered');
+
+                            if (soundEnabled) {
+                                playNotificationSound();
+                                announceNewOrder(tId, pendingItems);
+                            }
+                            showToast(isExtra ? `🔔 Masa ${tId} Ek Sipariş Geldi!` : `🔔 Masa ${tId} Yeni Sipariş!`, "warning");
+                        } else if (queuedTime > 0) {
+                            lastSeenKitchenQueuedTime.set(tId, queuedTime);
+                        }
+                    } else if (change.type === 'removed') {
+                        const data = change.doc.data();
+                        const tId = Number(data.table_id || data.table_no);
+                        lastSeenKitchenQueuedTime.delete(tId);
+                    }
+                });
+
                 activeOrders = freshOrders;
                 localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
-
-                if (newlyAddedOrder && initialRenderDone) {
-                    const pendingOnly = newlyAddedOrder.items?.filter(i => i && i.status !== 'delivered') || [];
-                    const isExtra = newlyAddedOrder.items?.some(i => i && i.status === 'delivered');
-                    if (pendingOnly.length > 0 && soundEnabled) {
-                        playNotificationSound();
-                        announceNewOrder(newlyAddedOrder.table_no, pendingOnly);
-                    }
-                    if (pendingOnly.length > 0) {
-                        showToast(isExtra ? `🔔 Masa ${newlyAddedOrder.table_no} Ek Sipariş Geldi!` : `🔔 Masa ${newlyAddedOrder.table_no} Yeni Sipariş!`, "warning");
-                    }
-                }
                 renderKitchen();
-            }, () => {});
+            }, (err) => {
+                console.error("Kitchen onSnapshot hatası:", err);
+            });
         } catch(e) {}
 
         renderKitchen();

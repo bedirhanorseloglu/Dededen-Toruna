@@ -103,7 +103,7 @@
             query, 
             where,
             broadcastOrderChange
-        } from "./core.js?v=2.3";
+        } from "./core.js?v=2.4";
         import { animateCardEntrance, pageNavigate, showToast, openModalWithMotion, closeModalWithMotion, showConfirmModal } from "./motion.js";
         import { printOrderReceipt } from "./printer.js";
         import { recordCompletedOrder } from "./analytics-service.js";
@@ -434,8 +434,7 @@
 
         // Firestore Masalar ve Canlı Siparişler (Farklı cihazlar - Telefon mutfak / PC garson anlık senkronu)
         let isFirstOrdersSnapshot = true;
-        const pageLoadTime = Date.now();
-        const notifiedOrderTimestamps = new Map();
+        const lastSeenKitchenNotified = new Map();
 
         try {
             onSnapshot(collection(db, "tables"), snap => {
@@ -456,28 +455,44 @@
                     const data = d.data();
                     const tId = Number(data.table_id || data.table_no);
                     
-                    // Eğer dökümanda Yönetici yazıyorsa garsonun ekranını temizle
                     let cleanWaiter = data.waiter_name;
                     if (cleanWaiter && (cleanWaiter.includes('Yönetici') || cleanWaiter.includes('Patron'))) {
-                        cleanWaiter = ''; // Garson Seçilmedi durumuna çek
+                        cleanWaiter = '';
                     }
 
                     newOrders[tId] = { ...data, id: d.id, firestore_id: d.id, waiter_name: cleanWaiter };
-                    
-                    const isAllDelivered = data.kitchen_status === 'completed' || 
-                        (data.items?.length > 0 && data.items.every(i => i.status === 'delivered'));
+                });
 
-                    const notifiedTime = Number(data.kitchen_notified_at || 0);
-                    const lastNotified = notifiedOrderTimestamps.get(tId) || 0;
+                // İlk yüklemede mevcut açık siparişlerin bildirim zamanlarını kaydet (Geçmiş için bildirim/ses çalma!)
+                if (isFirstOrdersSnapshot) {
+                    snap.forEach(d => {
+                        const data = d.data();
+                        const tId = Number(data.table_id || data.table_no);
+                        const notifiedTime = Number(data.kitchen_notified_at || 0);
+                        lastSeenKitchenNotified.set(tId, notifiedTime);
+                    });
+                    isFirstOrdersSnapshot = false;
+                    activeOrders = newOrders;
+                    localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
+                    renderTables();
+                    return;
+                }
 
-                    if (isAllDelivered) {
-                        // Yeni bir teslimat bildirimi geldi mi?
-                        const isNewDelivery = !isFirstOrdersSnapshot && (
-                            (notifiedTime > 0 && notifiedTime > lastNotified) ||
-                            (!knownDeliveredTables.has(tId) && lastNotified === 0)
-                        );
+                // SADECE değişen veya yeni eklenen siparişleri incele (docChanges):
+                snap.docChanges().forEach(change => {
+                    if (change.type === 'modified' || change.type === 'added') {
+                        const data = change.doc.data();
+                        const tId = Number(data.table_id || data.table_no);
+                        const isAllDelivered = data.kitchen_status === 'completed' || 
+                            (data.items && data.items.length > 0 && data.items.every(i => i && i.status === 'delivered'));
 
-                        if (isNewDelivery) {
+                        const notifiedTime = Number(data.kitchen_notified_at || 0);
+                        const prevNotified = lastSeenKitchenNotified.get(tId) || 0;
+
+                        // YALNIZCA VE YALNIZCA mutfak bu masayı YENİ tamamladıysa (kitchen_notified_at güncellendiyse):
+                        if (isAllDelivered && notifiedTime > 0 && notifiedTime > prevNotified) {
+                            lastSeenKitchenNotified.set(tId, notifiedTime);
+                            
                             const belongsToMe = isOrderBelongsToCurrentWaiter(data);
                             if (belongsToMe) {
                                 playOrderReadySound();
@@ -486,19 +501,16 @@
                                 showSystemNotification(`Masa ${tId} Siparişi Hazır!`, `Masa ${tId} siparişiniz mutfakta hazırlandı, servis edebilirsiniz.`);
                                 highlightTableCard(tId);
                             }
-                            notifiedOrderTimestamps.set(tId, notifiedTime || Date.now());
-                        } else if (isFirstOrdersSnapshot) {
-                            // Sayfa ilk yüklendiğinde eski tamamlanmış siparişleri kaydet (gürültüyü önle)
-                            notifiedOrderTimestamps.set(tId, notifiedTime || pageLoadTime);
+                        } else if (notifiedTime > 0) {
+                            lastSeenKitchenNotified.set(tId, notifiedTime);
                         }
-                        knownDeliveredTables.add(tId);
-                    } else {
-                        knownDeliveredTables.delete(tId);
-                        notifiedOrderTimestamps.delete(tId);
+                    } else if (change.type === 'removed') {
+                        const data = change.doc.data();
+                        const tId = Number(data.table_id || data.table_no);
+                        lastSeenKitchenNotified.delete(tId);
                     }
                 });
 
-                isFirstOrdersSnapshot = false;
                 activeOrders = newOrders;
                 localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
                 renderTables();

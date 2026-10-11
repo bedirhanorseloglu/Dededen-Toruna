@@ -210,10 +210,13 @@ export function speakAnnouncement(text) {
     try {
         if ('speechSynthesis' in window && text) {
             window.speechSynthesis.cancel();
+            if (window.speechSynthesis.paused) {
+                window.speechSynthesis.resume();
+            }
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'tr-TR';
-            utterance.rate = 1.05;
-            utterance.pitch = 1.05;
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
             utterance.volume = 1.0;
             window.speechSynthesis.speak(utterance);
         }
