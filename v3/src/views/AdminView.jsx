@@ -45,11 +45,52 @@ import {
 import TableCardGrid from '../components/TableCardGrid';
 
 export default function AdminView() {
-    const { tables, activeOrders, navigateTo, currentUser, showToast, closeTableOrder } = useApp();
-    const [currentActiveTab, setCurrentActiveTab] = useState('tables'); // 'tables' | 'analytics' | 'staff'
+    const { tables, activeOrders, navigateTo, currentUser, showToast, closeTableOrder, printerSettings, savePrinterSettings } = useApp();
+    const [currentActiveTab, setCurrentActiveTab] = useState('tables'); // 'tables' | 'analytics' | 'staff' | 'printer'
     const [currentPeriod, setCurrentPeriod] = useState('today'); // 'today' | 'week' | 'month' | 'all'
     const [productSearch, setProductSearch] = useState('');
     const [completedOrders, setCompletedOrders] = useState([]);
+
+    // Merkezi Yazıcı Ayarları Form State
+    const [printerIpInput, setPrinterIpInput] = useState(printerSettings?.ip || '');
+    const [printerPortInput, setPrinterPortInput] = useState(printerSettings?.port || '9100');
+    const [printerModeInput, setPrinterModeInput] = useState(printerSettings?.mode || 'rawbt');
+    const [printerAutoInput, setPrinterAutoInput] = useState(printerSettings?.autoPrintKitchen !== false);
+
+    useEffect(() => {
+        if (printerSettings) {
+            setPrinterIpInput(printerSettings.ip || '');
+            setPrinterPortInput(printerSettings.port || '9100');
+            setPrinterModeInput(printerSettings.mode || 'rawbt');
+            setPrinterAutoInput(printerSettings.autoPrintKitchen !== false);
+        }
+    }, [printerSettings]);
+
+    const handleSavePrinterSettings = async () => {
+        await savePrinterSettings({
+            ip: printerIpInput.trim(),
+            port: printerPortInput.trim() || '9100',
+            mode: printerModeInput,
+            autoPrintKitchen: printerAutoInput
+        });
+    };
+
+    const handleTestPrintTicket = () => {
+        const testOrder = {
+            table_no: 1,
+            waiter_name: currentUser?.name || 'Yönetici (Deneme)',
+            items: [
+                { name: 'Hamsiköy Sütlacı (Fırın)', quantity: 2, price: 150, status: 'cooking', notes: 'Bol fındıklı test' },
+                { name: 'Rize Demleme Çay', quantity: 3, price: 25, status: 'cooking' }
+            ]
+        };
+        printKitchenOrderTicket(testOrder, {
+            ip: printerIpInput,
+            port: printerPortInput,
+            mode: printerModeInput
+        });
+        showToast("Test mutfak fişi basılıyor...", "info");
+    };
 
     // Staff Lists from Firestore
     const [waitersList, setWaitersList] = useState([]);
@@ -447,14 +488,14 @@ export default function AdminView() {
     // Çekmeceden müşteri fişi yazdır (masa açık kalır)
     const handlePrintDrawerCustomerBill = () => {
         if (!drawerOrder) return;
-        printCustomerReceipt(drawerOrder);
+        printCustomerReceipt(drawerOrder, "Masa Adisyon Fişi", printerSettings);
         showToast(`Masa ${selectedDrawerTable} adisyon fişi yazdırılıyor.`, "info");
     };
 
     // Çekmeceden mutfak fişi yazdır (tatlı, içecekler ve teslim edilenler hariç)
     const handlePrintDrawerKitchenTicket = () => {
         if (!drawerOrder) return;
-        const res = printKitchenOrderTicket(drawerOrder);
+        const res = printKitchenOrderTicket(drawerOrder, printerSettings);
         if (res && res.ok === false) {
             showToast(res.message || 'Mutfak için yeni hazırlanacak ürün yok.', 'warning');
         } else {
@@ -771,6 +812,12 @@ export default function AdminView() {
                     onClick={() => setCurrentActiveTab('staff')}
                 >
                     <span>👥</span> Personel & PIN Yönetimi
+                </button>
+                <button 
+                    className={`admin-nav-btn ${currentActiveTab === 'printer' ? 'active' : ''}`}
+                    onClick={() => setCurrentActiveTab('printer')}
+                >
+                    <span>🖨️</span> Yazıcı Ayarları (Mutfak Ağ)
                 </button>
             </nav>
 
@@ -1454,6 +1501,226 @@ export default function AdminView() {
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                             <button onClick={() => setShowPinModal(false)} className="btn-outline">Vazgeç</button>
                             <button onClick={handleSavePin} className="btn-primary" style={{ padding: '8px 20px' }}>Şifreyi Güncelle</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ============================================================== */}
+            {/* 4. SEKME: YAZICI AYARLARI (MERKEZİ MUTFAK & KASA AĞ ENTEGRASYONU) */}
+            {/* ============================================================== */}
+            {currentActiveTab === 'printer' && (
+                <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+                    {/* Üst Bilgi Kartı */}
+                    <div style={{
+                        background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(15, 23, 42, 0.6))',
+                        border: '1px solid rgba(59, 130, 246, 0.35)',
+                        borderRadius: 'var(--radius-lg)',
+                        padding: '20px 24px',
+                        marginBottom: '24px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '16px'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                            <div style={{
+                                width: '50px',
+                                height: '50px',
+                                borderRadius: '12px',
+                                background: 'rgba(37, 99, 235, 0.25)',
+                                border: '1px solid #3b82f6',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '24px'
+                            }}>
+                                🖨️
+                            </div>
+                            <div>
+                                <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 4px 0', color: 'white' }}>
+                                    Merkezi Mutfak Yazıcısı Yapılandırması
+                                </h2>
+                                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                                    Buraya gireceğiniz IP adresi <strong>tüm garson tablet ve telefonlarına anında aktarılır</strong>. Garsonların hiçbir ayar yapmasına gerek kalmaz!
+                                </p>
+                            </div>
+                        </div>
+
+                        <div style={{
+                            padding: '8px 14px',
+                            borderRadius: '8px',
+                            background: printerSettings?.ip ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 159, 0, 0.15)',
+                            border: `1px solid ${printerSettings?.ip ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 159, 0, 0.4)'}`,
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            color: printerSettings?.ip ? '#10b981' : '#f59f00'
+                        }}>
+                            {printerSettings?.ip ? `● Aktif IP: ${printerSettings.ip}:${printerSettings.port || '9100'}` : '○ Henüz IP Girilmedi'}
+                        </div>
+                    </div>
+
+                    {/* Ayar Formu */}
+                    <div style={{
+                        background: 'var(--bg-surface)',
+                        border: '1px solid var(--border-card)',
+                        borderRadius: 'var(--radius-lg)',
+                        padding: '24px',
+                        marginBottom: '24px',
+                        boxShadow: 'var(--shadow-soft)'
+                    }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: 800, marginBottom: '16px', color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span>⚙️</span> Bağlantı Parametreleri
+                        </h3>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                                    Mutfak Yazıcısı IP Adresi (Modemden Alınan IP):
+                                </label>
+                                <input 
+                                    type="text" 
+                                    value={printerIpInput} 
+                                    onChange={(e) => setPrinterIpInput(e.target.value)} 
+                                    placeholder="Örn: 192.168.1.199" 
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px 14px',
+                                        background: 'var(--bg-surface-elevated)',
+                                        border: '1px solid var(--border-card)',
+                                        borderRadius: 'var(--radius-md)',
+                                        color: '#38bdf8',
+                                        fontFamily: 'monospace',
+                                        fontSize: '16px',
+                                        fontWeight: 800
+                                    }}
+                                />
+                                <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                                    Xprinter XP-Q805K veya benzeri Ethernet termal yazıcınızın IP'si.
+                                </span>
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                                    Port Numarası (Varsayılan 9100):
+                                </label>
+                                <input 
+                                    type="text" 
+                                    value={printerPortInput} 
+                                    onChange={(e) => setPrinterPortInput(e.target.value)} 
+                                    placeholder="9100" 
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px 14px',
+                                        background: 'var(--bg-surface-elevated)',
+                                        border: '1px solid var(--border-card)',
+                                        borderRadius: 'var(--radius-md)',
+                                        color: 'white',
+                                        fontFamily: 'monospace',
+                                        fontSize: '16px',
+                                        fontWeight: 700
+                                    }}
+                                />
+                                <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                                    Termal fiş yazıcılarının standart RAW ESC/POS portu 9100'dür.
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Mod Seçimi */}
+                        <div style={{ marginBottom: '20px' }}>
+                            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                                Yazdırma Modu:
+                            </label>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
+                                <div 
+                                    onClick={() => setPrinterModeInput('rawbt')}
+                                    style={{
+                                        padding: '14px 16px',
+                                        borderRadius: 'var(--radius-md)',
+                                        border: `2px solid ${printerModeInput === 'rawbt' ? '#10b981' : 'var(--border-card)'}`,
+                                        background: printerModeInput === 'rawbt' ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-surface-elevated)',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s ease'
+                                    }}
+                                >
+                                    <div style={{ fontWeight: 800, color: printerModeInput === 'rawbt' ? '#10b981' : 'white', fontSize: '14px', marginBottom: '4px' }}>
+                                        ⚡ RawBT / Termal Ağ (Önerilen)
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.35 }}>
+                                        Garson tabletlerinde bekleme yapmaz, arka planda anında mutfak yazıcısına fişi basar.
+                                    </div>
+                                </div>
+
+                                <div 
+                                    onClick={() => setPrinterModeInput('browser')}
+                                    style={{
+                                        padding: '14px 16px',
+                                        borderRadius: 'var(--radius-md)',
+                                        border: `2px solid ${printerModeInput === 'browser' ? '#3b82f6' : 'var(--border-card)'}`,
+                                        background: printerModeInput === 'browser' ? 'rgba(59, 130, 246, 0.1)' : 'var(--bg-surface-elevated)',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s ease'
+                                    }}
+                                >
+                                    <div style={{ fontWeight: 800, color: printerModeInput === 'browser' ? '#3b82f6' : 'white', fontSize: '14px', marginBottom: '4px' }}>
+                                        📄 Standart Tarayıcı Önizleme
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.35 }}>
+                                        Her yazdırmada ekranda şık bir fiş önizleme penceresi açar ve sistem yazıcısından basar.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Aksiyon Butonları */}
+                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'flex-end', paddingTop: '10px', borderTop: '1px solid var(--border-card)' }}>
+                            <button 
+                                onClick={handleTestPrintTicket} 
+                                className="btn-outline" 
+                                style={{ padding: '12px 20px', fontSize: '13px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', color: '#38bdf8', borderColor: '#38bdf8' }}
+                            >
+                                🧪 Deneme / Test Fişi Bas
+                            </button>
+                            <button 
+                                onClick={handleSavePrinterSettings} 
+                                className="btn-primary" 
+                                style={{ padding: '12px 24px', fontSize: '14px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, #10b981, #059669)' }}
+                            >
+                                💾 Ayarları Kaydet ve Tüm Cihazlara Uygula
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Kolay Kurulum Rehberi */}
+                    <div style={{
+                        background: 'var(--bg-surface)',
+                        border: '1px solid var(--border-card)',
+                        borderRadius: 'var(--radius-lg)',
+                        padding: '24px',
+                        boxShadow: 'var(--shadow-soft)'
+                    }}>
+                        <h3 style={{ fontSize: '16px', fontWeight: 800, marginBottom: '14px', color: 'white' }}>
+                            📖 Adım Adım Kurulum Rehberi (Xprinter XP-Q805K)
+                        </h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <span style={{ background: 'rgba(255,255,255,0.1)', color: 'white', fontWeight: 800, borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>1</span>
+                                <div><strong>Kablo Bağlantısı:</strong> Yazıcıyı mutfağa koyun, güç kablosunu prize takın ve Ethernet (LAN) kablosunu restoranınızın ana modemine bağlayın.</div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <span style={{ background: 'rgba(255,255,255,0.1)', color: 'white', fontWeight: 800, borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>2</span>
+                                <div><strong>IP Adresini Öğrenme (Self-Test):</strong> Yazıcı kapalıyken önündeki <code>FEED</code> (Kağıt Besleme) tuşuna basılı tutun ve o basılıyken açma anahtarına basın. 3 saniye sonra bırakın. Yazıcı bir test fişi basacaktır ve üzerinde <code>IP Address: 192.168.1.XXX</code> yazacaktır.</div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <span style={{ background: 'rgba(255,255,255,0.1)', color: 'white', fontWeight: 800, borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>3</span>
+                                <div><strong>Sisteme Tanımlama:</strong> Yukarıdaki "Mutfak Yazıcısı IP Adresi" kutucuğuna test fişindeki IP'yi yazın ve <strong>"Ayarları Kaydet"</strong> butonuna basın.</div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <span style={{ background: 'rgba(255,255,255,0.1)', color: 'white', fontWeight: 800, borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>4</span>
+                                <div><strong>Tamamlandı!</strong> Artık hiçbir garsonun tabletinde IP girmesine gerek yoktur. Sipariş verildiğinde fiş otomatik olarak mutfaktaki yazıcıdan çıkacaktır.</div>
+                            </div>
                         </div>
                     </div>
                 </div>

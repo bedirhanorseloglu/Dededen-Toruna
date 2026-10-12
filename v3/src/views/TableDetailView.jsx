@@ -51,7 +51,8 @@ export default function TableDetailView() {
         navigateTo, 
         showToast,
         tables,
-        closeTableOrder 
+        closeTableOrder,
+        printerSettings
     } = useApp();
 
     const tableNo = Number(selectedTableId);
@@ -223,7 +224,7 @@ export default function TableDetailView() {
             items: cartItems
         };
 
-        const res = printKitchenOrderTicket(printableOrder);
+        const res = printKitchenOrderTicket(printableOrder, printerSettings);
         if (res && res.ok !== false) {
             showToast(`Mutfak fişi yazdırılıyor (${res.count} yeni ürün).`, 'success');
         } else {
@@ -247,7 +248,7 @@ export default function TableDetailView() {
             created_at: existingOrder?.created_at || new Date().toISOString()
         };
 
-        printCustomerReceipt(billOrder);
+        printCustomerReceipt(billOrder, "Masa Adisyon Fişi", printerSettings);
         showToast(`Masa ${tableNo} adisyon fişi yazdırıldı.`, 'success');
     };
 

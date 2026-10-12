@@ -1,16 +1,80 @@
-// Termal Fiş Yazdırma Servisi (ESC/POS & Tarayıcı Termal Yazıcı Şablonu)
+// Termal Fiş Yazdırma Servisi (ESC/POS & Tarayıcı Termal Yazıcı Şablonu & RawBT Entegrasyonu)
 import { formatMoney, isInstantDeliveryCategory } from '../data/menu.js';
+
+/**
+ * Mutfak fişi metin formatı (ESC/POS & RawBT için saf metin)
+ */
+export function generateKitchenTicketText(order) {
+    const tableNo = order.table_no || order.table_id || '1';
+    const waiterName = order.waiter_name || 'Personel';
+    const nowTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    const nowDate = new Date().toLocaleDateString('tr-TR');
+    const kitchenItems = (order.items || []).filter(item => {
+        if (item.status === 'delivered') return false;
+        return !isInstantDeliveryCategory(item.category_id, item.name);
+    });
+
+    let txt = '';
+    txt += '================================\n';
+    txt += '    *** MUTFAK SIPARISI ***     \n';
+    txt += `           MASA ${tableNo}      \n`;
+    txt += '================================\n';
+    txt += `Garson: ${waiterName}\n`;
+    txt += `Saat  : ${nowTime} | ${nowDate}\n`;
+    txt += '--------------------------------\n';
+    kitchenItems.forEach(item => {
+        txt += `${item.quantity}x ${item.name}\n`;
+        if (item.notes || item.note) {
+            txt += `  >> Not: ${item.notes || item.note}\n`;
+        }
+    });
+    txt += '--------------------------------\n';
+    txt += '   Dededen Toruna Hamsikoy      \n';
+    txt += '================================\n\n\n';
+    return txt;
+}
+
+/**
+ * Müşteri adisyon fişi metin formatı
+ */
+export function generateCustomerTicketText(order, customTitle = "Masa Adisyon Fişi") {
+    const tableNo = order.table_no || order.table_id || '1';
+    const waiterName = order.waiter_name || 'Personel';
+    const total = order.total || order.subtotal || (order.items || []).reduce((s, i) => s + (i.price * i.quantity), 0);
+    const nowTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    const nowDate = new Date().toLocaleDateString('tr-TR');
+
+    let txt = '';
+    txt += '================================\n';
+    txt += '        DEDEDEN TORUNA          \n';
+    txt += '    Hamsikoy Sutlaci & Cafe     \n';
+    txt += `           MASA ${tableNo}      \n`;
+    txt += '================================\n';
+    txt += `Garson: ${waiterName}\n`;
+    txt += `Tarih : ${nowDate} ${nowTime}\n`;
+    txt += `Belge : ${customTitle}\n`;
+    txt += '--------------------------------\n';
+    (order.items || []).forEach(item => {
+        const itemTotal = formatMoney(item.price * item.quantity);
+        txt += `${item.quantity}x ${item.name.padEnd(18).slice(0, 18)} ${itemTotal}\n`;
+    });
+    txt += '================================\n';
+    txt += `GENEL TOPLAM: ${formatMoney(total)}\n`;
+    txt += '================================\n';
+    txt += '   Bizi Tercih Ettiginiz Icin   \n';
+    txt += '       Tesekkur Ederiz!         \n';
+    txt += '         Afiyet Olsun           \n';
+    txt += '================================\n\n\n';
+    return txt;
+}
 
 /**
  * 🍳 Mutfağa Termal Sipariş Fişi Yazdır
  * Müşteri Kuralı: Tatlı ve içecek kategorisindeki ürünler bu fişe DAHİL EDİLMEZ!
- * Yalnızca mutfakta pişirilecek/hazırlanacak ürünler dökülür.
  */
-export function printKitchenOrderTicket(order) {
+export function printKitchenOrderTicket(order, settings = null) {
     if (!order || !order.items || order.items.length === 0) return { ok: false, message: 'Yazdırılacak ürün bulunamadı.' };
 
-    // 1) Teslim edilmiş (status === 'delivered') ürünler mutfak fişine DAHİL EDİLMEZ!
-    // 2) Tatlı ve içecek kategorisi mutfak fişine DAHİL EDİLMEZ!
     const kitchenItems = order.items.filter(item => {
         if (item.status === 'delivered') return false;
         return !isInstantDeliveryCategory(item.category_id, item.name);
@@ -29,6 +93,18 @@ export function printKitchenOrderTicket(order) {
     const nowDate = new Date().toLocaleDateString('tr-TR');
     const hasAlreadyDelivered = order.items.some(i => i.status === 'delivered');
     const ticketTitle = hasAlreadyDelivered ? '*** İLAVE MUTFAK SİPARİŞİ ***' : '*** MUTFAK SİPARİŞİ ***';
+
+    const rawText = generateKitchenTicketText(order);
+
+    // Eğer doğrudan RawBT modu aktif ve Android ise arkadan fırlat
+    if (settings?.mode === 'rawbt' && /Android/i.test(navigator.userAgent)) {
+        try {
+            window.location.href = 'rawbt:data:text/plain;charset=utf-8,' + encodeURIComponent(rawText);
+            return { ok: true, count: kitchenItems.length, mode: 'rawbt' };
+        } catch (e) {
+            console.warn("Direct RawBT fail, opening print window:", e);
+        }
+    }
 
     const ticketHtml = `
         <!DOCTYPE html>
@@ -64,17 +140,27 @@ export function printKitchenOrderTicket(order) {
                     background: #2563eb;
                     color: #fff;
                     border: none;
-                    padding: 8px 16px;
+                    padding: 8px 14px;
                     border-radius: 6px;
                     font-weight: 700;
-                    font-size: 14px;
+                    font-size: 13px;
+                    cursor: pointer;
+                }
+                .btn-rawbt {
+                    background: #059669;
+                    color: #fff;
+                    border: none;
+                    padding: 8px 14px;
+                    border-radius: 6px;
+                    font-weight: 700;
+                    font-size: 13px;
                     cursor: pointer;
                 }
                 .btn-close {
                     background: #475569;
                     color: #fff;
                     border: none;
-                    padding: 8px 14px;
+                    padding: 8px 12px;
                     border-radius: 6px;
                     font-weight: 600;
                     font-size: 13px;
@@ -115,7 +201,8 @@ export function printKitchenOrderTicket(order) {
         <body>
             <div class="action-bar">
                 <span style="font-weight: 700; font-size: 14px;">Mutfak Fişi (Masa ${tableNo})</span>
-                <div style="display: flex; gap: 8px;">
+                <div style="display: flex; gap: 6px; align-items: center;">
+                    <button class="btn-rawbt" onclick="sendRawbt()">⚡ RawBT Bas</button>
                     <button class="btn-print" onclick="window.print()">🖨️ Yazdır</button>
                     <button class="btn-close" onclick="window.close()">✕ Kapat</button>
                 </div>
@@ -152,6 +239,10 @@ export function printKitchenOrderTicket(order) {
             </div>
 
             <script>
+                const RAW_TEXT = ${JSON.stringify(rawText)};
+                function sendRawbt() {
+                    window.location.href = 'rawbt:data:text/plain;charset=utf-8,' + encodeURIComponent(RAW_TEXT);
+                }
                 window.addEventListener('load', function() {
                     setTimeout(function() {
                         window.print();
@@ -163,13 +254,13 @@ export function printKitchenOrderTicket(order) {
     `;
 
     openPrintWindow(ticketHtml);
-    return { ok: true, count: kitchenItems.length };
+    return { ok: true, count: kitchenItems.length, mode: 'browser' };
 }
 
 /**
  * 🧾 Müşteri Masa Fişi Yazdır (Hesap Kapanmaz)
  */
-export function printCustomerReceipt(order, customTitle = "Masa Adisyon Fişi") {
+export function printCustomerReceipt(order, customTitle = "Masa Adisyon Fişi", settings = null) {
     if (!order || !order.items || order.items.length === 0) return false;
 
     const tableNo = order.table_no || order.table_id || '1';
@@ -177,6 +268,18 @@ export function printCustomerReceipt(order, customTitle = "Masa Adisyon Fişi") 
     const total = order.total || order.subtotal || order.items.reduce((s, i) => s + (i.price * i.quantity), 0);
     const nowTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
     const nowDate = new Date().toLocaleDateString('tr-TR');
+
+    const rawText = generateCustomerTicketText(order, customTitle);
+
+    // Eğer doğrudan RawBT modu aktif ve Android ise arkadan fırlat
+    if (settings?.mode === 'rawbt' && /Android/i.test(navigator.userAgent)) {
+        try {
+            window.location.href = 'rawbt:data:text/plain;charset=utf-8,' + encodeURIComponent(rawText);
+            return true;
+        } catch (e) {
+            console.warn("Direct RawBT fail, opening print window:", e);
+        }
+    }
 
     const ticketHtml = `
         <!DOCTYPE html>
@@ -212,17 +315,27 @@ export function printCustomerReceipt(order, customTitle = "Masa Adisyon Fişi") 
                     background: #2563eb;
                     color: #fff;
                     border: none;
-                    padding: 8px 16px;
+                    padding: 8px 14px;
                     border-radius: 6px;
                     font-weight: 700;
-                    font-size: 14px;
+                    font-size: 13px;
+                    cursor: pointer;
+                }
+                .btn-rawbt {
+                    background: #059669;
+                    color: #fff;
+                    border: none;
+                    padding: 8px 14px;
+                    border-radius: 6px;
+                    font-weight: 700;
+                    font-size: 13px;
                     cursor: pointer;
                 }
                 .btn-close {
                     background: #475569;
                     color: #fff;
                     border: none;
-                    padding: 8px 14px;
+                    padding: 8px 12px;
                     border-radius: 6px;
                     font-weight: 600;
                     font-size: 13px;
@@ -264,7 +377,8 @@ export function printCustomerReceipt(order, customTitle = "Masa Adisyon Fişi") 
         <body>
             <div class="action-bar">
                 <span style="font-weight: 700; font-size: 14px;">Hesap Fişi (Masa ${tableNo})</span>
-                <div style="display: flex; gap: 8px;">
+                <div style="display: flex; gap: 6px; align-items: center;">
+                    <button class="btn-rawbt" onclick="sendRawbt()">⚡ RawBT Bas</button>
                     <button class="btn-print" onclick="window.print()">🖨️ Yazdır</button>
                     <button class="btn-close" onclick="window.close()">✕ Kapat</button>
                 </div>
@@ -308,6 +422,10 @@ export function printCustomerReceipt(order, customTitle = "Masa Adisyon Fişi") 
             </div>
 
             <script>
+                const RAW_TEXT = ${JSON.stringify(rawText)};
+                function sendRawbt() {
+                    window.location.href = 'rawbt:data:text/plain;charset=utf-8,' + encodeURIComponent(RAW_TEXT);
+                }
                 window.addEventListener('load', function() {
                     setTimeout(function() {
                         window.print();

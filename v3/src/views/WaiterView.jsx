@@ -25,7 +25,7 @@ import {
 import TableCardGrid from '../components/TableCardGrid';
 
 export default function WaiterView() {
-    const { tables, activeOrders, navigateTo, currentUser, showToast, closeTableOrder } = useApp();
+    const { tables, activeOrders, navigateTo, currentUser, showToast, closeTableOrder, printerSettings } = useApp();
     const [filter, setFilter] = useState('all'); // 'all' | 'occupied' | 'empty'
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedTableForReceipt, setSelectedTableForReceipt] = useState(null);
@@ -215,14 +215,14 @@ export default function WaiterView() {
     // Çekmeceden müşteri fişi yazdır (masa açık kalır)
     const handlePrintDrawerCustomerBill = () => {
         if (!receiptOrder) return;
-        printCustomerReceipt(receiptOrder);
+        printCustomerReceipt(receiptOrder, "Masa Adisyon Fişi", printerSettings);
         showToast(`Masa ${selectedTableForReceipt} adisyon fişi yazdırılıyor.`, "info");
     };
 
     // Çekmeceden mutfak fişi yazdır (tatlı, içecekler ve teslim edilenler hariç)
     const handlePrintDrawerKitchenTicket = () => {
         if (!receiptOrder) return;
-        const res = printKitchenOrderTicket(receiptOrder);
+        const res = printKitchenOrderTicket(receiptOrder, printerSettings);
         if (res && res.ok === false) {
             showToast(res.message || 'Mutfak için yeni hazırlanacak ürün yok.', 'warning');
         } else {

@@ -99,6 +99,46 @@ export function AppProvider({ children }) {
         return () => unsubscribe();
     }, []);
 
+    // Printer Settings (Centralized in Firestore settings/printer)
+    const [printerSettings, setPrinterSettings] = useState({
+        ip: '',
+        port: '9100',
+        mode: 'rawbt', // 'rawbt' (Otomatik Ağ / RawBT) | 'browser' (Tarayıcı Önizleme)
+        autoPrintKitchen: true,
+        paperWidth: '80mm',
+        printerName: 'Xprinter XP-Q805K Mutfak'
+    });
+
+    // Real-time Firestore Listener for Centralized Printer Settings
+    useEffect(() => {
+        const unsubPrinter = onSnapshot(doc(db, "settings", "printer"), (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                setPrinterSettings(prev => ({ ...prev, ...data }));
+            }
+        }, (err) => {
+            console.warn("Printer settings listener error:", err);
+        });
+        return () => unsubPrinter();
+    }, []);
+
+    const savePrinterSettings = async (newSettings) => {
+        try {
+            await setDoc(doc(db, "settings", "printer"), {
+                ...printerSettings,
+                ...newSettings,
+                updated_at: new Date().toISOString()
+            }, { merge: true });
+            setPrinterSettings(prev => ({ ...prev, ...newSettings }));
+            showToast("Yazıcı ayarları kaydedildi! Tüm garson tabletlerine otomatik uygulandı.", "success");
+            return true;
+        } catch (err) {
+            console.error("Save printer settings error:", err);
+            showToast("Yazıcı ayarları kaydedilemedi: " + err.message, "danger");
+            return false;
+        }
+    };
+
     const showToast = (message, type = 'info') => {
         setToast({ message, type, id: Date.now() });
         setTimeout(() => setToast(null), 3500);
@@ -223,7 +263,9 @@ export function AppProvider({ children }) {
             toggleFullscreen,
             toggleSound,
             showToast,
-            closeTableOrder
+            closeTableOrder,
+            printerSettings,
+            savePrinterSettings
         }}>
             {children}
         </AppContext.Provider>
