@@ -133,9 +133,6 @@
                 <span style="color: var(--text-muted);">|</span>
                 <span id="admin-header-pending-revenue" style="color: var(--brand-gold); font-weight: 800;">Açık Adisyon: 0,00 ₺</span>
             </div>
-            <button type="button" onclick="switchTab('tables')" class="btn-outline" style="font-size: 12px; padding: 6px 14px; color: var(--brand-gold); border-color: var(--brand-gold); font-weight: 700; cursor: pointer; border-radius: var(--radius-sm);">
-                Masaları Canlı Yönet ↗
-            </button>
         </div>
 
         <!-- Sekme Geçişi -->
@@ -848,24 +845,13 @@
             const isCard = method === 'card';
             const ok = await showConfirmModal({
                 title: isCard ? 'Kasadan Kartla Tahsilat' : 'Kasadan Nakit Tahsilat',
-                message: `Masa ${tableNo} toplam tutarı (${formatMoney(order.total)}) ${isCard ? 'KART ile tahsil edilip fiş yazdırılacaktır' : 'NAKİT olarak kasaya alınıp kapatılacaktır'}. Onaylıyor musunuz?`,
-                confirmText: isCard ? '💳 Fiş Yazdır & Kapat' : '💵 Kasaya Al & Kapat',
+                message: `Masa ${tableNo} toplam tutarı (${formatMoney(order.total)}) ${isCard ? 'KART ile tahsil edilip kapatılacaktır' : 'NAKİT olarak kasaya alınıp kapatılacaktır'}. Onaylıyor musunuz?`,
+                confirmText: isCard ? '💳 Kart Kapat' : '💵 Kasaya Al & Kapat',
                 cancelText: 'Vazgeç',
                 type: isCard ? 'primary' : 'warning'
             });
 
             if (!ok) return;
-
-            if (isCard) {
-                printOrderReceipt({
-                    table_no: tableNo,
-                    items: order.items,
-                    subtotal: order.subtotal || order.total,
-                    total: order.total,
-                    payment_method: method,
-                    waiter_name: order.waiter_name
-                });
-            }
 
             const paidRecord = {
                 id: order.id || ("paid-" + Date.now()),
@@ -884,6 +870,17 @@
             paidOrdersArchive.unshift(paidRecord);
             localStorage.setItem('cafe_paid_orders_archive', JSON.stringify(paidOrdersArchive.slice(0, 1000)));
 
+            // Bildirim ve kutlamayı ANINDA ver (0 ms)
+            triggerPaymentCelebration();
+            showToast(`Masa ${tableNo} hesabı kasadan kapatıldı (${formatMoney(order.total)})`, "success");
+
+            delete activeOrders[tableNo];
+            delete activeOrders[String(tableNo)];
+            localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
+            broadcastOrderChange('order_closed', { tableNo, paidRecord });
+            renderLiveTables();
+            renderAnalytics();
+
             try {
                 if (order.id && !order.id.startsWith("order-")) {
                     await updateDoc(doc(db, "orders", order.id), {
@@ -894,16 +891,6 @@
                     });
                 }
             } catch(e) {}
-
-            delete activeOrders[tableNo];
-            delete activeOrders[String(tableNo)];
-            localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
-            broadcastOrderChange('order_closed', { tableNo, paidRecord });
-
-            triggerPaymentCelebration();
-            showToast(`Masa ${tableNo} hesabı kasadan kapatıldı (${formatMoney(order.total)})`, "success");
-            renderLiveTables();
-            renderAnalytics();
         };
 
         // ==============================================================
@@ -1254,7 +1241,7 @@
                 }
             }, () => {});
 
-            const q = query(collection(db, "orders"), where("status", "==", "open"));
+            const q = query(collection(db, "orders"), where("status", "in", ["open", "active", "cooking", "ready"]));
             onSnapshot(q, snap => {
                 activeOrders = {};
                 snap.forEach(d => {

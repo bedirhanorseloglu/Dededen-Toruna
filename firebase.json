@@ -1,7 +1,13 @@
 {
   "hosting": {
-    "public": "v2",
+    "public": "v3/dist",
     "cleanUrls": true,
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ],
     "ignore": [
       "firebase.json",
       "**/.*",

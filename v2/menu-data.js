@@ -2,16 +2,16 @@
 // Kullanıcı Tanımlı Sıralı Kategoriler:
 export const MENU_CATEGORIES = [
     { id: "kahvalti", name: "Kahvaltılar", sort: 10 },
-    { id: "tatlilar", name: "Tatlılar", sort: 20 },
-    { id: "icecekler", name: "İçecekler", sort: 30 },
-    { id: "tost", name: "Tost Çeşitleri", sort: 40 },
-    { id: "gozleme", name: "Gözleme Çeşitleri", sort: 50 },
-    { id: "tavuk", name: "Tavuk Çeşitleri", sort: 60 },
-    { id: "et", name: "Et Çeşitleri", sort: 70 },
-    { id: "hamburger", name: "Hamburger", sort: 80 },
-    { id: "makarna", name: "Makarnalar", sort: 90 },
-    { id: "salata", name: "Salatalar", sort: 100 },
-    { id: "gunun-menusu", name: "Günün Menüsü", sort: 110 }
+    { id: "tost", name: "Tost Çeşitleri", sort: 20 },
+    { id: "gozleme", name: "Gözleme Çeşitleri", sort: 30 },
+    { id: "tavuk", name: "Tavuk Çeşitleri", sort: 40 },
+    { id: "et", name: "Et Çeşitleri", sort: 50 },
+    { id: "hamburger", name: "Hamburger", sort: 60 },
+    { id: "makarna", name: "Makarnalar", sort: 70 },
+    { id: "salata", name: "Salatalar", sort: 80 },
+    { id: "gunun-menusu", name: "Günün Menüsü", sort: 90 },
+    { id: "tatlilar", name: "Tatlılar", sort: 100 },
+    { id: "icecekler", name: "İçecekler", sort: 110 }
 ];
 
 export const MENU_PRODUCTS = [
@@ -27,7 +27,56 @@ export const MENU_PRODUCTS = [
     { id: "p9", category_id: "kahvalti", name: "Omlet", price: 150, active: true },
     { id: "p10", category_id: "kahvalti", name: "Sigara Böreği", price: 200, active: true },
 
-    // 2. Tatlılar
+    // 2. Tost Çeşitleri
+    { id: "p11", category_id: "tost", name: "Karışık Tost", price: 260, active: true },
+    { id: "p12", category_id: "tost", name: "Kaşarlı Tost", price: 250, active: true },
+    { id: "p13", category_id: "tost", name: "Sucuklu Tost", price: 260, active: true },
+    { id: "p14", category_id: "tost", name: "Akdeniz Tost", price: 250, active: true },
+    { id: "p15", category_id: "tost", name: "Tost Burger", price: 270, active: true },
+
+    // 3. Gözleme Çeşitleri
+    { id: "p16", category_id: "gozleme", name: "Peynirli Gözleme", price: 320, active: true },
+    { id: "p17", category_id: "gozleme", name: "Karışık Gözleme", price: 340, active: true },
+    { id: "p18", category_id: "gozleme", name: "Patatesli Gözleme", price: 320, active: true },
+
+    // 4. Tavuk Çeşitleri
+    { id: "p27", category_id: "tavuk", name: "Tavuk Sote", price: 400, active: true },
+    { id: "p28", category_id: "tavuk", name: "Mantarlı Tavuk Sote", price: 400, active: true },
+    { id: "p29", category_id: "tavuk", name: "Tavuk Izgara", price: 400, active: true },
+    { id: "p30", category_id: "tavuk", name: "Şinitzel", price: 400, active: true },
+    { id: "p31", category_id: "tavuk", name: "K. Mantar Soslu Şinitzel", price: 420, active: true },
+    { id: "p32", category_id: "tavuk", name: "Tavuk Wrap", price: 420, active: true },
+    { id: "p33", category_id: "tavuk", name: "Soya Soslu Piliç", price: 400, active: true },
+    { id: "p34", category_id: "tavuk", name: "Köri Soslu Tavuk", price: 420, active: true },
+
+    // 5. Et Çeşitleri
+    { id: "p23", category_id: "et", name: "Sac Kavurma", price: 550, active: true },
+    { id: "p24", category_id: "et", name: "Köfte", price: 500, active: true },
+    { id: "p25", category_id: "et", name: "Et Sote", price: 550, active: true },
+    { id: "p26", category_id: "et", name: "Et Wrap", price: 550, active: true },
+
+    // 6. Hamburger
+    { id: "p19", category_id: "hamburger", name: "Hamburger", price: 300, active: true },
+    { id: "p20", category_id: "hamburger", name: "Cheese Burger", price: 320, active: true },
+    { id: "p21", category_id: "hamburger", name: "Chicken Burger", price: 275, active: true },
+    { id: "p22", category_id: "hamburger", name: "Cips", price: 200, active: true },
+
+    // 7. Makarnalar
+    { id: "p35", category_id: "makarna", name: "Fettucine Bolognese", price: 380, active: true },
+    { id: "p36", category_id: "makarna", name: "Fettucine Napoletana", price: 350, active: true },
+    { id: "p37", category_id: "makarna", name: "Fettucine Alfredo", price: 360, active: true },
+
+    // 8. Salatalar
+    { id: "p38", category_id: "salata", name: "Mevsim Salata", price: 250, active: true },
+    { id: "p39", category_id: "salata", name: "Akdeniz Salata", price: 320, active: true },
+    { id: "p40", category_id: "salata", name: "Sezar Salata", price: 360, active: true },
+    { id: "p41", category_id: "salata", name: "Ton Balıklı Salata", price: 360, active: true },
+
+    // 9. Günün Menüsü
+    { id: "p42", category_id: "gunun-menusu", name: "Günün Çorbası", price: 100, active: true },
+    { id: "p43", category_id: "gunun-menusu", name: "Günün Menüsü", price: 300, active: true },
+
+    // 10. Tatlılar
     { id: "p44", category_id: "tatlilar", name: "Hamsiköy Sütlaç", price: 120, active: true },
     { id: "p45", category_id: "tatlilar", name: "Dondurmalı Sütlaç", price: 170, active: true },
     { id: "p46", category_id: "tatlilar", name: "Meyveli Sütlaç", price: 170, active: true },
@@ -38,7 +87,7 @@ export const MENU_PRODUCTS = [
     { id: "p51", category_id: "tatlilar", name: "Kadayıf + Dondurma", price: 250, active: true },
     { id: "p52", category_id: "tatlilar", name: "Dondurma", price: 50, active: true },
 
-    // 3. İçecekler
+    // 11. İçecekler
     { id: "p53", category_id: "icecekler", name: "Çay", price: 30, active: true },
     { id: "p54", category_id: "icecekler", name: "Fincan Çay", price: 50, active: true },
     { id: "p55", category_id: "icecekler", name: "Semaver Çay", price: 300, active: true },
@@ -48,58 +97,11 @@ export const MENU_PRODUCTS = [
     { id: "p59", category_id: "icecekler", name: "Salep", price: 150, active: true },
     { id: "p60", category_id: "icecekler", name: "Sıcak Çikolata", price: 150, active: true },
     { id: "p61", category_id: "icecekler", name: "Su", price: 25, active: true },
-    { id: "p62", category_id: "icecekler", name: "Soda-Ayran", price: 60, active: true },
-    { id: "p63", category_id: "icecekler", name: "Cola-Fanta", price: 80, active: true },
-    { id: "p64", category_id: "icecekler", name: "Meyve Suyu", price: 80, active: true },
-
-    // 4. Tost Çeşitleri
-    { id: "p11", category_id: "tost", name: "Karışık Tost", price: 260, active: true },
-    { id: "p12", category_id: "tost", name: "Kaşarlı Tost", price: 250, active: true },
-    { id: "p13", category_id: "tost", name: "Sucuklu Tost", price: 260, active: true },
-    { id: "p14", category_id: "tost", name: "Akdeniz Tost", price: 250, active: true },
-    { id: "p15", category_id: "tost", name: "Tost Burger", price: 270, active: true },
-
-    // 5. Gözleme Çeşitleri
-    { id: "p16", category_id: "gozleme", name: "Peynirli Gözleme", price: 320, active: true },
-    { id: "p17", category_id: "gozleme", name: "Karışık Gözleme", price: 340, active: true },
-    { id: "p18", category_id: "gozleme", name: "Patatesli Gözleme", price: 320, active: true },
-
-    // 6. Tavuk Çeşitleri
-    { id: "p27", category_id: "tavuk", name: "Tavuk Sote", price: 400, active: true },
-    { id: "p28", category_id: "tavuk", name: "Mantarlı Tavuk Sote", price: 400, active: true },
-    { id: "p29", category_id: "tavuk", name: "Tavuk Izgara", price: 400, active: true },
-    { id: "p30", category_id: "tavuk", name: "Şinitzel", price: 400, active: true },
-    { id: "p31", category_id: "tavuk", name: "K. Mantar Soslu Şinitzel", price: 420, active: true },
-    { id: "p32", category_id: "tavuk", name: "Tavuk Wrap", price: 420, active: true },
-    { id: "p33", category_id: "tavuk", name: "Soya Soslu Piliç", price: 400, active: true },
-    { id: "p34", category_id: "tavuk", name: "Köri Soslu Tavuk", price: 420, active: true },
-
-    // 7. Et Çeşitleri
-    { id: "p23", category_id: "et", name: "Sac Kavurma", price: 550, active: true },
-    { id: "p24", category_id: "et", name: "Köfte", price: 500, active: true },
-    { id: "p25", category_id: "et", name: "Et Sote", price: 550, active: true },
-    { id: "p26", category_id: "et", name: "Et Wrap", price: 550, active: true },
-
-    // 8. Hamburger
-    { id: "p19", category_id: "hamburger", name: "Hamburger", price: 300, active: true },
-    { id: "p20", category_id: "hamburger", name: "Cheese Burger", price: 320, active: true },
-    { id: "p21", category_id: "hamburger", name: "Chicken Burger", price: 275, active: true },
-    { id: "p22", category_id: "hamburger", name: "Cips", price: 200, active: true },
-
-    // 9. Makarnalar
-    { id: "p35", category_id: "makarna", name: "Fettucine Bolognese", price: 380, active: true },
-    { id: "p36", category_id: "makarna", name: "Fettucine Napoletana", price: 350, active: true },
-    { id: "p37", category_id: "makarna", name: "Fettucine Alfredo", price: 360, active: true },
-
-    // 10. Salatalar
-    { id: "p38", category_id: "salata", name: "Mevsim Salata", price: 250, active: true },
-    { id: "p39", category_id: "salata", name: "Akdeniz Salata", price: 320, active: true },
-    { id: "p40", category_id: "salata", name: "Sezar Salata", price: 360, active: true },
-    { id: "p41", category_id: "salata", name: "Ton Balıklı Salata", price: 360, active: true },
-
-    // 11. Günün Menüsü
-    { id: "p42", category_id: "gunun-menusu", name: "Günün Çorbası", price: 100, active: true },
-    { id: "p43", category_id: "gunun-menusu", name: "Günün Menüsü", price: 300, active: true }
+    { id: "p62", category_id: "icecekler", name: "Soda", price: 60, active: true },
+    { id: "p63", category_id: "icecekler", name: "Ayran", price: 60, active: true },
+    { id: "p64", category_id: "icecekler", name: "Kola", price: 80, active: true },
+    { id: "p65", category_id: "icecekler", name: "Fanta", price: 80, active: true },
+    { id: "p66", category_id: "icecekler", name: "Meyve Suyu", price: 80, active: true }
 ];
 
 /**
@@ -127,15 +129,16 @@ export function getProductCategoryId(product) {
     if (name.includes('salata')) return 'salata';
     // Günün Menüsü & Çorba
     if (name.includes('günün') || name.includes('çorba')) return 'gunun-menusu';
+    // Kahvaltılar & Yumurta & Sucuk
+    if (name.includes('kahvaltı') || name.includes('menemen') || name.includes('kuymak') || name.includes('kaygana') || 
+        name.includes('yumurta') || name.includes('omlet') || name.includes('börek') || name.includes('sucuk')) return 'kahvalti';
     // Tatlılar
     if (name.includes('sütlaç') || name.includes('kadayıf') || name.includes('dondurma') || name.includes('atom')) return 'tatlilar';
-    // İçecekler
+    // İçecekler (DİKKAT: 'su' kelimesi 'sucuk' ile karışmasın!)
     if (name.includes('çay') || name.includes('kahve') || name.includes('nescafe') || name.includes('salep') || 
-        name.includes('çikolata') || name.includes('su') || name.includes('soda') || name.includes('ayran') || 
-        name.includes('cola') || name.includes('fanta') || name.includes('meyve suyu') || name.includes('semaver')) return 'icecekler';
-    // Kahvaltılar & Yumurta
-    if (name.includes('kahvaltı') || name.includes('menemen') || name.includes('kuymak') || name.includes('kaygana') || 
-        name.includes('yumurta') || name.includes('omlet') || name.includes('börek')) return 'kahvalti';
+        name.includes('çikolata') || name.includes('soda') || name.includes('ayran') || 
+        name.includes('cola') || name.includes('kola') || name.includes('fanta') || name.includes('meyve suyu') || name.includes('semaver') ||
+        name === 'su' || /(^|\s)su(\s|$)/.test(name)) return 'icecekler';
 
     return product.category_id || 'kahvalti';
 }

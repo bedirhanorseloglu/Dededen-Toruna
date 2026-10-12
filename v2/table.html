@@ -580,18 +580,14 @@
 
             const isCard = method === 'card';
             const ok = await showConfirmModal({
-                title: isCard ? 'Kartla Ödeme & Fiş' : 'Nakit Ödeme',
-                message: `Masa ${tableNo} toplam tutarı (${formatMoney(subtotal)}) ${isCard ? 'KART ile alınıp adisyon fişi yazdırılacaktır' : 'NAKİT olarak tahsil edilip kapatılacaktır'}. Onaylıyor musunuz?`,
-                confirmText: isCard ? '💳 Fiş Yazdır & Kapat' : '💵 Nakit Kapat',
+                title: isCard ? 'Kartla Ödeme' : 'Nakit Ödeme',
+                message: `Masa ${tableNo} toplam tutarı (${formatMoney(subtotal)}) ${isCard ? 'KART ile tahsil edilip kapatılacaktır' : 'NAKİT olarak tahsil edilip kapatılacaktır'}. Onaylıyor musunuz?`,
+                confirmText: isCard ? '💳 Kart Kapat' : '💵 Nakit Kapat',
                 cancelText: 'Vazgeç',
                 type: isCard ? 'primary' : 'warning'
             });
             
             if (!ok) return;
-
-            if (method === 'card') {
-                printOrderReceipt(orderObj);
-            }
 
             const paidRecord = {
                 id: currentOrderId || ("paid-" + Date.now()),
@@ -623,6 +619,16 @@
                 localStorage.setItem('cafe_paid_orders_archive', JSON.stringify(archive.slice(0, 1000)));
             } catch(e) {}
 
+            // Kutlama ve Bildirimi ANINDA ver (0 ms)
+            triggerPaymentCelebration();
+            showToast(`Hesap kapatıldı (${formatMoney(subtotal)})`, "success");
+
+            const orders = JSON.parse(localStorage.getItem('cafe_cached_orders') || '{}');
+            delete orders[tableNo];
+            localStorage.setItem('cafe_cached_orders', JSON.stringify(orders));
+
+            broadcastOrderChange('order_closed', { tableNo, paidRecord });
+
             try {
                 if (currentOrderId && !currentOrderId.startsWith("order-")) {
                     await updateDoc(doc(db, "orders", currentOrderId), {
@@ -634,15 +640,6 @@
                 }
             } catch(e) {}
 
-            const orders = JSON.parse(localStorage.getItem('cafe_cached_orders') || '{}');
-            delete orders[tableNo];
-            localStorage.setItem('cafe_cached_orders', JSON.stringify(orders));
-
-            broadcastOrderChange('order_closed', { tableNo, paidRecord });
-
-            // Kutlama ve Sayfa Geçişi
-            triggerPaymentCelebration();
-            showToast(`Hesap kapatıldı (${formatMoney(subtotal)})`, "success");
             setTimeout(() => {
                 if (isFromAdminPanel) pageNavigate('admin.html?tab=tables');
                 else pageNavigate('waiter.html');

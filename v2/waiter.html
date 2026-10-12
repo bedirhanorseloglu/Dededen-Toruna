@@ -219,24 +219,13 @@
 
             const isCard = method === 'card';
             const ok = await showConfirmModal({
-                title: isCard ? 'Kartla Ödeme & Fiş' : 'Nakit Ödeme',
-                message: `Masa ${tableNum} toplam tutarı (${formatMoney(order.total)}) ${isCard ? 'KART ile alınıp adisyon fişi yazdırılacaktır' : 'NAKİT olarak tahsil edilip kapatılacaktır'}. Onaylıyor musunuz?`,
-                confirmText: isCard ? '💳 Fiş Yazdır & Kapat' : '💵 Nakit Kapat',
+                title: isCard ? 'Kartla Ödeme' : 'Nakit Ödeme',
+                message: `Masa ${tableNum} toplam tutarı (${formatMoney(order.total)}) ${isCard ? 'KART ile tahsil edilip kapatılacaktır' : 'NAKİT olarak tahsil edilip kapatılacaktır'}. Onaylıyor musunuz?`,
+                confirmText: isCard ? '💳 Kart Kapat' : '💵 Nakit Kapat',
                 cancelText: 'Vazgeç',
                 type: isCard ? 'primary' : 'warning'
             });
             if (!ok) return;
-
-            if (isCard) {
-                printOrderReceipt({
-                    table_no: tableNum,
-                    items: order.items,
-                    subtotal: order.subtotal || order.total,
-                    total: order.total,
-                    payment_method: 'card',
-                    waiter_name: order.waiter_name || user.name
-                });
-            }
 
             const paidRecord = {
                 id: order.id || ("paid-" + Date.now()),
@@ -258,10 +247,16 @@
             // Firestore completed_orders tablosuna kaydet & garson cirosunu artır
             recordCompletedOrder(paidRecord, method);
 
+            // 1. Modal ve bildirimi ANINDA çalıştır (0 ms)
+            closeModalWithMotion(receiptModal);
+            showToast(`Masa ${tableNum} hesabı başarıyla kapatıldı!`, "success");
+
             // Masayı yerelden temizle
             delete activeOrders[tableNum];
             delete activeOrders[String(tableNum)];
             localStorage.setItem('cafe_cached_orders', JSON.stringify(activeOrders));
+            renderTables();
+            broadcastOrderChange('order_paid', { table_no: tableNum });
 
             // Firestore'da siparişi kapat
             try {
@@ -273,11 +268,6 @@
                     });
                 }
             } catch(e) {}
-
-            closeModalWithMotion(receiptModal);
-            showToast(`Masa ${tableNum} hesabı başarıyla kapatıldı!`, "success");
-            renderTables();
-            broadcastOrderChange('order_paid', { table_no: tableNum });
         }
 
         document.getElementById('btn-modal-pay-cash').onclick = () => handleFastCheckout('cash');
@@ -429,7 +419,7 @@
                 }
             }, () => {});
 
-            const q = query(collection(db, "orders"), where("status", "==", "open"));
+            const q = query(collection(db, "orders"), where("status", "in", ["open", "active", "cooking", "ready"]));
             onSnapshot(q, snap => {
                 const newOrders = {};
                 snap.forEach(d => {

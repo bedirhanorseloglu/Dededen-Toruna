@@ -479,7 +479,7 @@
         const lastSeenKitchenQueuedTime = new Map();
 
         try {
-            const q = query(collection(db, "orders"), where("status", "==", "open"));
+            const q = query(collection(db, "orders"), where("status", "in", ["open", "active", "cooking", "ready"]));
             onSnapshot(q, snap => {
                 const freshOrders = {};
                 snap.forEach(d => {

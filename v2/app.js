@@ -1,4 +1,4 @@
-﻿import { 
+import { 
     db, 
     collection, 
     doc, 
@@ -522,10 +522,6 @@ window.checkoutOrder = async (method) => {
     if (!confirm(confirmMsg)) return;
 
     try {
-        if (method === 'card') {
-            printOrderReceipt(orderToClose);
-        }
-
         if (activeOrder?.id && !activeOrder.id.startsWith("order-")) {
             await updateDoc(doc(db, "orders", activeOrder.id), {
                 status: 'paid',
