@@ -13,9 +13,61 @@ import {
     serverTimestamp 
 } from '../config/firebase';
 import { DEFAULT_TABLES } from '../data/menu';
-import { playChimeSound, playKitchenNewOrderSound, playDeliveryAlertSound, speakTurkish } from '../services/audioService';
+import { playChimeSound, playKitchenNewOrderSound, playDeliveryAlertSound, speakTurkish, setAudioMuted, isAudioMuted } from '../services/audioService';
 
 const AppContext = createContext(null);
+
+/* ---------------- Tam ekran yardımcıları (Chrome, Samsung Internet, Safari/iPad) ---------------- */
+const FS_PREF_KEY = 'adisyon_wants_fullscreen';
+
+function getFullscreenElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+
+function isFullscreenSupported() {
+    const el = document.documentElement;
+    return !!(el.requestFullscreen || el.webkitRequestFullscreen);
+}
+
+// Ana ekrana eklenmiş uygulama olarak açıldıysa zaten tarayıcı çubuğu yoktur
+function isStandaloneApp() {
+    return window.matchMedia?.('(display-mode: fullscreen)').matches ||
+        window.matchMedia?.('(display-mode: standalone)').matches ||
+        window.navigator.standalone === true;
+}
+
+function wantsFullscreen() {
+    return localStorage.getItem(FS_PREF_KEY) !== '0';
+}
+
+function setWantsFullscreen(value) {
+    localStorage.setItem(FS_PREF_KEY, value ? '1' : '0');
+}
+
+function enterFullscreen() {
+    const el = document.documentElement;
+    try {
+        if (el.requestFullscreen) {
+            const p = el.requestFullscreen({ navigationUI: 'hide' });
+            if (p && p.catch) p.catch(() => {});
+        } else if (el.webkitRequestFullscreen) {
+            el.webkitRequestFullscreen();
+        }
+    } catch {
+        // Kullanıcı etkileşimi olmadan çağrıldıysa tarayıcı reddeder; bir sonraki dokunuşta tekrar denenir
+    }
+}
+
+function exitFullscreen() {
+    try {
+        if (document.exitFullscreen) {
+            const p = document.exitFullscreen();
+            if (p && p.catch) p.catch(() => {});
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        }
+    } catch {}
+}
 
 export const DEFAULT_USERS = [
     { id: "mgr-1", name: "Yönetici (Patron)", role: "admin", pin: "197300", phone: "0532 100 20 30" },
@@ -46,7 +98,7 @@ export function AppProvider({ children }) {
     });
 
     const [selectedTableId, setSelectedTableId] = useState(null);
-    const [soundEnabled, setSoundEnabled] = useState(true);
+    const [soundEnabled, setSoundEnabled] = useState(() => !isAudioMuted());
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [toast, setToast] = useState(null);
 
@@ -68,13 +120,30 @@ export function AppProvider({ children }) {
         sessionStorage.setItem('adisyon_view', currentView);
     }, [currentView]);
 
-    // Listen to Fullscreen changes
+    // Listen to Fullscreen changes (standart + webkit)
     useEffect(() => {
         const handleFullscreenChange = () => {
-            setIsFullscreen(!!document.fullscreenElement);
+            setIsFullscreen(!!getFullscreenElement() || isStandaloneApp());
         };
+        handleFullscreenChange();
         document.addEventListener('fullscreenchange', handleFullscreenChange);
-        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+            document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+        };
+    }, []);
+
+    // "Yapışkan" tam ekran: Tam ekran bir şekilde düşerse (RawBT'ye gidip dönme, uygulama değiştirme vb.)
+    // kullanıcının ekrana ilk dokunuşunda otomatik olarak tekrar tam ekrana geçer.
+    useEffect(() => {
+        const reenter = () => {
+            if (wantsFullscreen() && !getFullscreenElement() && !isStandaloneApp()) {
+                enterFullscreen();
+            }
+        };
+        document.addEventListener('pointerup', reenter, true);
+        return () => document.removeEventListener('pointerup', reenter, true);
     }, []);
 
     // Real-time Firestore Listener for Active Orders
@@ -152,13 +221,8 @@ export function AppProvider({ children }) {
         showToast(`Hoş geldiniz, ${user.name}!`, 'success');
 
         // Otomatik tam ekrana geç (Müşteri İsteği: Siteye girildiği an tam ekrana geçsin)
-        try {
-            if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen().catch(() => {});
-            }
-        } catch {
-            // Tarayıcı güvenlik kısıtlaması fallback
-        }
+        setWantsFullscreen(true);
+        enterFullscreen();
     };
 
     const logout = () => {
@@ -175,22 +239,31 @@ export function AppProvider({ children }) {
         setCurrentView(view);
     };
 
-    const toggleFullscreen = async () => {
-        try {
-            if (!document.fullscreenElement) {
-                await document.documentElement.requestFullscreen();
-            } else {
-                if (document.exitFullscreen) {
-                    await document.exitFullscreen();
-                }
-            }
-        } catch (err) {
-            console.warn("Fullscreen toggle error:", err);
+    const toggleFullscreen = () => {
+        if (isStandaloneApp()) {
+            showToast('Uygulama zaten tam ekran modunda çalışıyor.', 'info');
+            return;
         }
+        if (getFullscreenElement()) {
+            setWantsFullscreen(false);
+            exitFullscreen();
+            return;
+        }
+        if (!isFullscreenSupported()) {
+            showToast('Bu cihazın tarayıcısı tam ekranı desteklemiyor. Tarayıcı menüsünden "Ana Ekrana Ekle" yapıp uygulamayı oradan açın.', 'warning');
+            return;
+        }
+        setWantsFullscreen(true);
+        enterFullscreen();
     };
 
     const toggleSound = () => {
-        setSoundEnabled(prev => !prev);
+        setSoundEnabled(prev => {
+            const next = !prev;
+            setAudioMuted(!next);
+            showToast(next ? "Sesler açıldı 🔔" : "Sesler kapatıldı 🔕", "info");
+            return next;
+        });
     };
 
     // Masayı hem yerelde hem Firestore'da tüm ID varyasyonlarıyla eksiksiz kapat

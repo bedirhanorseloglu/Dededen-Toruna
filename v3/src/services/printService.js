@@ -1,79 +1,375 @@
-// Termal Fiş Yazdırma Servisi (ESC/POS & Tarayıcı Termal Yazıcı Şablonu & RawBT Entegrasyonu)
+// Termal Fiş Yazdırma Servisi
+// Fiş, 80mm termal kağıt genişliğinde (576px @ 203dpi) siyah-beyaz bir görsel olarak çizilir.
+// Android tabletlerde görsel doğrudan RawBT uygulamasına gönderilir (önizleme AÇILMAZ).
+// Bilgisayarda ise aynı görsel bir yazdırma penceresinde açılır.
 import { formatMoney, isInstantDeliveryCategory } from '../data/menu.js';
 
-/**
- * Mutfak fişi metin formatı (ESC/POS & RawBT için saf metin)
- */
-export function generateKitchenTicketText(order) {
-    const tableNo = order.table_no || order.table_id || '1';
-    const waiterName = order.waiter_name || 'Personel';
-    const nowTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-    const nowDate = new Date().toLocaleDateString('tr-TR');
-    const kitchenItems = (order.items || []).filter(item => {
-        if (item.status === 'delivered') return false;
-        return !isInstantDeliveryCategory(item.category_id, item.name);
-    });
+const PAPER_WIDTH = 576;
+const PAD = 28;
+const FONT = "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 
-    let txt = '';
-    txt += '================================\n';
-    txt += '    *** MUTFAK SIPARISI ***     \n';
-    txt += `           MASA ${tableNo}      \n`;
-    txt += '================================\n';
-    txt += `Garson: ${waiterName}\n`;
-    txt += `Saat  : ${nowTime} | ${nowDate}\n`;
-    txt += '--------------------------------\n';
-    kitchenItems.forEach(item => {
-        txt += `${item.quantity}x ${item.name}\n`;
-        if (item.notes || item.note) {
-            txt += `  >> Not: ${item.notes || item.note}\n`;
+// Logoyu önceden yükle (tıklama anında senkron çizebilmek için)
+const logoImg = typeof Image !== 'undefined' ? new Image() : null;
+if (logoImg) logoImg.src = '/logo.png';
+
+const isAndroid = () => /Android/i.test(navigator.userAgent);
+
+/* ------------------------------------------------------------------ */
+/* Canvas yardımcıları                                                 */
+/* ------------------------------------------------------------------ */
+
+function wrapText(ctx, text, maxWidth) {
+    const words = String(text || '').split(/\s+/).filter(Boolean);
+    const lines = [];
+    let line = '';
+    words.forEach(word => {
+        const test = line ? `${line} ${word}` : word;
+        if (ctx.measureText(test).width > maxWidth && line) {
+            lines.push(line);
+            line = word;
+        } else {
+            line = test;
         }
     });
-    txt += '--------------------------------\n';
-    txt += '   Dededen Toruna Hamsikoy      \n';
-    txt += '================================\n\n\n';
-    return txt;
+    if (line) lines.push(line);
+    return lines.length ? lines : [''];
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+}
+
+function dashedLine(ctx, y) {
+    ctx.save();
+    ctx.setLineDash([10, 8]);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(PAD, y);
+    ctx.lineTo(PAPER_WIDTH - PAD, y);
+    ctx.stroke();
+    ctx.restore();
 }
 
 /**
- * Müşteri adisyon fişi metin formatı
+ * İki geçişli çizim: önce yükseklik ölçülür, sonra gerçek canvas'a çizilir.
+ * layoutFn(ctx, draw) -> toplam yükseklik
  */
-export function generateCustomerTicketText(order, customTitle = "Masa Adisyon Fişi") {
-    const tableNo = order.table_no || order.table_id || '1';
-    const waiterName = order.waiter_name || 'Personel';
-    const total = order.total || order.subtotal || (order.items || []).reduce((s, i) => s + (i.price * i.quantity), 0);
-    const nowTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-    const nowDate = new Date().toLocaleDateString('tr-TR');
+function renderToDataUrl(layoutFn) {
+    const measure = document.createElement('canvas').getContext('2d');
+    const height = Math.ceil(layoutFn(measure, false));
 
-    let txt = '';
-    txt += '================================\n';
-    txt += '        DEDEDEN TORUNA          \n';
-    txt += '    Hamsikoy Sutlaci & Cafe     \n';
-    txt += `           MASA ${tableNo}      \n`;
-    txt += '================================\n';
-    txt += `Garson: ${waiterName}\n`;
-    txt += `Tarih : ${nowDate} ${nowTime}\n`;
-    txt += `Belge : ${customTitle}\n`;
-    txt += '--------------------------------\n';
-    (order.items || []).forEach(item => {
-        const itemTotal = formatMoney(item.price * item.quantity);
-        txt += `${item.quantity}x ${item.name.padEnd(18).slice(0, 18)} ${itemTotal}\n`;
-    });
-    txt += '================================\n';
-    txt += `GENEL TOPLAM: ${formatMoney(total)}\n`;
-    txt += '================================\n';
-    txt += '   Bizi Tercih Ettiginiz Icin   \n';
-    txt += '       Tesekkur Ederiz!         \n';
-    txt += '         Afiyet Olsun           \n';
-    txt += '================================\n\n\n';
-    return txt;
+    const canvas = document.createElement('canvas');
+    canvas.width = PAPER_WIDTH;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, PAPER_WIDTH, height);
+    ctx.fillStyle = '#000';
+    ctx.strokeStyle = '#000';
+    layoutFn(ctx, true);
+    return canvas.toDataURL('image/png');
 }
 
+function drawLogo(ctx, draw, y, maxH = 150) {
+    if (!logoImg || !logoImg.complete || !logoImg.naturalWidth) return y;
+    const ratio = logoImg.naturalWidth / logoImg.naturalHeight;
+    let h = maxH;
+    let w = h * ratio;
+    const maxW = PAPER_WIDTH - PAD * 4;
+    if (w > maxW) { w = maxW; h = w / ratio; }
+    if (draw) {
+        ctx.save();
+        ctx.filter = 'grayscale(1) contrast(1.25)';
+        ctx.drawImage(logoImg, (PAPER_WIDTH - w) / 2, y, w, h);
+        ctx.restore();
+    }
+    return y + h;
+}
+
+function centerText(ctx, draw, text, y, font, size) {
+    ctx.font = font;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    if (draw) ctx.fillText(text, PAPER_WIDTH / 2, y);
+    ctx.textAlign = 'left';
+    return y + size;
+}
+
+function nowStrings() {
+    const now = new Date();
+    return {
+        date: now.toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' }),
+        time: now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+    };
+}
+
+function drawMetaRow(ctx, draw, y, left, right) {
+    ctx.font = `500 22px ${FONT}`;
+    ctx.textBaseline = 'top';
+    if (draw) {
+        ctx.textAlign = 'left';
+        ctx.fillText(left, PAD, y);
+        ctx.textAlign = 'right';
+        ctx.fillText(right, PAPER_WIDTH - PAD, y);
+        ctx.textAlign = 'left';
+    }
+    return y + 28;
+}
+
+/* ------------------------------------------------------------------ */
+/* Fiş tasarımları                                                     */
+/* ------------------------------------------------------------------ */
+
+function renderKitchenTicket({ tableNo, items, isExtra }) {
+    const { date, time } = nowStrings();
+
+    return renderToDataUrl((ctx, draw) => {
+        let y = 20;
+        y = drawLogo(ctx, draw, y, 120) + 14;
+
+        y = centerText(ctx, draw, isExtra ? 'İ L A V E   S İ P A R İ Ş' : 'M U T F A K   S İ P A R İ Ş İ', y, `700 22px ${FONT}`, 22) + 14;
+
+        // Ters renkli masa bandı
+        const bandH = 100;
+        if (draw) {
+            roundRect(ctx, PAD, y, PAPER_WIDTH - PAD * 2, bandH, 18);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+        }
+        centerText(ctx, draw, `MASA ${tableNo}`, y + 16, `900 68px ${FONT}`, 68);
+        if (draw) ctx.fillStyle = '#000';
+        y += bandH + 16;
+
+        y = drawMetaRow(ctx, draw, y, date, time) + 10;
+        if (draw) dashedLine(ctx, y);
+        y += 22;
+
+        // Ürünler
+        const boxW = 76;
+        const nameX = PAD + boxW + 18;
+        const nameW = PAPER_WIDTH - PAD - nameX;
+        items.forEach(item => {
+            ctx.font = `800 32px ${FONT}`;
+            const lines = wrapText(ctx, item.name, nameW);
+            const blockH = Math.max(56, lines.length * 38 + 6);
+
+            if (draw) {
+                ctx.lineWidth = 3;
+                roundRect(ctx, PAD, y, boxW, 56, 12);
+                ctx.stroke();
+                ctx.font = `900 30px ${FONT}`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`${item.quantity}×`, PAD + boxW / 2, y + 29);
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+                ctx.font = `800 32px ${FONT}`;
+                lines.forEach((ln, i) => ctx.fillText(ln, nameX, y + 9 + i * 38));
+            }
+            y += blockH + 6;
+
+            const note = item.notes || item.note;
+            if (note) {
+                ctx.font = `italic 600 24px ${FONT}`;
+                const noteLines = wrapText(ctx, `Not: ${note}`, nameW - 16);
+                if (draw) {
+                    ctx.fillRect(nameX, y, 4, noteLines.length * 30);
+                    noteLines.forEach((ln, i) => ctx.fillText(ln, nameX + 14, y + i * 30));
+                }
+                y += noteLines.length * 30 + 6;
+            }
+            y += 12;
+        });
+
+        if (draw) dashedLine(ctx, y);
+        y += 20;
+        const totalQty = items.reduce((s, i) => s + (Number(i.quantity) || 1), 0);
+        y = centerText(ctx, draw, `${items.length} kalem • ${totalQty} adet`, y, `600 22px ${FONT}`, 22) + 10;
+        y = centerText(ctx, draw, 'Dededen Toruna', y, `500 20px ${FONT}`, 20);
+        return y + 60; // kesici payı
+    });
+}
+
+function renderCustomerTicket({ tableNo, items, total, title }) {
+    const { date, time } = nowStrings();
+    const priceColW = 150;
+
+    return renderToDataUrl((ctx, draw) => {
+        let y = 20;
+        y = drawLogo(ctx, draw, y, 150) + 12;
+        y = centerText(ctx, draw, 'DEDEDEN TORUNA', y, `900 36px ${FONT}`, 36) + 6;
+        y = centerText(ctx, draw, 'Hamsiköy Sütlacı & Cafe', y, `500 22px ${FONT}`, 22) + 20;
+
+        // Masa rozeti (çerçeveli)
+        const badgeW = 260, badgeH = 64;
+        if (draw) {
+            ctx.lineWidth = 3;
+            roundRect(ctx, (PAPER_WIDTH - badgeW) / 2, y, badgeW, badgeH, 32);
+            ctx.stroke();
+        }
+        centerText(ctx, draw, `MASA ${tableNo}`, y + 12, `900 38px ${FONT}`, 38);
+        y += badgeH + 10;
+        y = centerText(ctx, draw, title, y, `600 20px ${FONT}`, 20) + 18;
+
+        y = drawMetaRow(ctx, draw, y, date, time) + 10;
+        if (draw) dashedLine(ctx, y);
+        y += 18;
+
+        // Başlık satırı
+        ctx.font = `800 18px ${FONT}`;
+        if (draw) {
+            ctx.textBaseline = 'top';
+            ctx.fillText('Ü R Ü N', PAD, y);
+            ctx.textAlign = 'right';
+            ctx.fillText('T U T A R', PAPER_WIDTH - PAD, y);
+            ctx.textAlign = 'left';
+        }
+        y += 34;
+
+        const nameW = PAPER_WIDTH - PAD * 2 - priceColW;
+        items.forEach(item => {
+            const qty = Number(item.quantity) || 1;
+            ctx.font = `700 26px ${FONT}`;
+            const lines = wrapText(ctx, `${qty} × ${item.name}`, nameW);
+            if (draw) {
+                ctx.textBaseline = 'top';
+                lines.forEach((ln, i) => ctx.fillText(ln, PAD, y + i * 32));
+                ctx.font = `800 26px ${FONT}`;
+                ctx.textAlign = 'right';
+                ctx.fillText(formatMoney(Number(item.price) * qty), PAPER_WIDTH - PAD, y);
+                ctx.textAlign = 'left';
+            }
+            y += lines.length * 32;
+            if (qty > 1) {
+                ctx.font = `500 19px ${FONT}`;
+                if (draw) ctx.fillText(`Birim: ${formatMoney(Number(item.price))}`, PAD + 4, y);
+                y += 24;
+            }
+            y += 10;
+        });
+
+        y += 4;
+        if (draw) dashedLine(ctx, y);
+        y += 18;
+
+        // Ters renkli toplam bandı
+        const totalH = 80;
+        if (draw) {
+            roundRect(ctx, PAD, y, PAPER_WIDTH - PAD * 2, totalH, 16);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.textBaseline = 'middle';
+            ctx.font = `800 26px ${FONT}`;
+            ctx.fillText('TOPLAM', PAD + 22, y + totalH / 2);
+            ctx.font = `900 40px ${FONT}`;
+            ctx.textAlign = 'right';
+            ctx.fillText(formatMoney(total), PAPER_WIDTH - PAD - 22, y + totalH / 2);
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#000';
+        }
+        y += totalH + 26;
+
+        y = centerText(ctx, draw, 'Bizi tercih ettiğiniz için teşekkür ederiz', y, `600 22px ${FONT}`, 22) + 8;
+        y = centerText(ctx, draw, 'Afiyet olsun!', y, `800 24px ${FONT}`, 24) + 14;
+        y = centerText(ctx, draw, 'Bu belge mali değer taşımaz', y, `400 17px ${FONT}`, 17);
+        return y + 60;
+    });
+}
+
+/* ------------------------------------------------------------------ */
+/* Gönderim                                                            */
+/* ------------------------------------------------------------------ */
+
+function dispatchImage(dataUrl, title, settings) {
+    const isAndroidDevice = isAndroid();
+
+    // 1. Android Tablet / Telefon: Doğrudan RawBT'ye fırlat (SIFIR YENİ SEKME, SIFIR ÖNİZLEME)
+    if (isAndroidDevice && settings?.mode !== 'browser') {
+        try {
+            const oldFrame = document.getElementById('rawbt-intent-iframe');
+            if (oldFrame) oldFrame.remove();
+
+            const iframe = document.createElement('iframe');
+            iframe.id = 'rawbt-intent-iframe';
+            iframe.style.position = 'fixed';
+            iframe.style.top = '-9999px';
+            iframe.style.left = '-9999px';
+            iframe.style.width = '1px';
+            iframe.style.height = '1px';
+            iframe.style.opacity = '0';
+            iframe.style.border = 'none';
+            iframe.src = 'rawbt:' + dataUrl;
+            document.body.appendChild(iframe);
+            setTimeout(() => {
+                if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+            }, 3000);
+            return true;
+        } catch (e) {
+            console.warn("RawBT iframe error, falling back to window.location:", e);
+            window.location.href = 'rawbt:' + dataUrl;
+            return true;
+        }
+    }
+
+    // 2. Bilgisayar / Masaüstü: KESİNLİKLE YENİ SEKME AÇMAZ! Gizli arka plan iframe üzerinden doğrudan yazdırır
+    printViaSilentIframe(dataUrl);
+    return false;
+}
+
+function printViaSilentIframe(dataUrl) {
+    const oldFrame = document.getElementById('thermal-print-silent-iframe');
+    if (oldFrame) oldFrame.remove();
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'thermal-print-silent-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.top = '-9999px';
+    iframe.style.left = '-9999px';
+    iframe.style.width = '1px';
+    iframe.style.height = '1px';
+    iframe.style.border = 'none';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(`<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        @page { size: 80mm auto; margin: 0; }
+        html, body { margin: 0; padding: 0; background: #fff; }
+        img { display: block; width: 100%; max-width: 76mm; margin: 0 auto; }
+    </style>
+</head>
+<body>
+    <img src="${dataUrl}" onload="setTimeout(function(){ try { iframeWindow = window; iframeWindow.focus(); iframeWindow.print(); } catch(e){} }, 80)">
+</body>
+</html>`);
+    doc.close();
+}
+
+/* ------------------------------------------------------------------ */
+/* Dışa açık API                                                       */
+/* ------------------------------------------------------------------ */
+
 /**
- * 🍳 Mutfağa Termal Sipariş Fişi Yazdır
- * Müşteri Kuralı: Tatlı ve içecek kategorisindeki ürünler bu fişe DAHİL EDİLMEZ!
+ * 🍳 Mutfak Fişi
+ * Tatlı/içecek kategorisi ve teslim edilmiş ürünler fişe DAHİL EDİLMEZ.
  */
 export function printKitchenOrderTicket(order, settings = null) {
-    if (!order || !order.items || order.items.length === 0) return { ok: false, message: 'Yazdırılacak ürün bulunamadı.' };
+    if (!order || !order.items || order.items.length === 0) {
+        return { ok: false, message: 'Yazdırılacak ürün bulunamadı.' };
+    }
 
     const kitchenItems = order.items.filter(item => {
         if (item.status === 'delivered') return false;
@@ -81,372 +377,34 @@ export function printKitchenOrderTicket(order, settings = null) {
     });
 
     if (kitchenItems.length === 0) {
-        return { 
-            ok: false, 
-            message: 'Mutfakta yeni hazırlanacak ürün yok. (Teslim edilenler ve tatlı/içecekler mutfak fişine tekrar gönderilmez.)' 
+        return {
+            ok: false,
+            message: 'Mutfakta yeni hazırlanacak ürün yok. (Teslim edilenler ve tatlı/içecekler mutfak fişine tekrar gönderilmez.)'
         };
     }
 
     const tableNo = order.table_no || order.table_id || '1';
-    const waiterName = order.waiter_name || 'Personel';
-    const nowTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-    const nowDate = new Date().toLocaleDateString('tr-TR');
-    const hasAlreadyDelivered = order.items.some(i => i.status === 'delivered');
-    const ticketTitle = hasAlreadyDelivered ? '*** İLAVE MUTFAK SİPARİŞİ ***' : '*** MUTFAK SİPARİŞİ ***';
+    const dataUrl = renderKitchenTicket({
+        tableNo,
+        items: kitchenItems,
+        isExtra: order.items.some(i => i.status === 'delivered')
+    });
 
-    const rawText = generateKitchenTicketText(order);
-
-    // Eğer doğrudan RawBT modu aktif ve Android ise arkadan fırlat
-    if (settings?.mode === 'rawbt' && /Android/i.test(navigator.userAgent)) {
-        try {
-            window.location.href = 'rawbt:data:text/plain;charset=utf-8,' + encodeURIComponent(rawText);
-            return { ok: true, count: kitchenItems.length, mode: 'rawbt' };
-        } catch (e) {
-            console.warn("Direct RawBT fail, opening print window:", e);
-        }
-    }
-
-    const ticketHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Mutfak Fişi - Masa ${tableNo}</title>
-            <style>
-                @page { margin: 4mm; }
-                * { box-sizing: border-box; }
-                body {
-                    font-family: 'Courier New', Courier, monospace;
-                    color: #000;
-                    background: #f1f5f9;
-                    margin: 0;
-                    padding: 0;
-                }
-                .action-bar {
-                    position: sticky;
-                    top: 0;
-                    background: #0f172a;
-                    color: #fff;
-                    padding: 10px 16px;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-                    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                    z-index: 9999;
-                }
-                .btn-print {
-                    background: #2563eb;
-                    color: #fff;
-                    border: none;
-                    padding: 8px 14px;
-                    border-radius: 6px;
-                    font-weight: 700;
-                    font-size: 13px;
-                    cursor: pointer;
-                }
-                .btn-rawbt {
-                    background: #059669;
-                    color: #fff;
-                    border: none;
-                    padding: 8px 14px;
-                    border-radius: 6px;
-                    font-weight: 700;
-                    font-size: 13px;
-                    cursor: pointer;
-                }
-                .btn-close {
-                    background: #475569;
-                    color: #fff;
-                    border: none;
-                    padding: 8px 12px;
-                    border-radius: 6px;
-                    font-weight: 600;
-                    font-size: 13px;
-                    cursor: pointer;
-                }
-                .receipt-paper {
-                    max-width: 80mm;
-                    margin: 16px auto;
-                    background: #fff;
-                    padding: 12px 10px;
-                    box-shadow: 0 4px 14px rgba(0,0,0,0.1);
-                    font-size: 13px;
-                    line-height: 1.35;
-                }
-                .ticket-header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 6px; margin-bottom: 6px; }
-                .ticket-title { font-size: 18px; font-weight: 900; }
-                .table-badge { font-size: 26px; font-weight: 900; margin: 4px 0; border: 2px solid #000; padding: 2px; }
-                .meta-line { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px; }
-                .items-list { border-bottom: 2px dashed #000; padding-bottom: 6px; margin-bottom: 6px; }
-                .item-row { display: flex; justify-content: space-between; font-size: 14px; font-weight: 800; margin: 4px 0; }
-                .item-qty { min-width: 28px; }
-                .item-note { font-size: 11px; font-weight: normal; margin-left: 28px; color: #333; }
-                .ticket-footer { text-align: center; font-size: 11px; margin-top: 6px; }
-
-                @media print {
-                    body { background: #fff; }
-                    .action-bar { display: none !important; }
-                    .receipt-paper {
-                        max-width: 100%;
-                        width: 100%;
-                        margin: 0;
-                        padding: 2px 0;
-                        box-shadow: none;
-                    }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="action-bar">
-                <span style="font-weight: 700; font-size: 14px;">Mutfak Fişi (Masa ${tableNo})</span>
-                <div style="display: flex; gap: 6px; align-items: center;">
-                    <button class="btn-rawbt" onclick="sendRawbt()">⚡ RawBT Bas</button>
-                    <button class="btn-print" onclick="window.print()">🖨️ Yazdır</button>
-                    <button class="btn-close" onclick="window.close()">✕ Kapat</button>
-                </div>
-            </div>
-
-            <div class="receipt-paper">
-                <div class="ticket-header">
-                    <div class="ticket-title">${ticketTitle}</div>
-                    <div class="table-badge">MASA ${tableNo}</div>
-                    <div class="meta-line">
-                        <span>Garson: ${waiterName}</span>
-                        <span>Saat: ${nowTime}</span>
-                    </div>
-                    <div class="meta-line">
-                        <span>Tarih: ${nowDate}</span>
-                        <span>Kalem: ${kitchenItems.length}</span>
-                    </div>
-                </div>
-
-                <div class="items-list">
-                    ${kitchenItems.map(item => `
-                        <div class="item-row">
-                            <span class="item-qty">${item.quantity}x</span>
-                            <span style="flex:1;">${item.name}</span>
-                        </div>
-                        ${(item.notes || item.note) ? `<div class="item-note">>> Not: ${item.notes || item.note}</div>` : ''}
-                    `).join('')}
-                </div>
-
-                <div class="ticket-footer">
-                    <div>Afiyet Olsun • Dededen Toruna</div>
-                    <div>--------------------------------</div>
-                </div>
-            </div>
-
-            <script>
-                const RAW_TEXT = ${JSON.stringify(rawText)};
-                function sendRawbt() {
-                    window.location.href = 'rawbt:data:text/plain;charset=utf-8,' + encodeURIComponent(RAW_TEXT);
-                }
-                window.addEventListener('load', function() {
-                    setTimeout(function() {
-                        window.print();
-                    }, 350);
-                });
-            </script>
-        </body>
-        </html>
-    `;
-
-    openPrintWindow(ticketHtml);
-    return { ok: true, count: kitchenItems.length, mode: 'browser' };
+    const direct = dispatchImage(dataUrl, `Mutfak Fişi - Masa ${tableNo}`, settings);
+    return { ok: true, count: kitchenItems.length, direct };
 }
 
 /**
- * 🧾 Müşteri Masa Fişi Yazdır (Hesap Kapanmaz)
+ * 🧾 Müşteri Adisyon Fişi (masa açık kalır)
  */
-export function printCustomerReceipt(order, customTitle = "Masa Adisyon Fişi", settings = null) {
+export function printCustomerReceipt(order, customTitle = 'Masa Adisyon Fişi', settings = null) {
     if (!order || !order.items || order.items.length === 0) return false;
 
     const tableNo = order.table_no || order.table_id || '1';
-    const waiterName = order.waiter_name || 'Personel';
-    const total = order.total || order.subtotal || order.items.reduce((s, i) => s + (i.price * i.quantity), 0);
-    const nowTime = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-    const nowDate = new Date().toLocaleDateString('tr-TR');
+    const total = order.total || order.subtotal ||
+        order.items.reduce((s, i) => s + (Number(i.price) * (Number(i.quantity) || 1)), 0);
 
-    const rawText = generateCustomerTicketText(order, customTitle);
-
-    // Eğer doğrudan RawBT modu aktif ve Android ise arkadan fırlat
-    if (settings?.mode === 'rawbt' && /Android/i.test(navigator.userAgent)) {
-        try {
-            window.location.href = 'rawbt:data:text/plain;charset=utf-8,' + encodeURIComponent(rawText);
-            return true;
-        } catch (e) {
-            console.warn("Direct RawBT fail, opening print window:", e);
-        }
-    }
-
-    const ticketHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Adisyon Fişi - Masa ${tableNo}</title>
-            <style>
-                @page { margin: 4mm; }
-                * { box-sizing: border-box; }
-                body {
-                    font-family: 'Courier New', Courier, monospace;
-                    color: #000;
-                    background: #f1f5f9;
-                    margin: 0;
-                    padding: 0;
-                }
-                .action-bar {
-                    position: sticky;
-                    top: 0;
-                    background: #0f172a;
-                    color: #fff;
-                    padding: 10px 16px;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-                    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                    z-index: 9999;
-                }
-                .btn-print {
-                    background: #2563eb;
-                    color: #fff;
-                    border: none;
-                    padding: 8px 14px;
-                    border-radius: 6px;
-                    font-weight: 700;
-                    font-size: 13px;
-                    cursor: pointer;
-                }
-                .btn-rawbt {
-                    background: #059669;
-                    color: #fff;
-                    border: none;
-                    padding: 8px 14px;
-                    border-radius: 6px;
-                    font-weight: 700;
-                    font-size: 13px;
-                    cursor: pointer;
-                }
-                .btn-close {
-                    background: #475569;
-                    color: #fff;
-                    border: none;
-                    padding: 8px 12px;
-                    border-radius: 6px;
-                    font-weight: 600;
-                    font-size: 13px;
-                    cursor: pointer;
-                }
-                .receipt-paper {
-                    max-width: 80mm;
-                    margin: 16px auto;
-                    background: #fff;
-                    padding: 12px 10px;
-                    box-shadow: 0 4px 14px rgba(0,0,0,0.1);
-                    font-size: 12px;
-                    line-height: 1.35;
-                }
-                .ticket-header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 6px; }
-                .brand-title { font-size: 16px; font-weight: 900; }
-                .sub-title { font-size: 11px; margin-bottom: 4px; }
-                .table-title { font-size: 20px; font-weight: 900; margin: 4px 0; }
-                .meta-line { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px; }
-                .items-list { border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 6px; }
-                .item-row { display: flex; justify-content: space-between; font-size: 12px; margin: 3px 0; }
-                .total-section { border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 6px; }
-                .total-row { display: flex; justify-content: space-between; font-size: 16px; font-weight: 900; }
-                .ticket-footer { text-align: center; font-size: 11px; margin-top: 8px; }
-
-                @media print {
-                    body { background: #fff; }
-                    .action-bar { display: none !important; }
-                    .receipt-paper {
-                        max-width: 100%;
-                        width: 100%;
-                        margin: 0;
-                        padding: 2px 0;
-                        box-shadow: none;
-                    }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="action-bar">
-                <span style="font-weight: 700; font-size: 14px;">Hesap Fişi (Masa ${tableNo})</span>
-                <div style="display: flex; gap: 6px; align-items: center;">
-                    <button class="btn-rawbt" onclick="sendRawbt()">⚡ RawBT Bas</button>
-                    <button class="btn-print" onclick="window.print()">🖨️ Yazdır</button>
-                    <button class="btn-close" onclick="window.close()">✕ Kapat</button>
-                </div>
-            </div>
-
-            <div class="receipt-paper">
-                <div class="ticket-header">
-                    <div class="brand-title">DEDEDEN TORUNA</div>
-                    <div class="sub-title">Hamsiköy Sütlacı & Cafe</div>
-                    <div class="table-title">MASA ${tableNo}</div>
-                    <div class="meta-line">
-                        <span>Garson: ${waiterName}</span>
-                        <span>Saat: ${nowTime}</span>
-                    </div>
-                    <div class="meta-line">
-                        <span>Tarih: ${nowDate}</span>
-                        <span>Fiş: ${customTitle}</span>
-                    </div>
-                </div>
-
-                <div class="items-list">
-                    ${order.items.map(item => `
-                        <div class="item-row">
-                            <span>${item.quantity}x ${item.name}</span>
-                            <span style="font-weight:700;">${formatMoney(item.price * item.quantity)}</span>
-                        </div>
-                    `).join('')}
-                </div>
-
-                <div class="total-section">
-                    <div class="total-row">
-                        <span>TOPLAM:</span>
-                        <span>${formatMoney(total)}</span>
-                    </div>
-                </div>
-
-                <div class="ticket-footer">
-                    <div>Bizi Tercih Ettiğiniz İçin Teşekkür Ederiz</div>
-                    <div>Afiyet Olsun!</div>
-                </div>
-            </div>
-
-            <script>
-                const RAW_TEXT = ${JSON.stringify(rawText)};
-                function sendRawbt() {
-                    window.location.href = 'rawbt:data:text/plain;charset=utf-8,' + encodeURIComponent(RAW_TEXT);
-                }
-                window.addEventListener('load', function() {
-                    setTimeout(function() {
-                        window.print();
-                    }, 350);
-                });
-            </script>
-        </body>
-        </html>
-    `;
-
-    openPrintWindow(ticketHtml);
+    const dataUrl = renderCustomerTicket({ tableNo, items: order.items, total, title: customTitle });
+    dispatchImage(dataUrl, `Adisyon - Masa ${tableNo}`, settings);
     return true;
-}
-
-function openPrintWindow(html) {
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-        printWindow.document.open();
-        printWindow.document.write(html);
-        printWindow.document.close();
-    } else {
-        alert('Yazdırma penceresi açılamadı. Lütfen tarayıcınızdan açılır pencere (pop-up) izni verin.');
-    }
 }

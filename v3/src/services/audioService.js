@@ -1,6 +1,23 @@
 // Ses ve Konuşma Servisi (Audio & Speech Synthesis)
 let audioCtx = null;
 
+// Global ses kapalılık durumu (localStorage senkronize)
+let isSoundMuted = false;
+try {
+    isSoundMuted = localStorage.getItem('adisyon_sound_muted') === '1';
+} catch (e) {}
+
+export function setAudioMuted(muted) {
+    isSoundMuted = !!muted;
+    try {
+        localStorage.setItem('adisyon_sound_muted', isSoundMuted ? '1' : '0');
+    } catch (e) {}
+}
+
+export function isAudioMuted() {
+    return isSoundMuted;
+}
+
 export function initAudio() {
     try {
         if (!audioCtx) {
@@ -9,12 +26,13 @@ export function initAudio() {
         if (audioCtx.state === 'suspended') {
             audioCtx.resume();
         }
-    } catch(e) {}
+    } catch (e) {}
 }
 
 export const unlockAudioContext = warmUpAudio;
 
 export function warmUpAudio() {
+    if (isSoundMuted) return;
     initAudio();
     if ('speechSynthesis' in window) {
         try {
@@ -22,13 +40,15 @@ export function warmUpAudio() {
             const silent = new SpeechSynthesisUtterance(' ');
             silent.volume = 0.01;
             window.speechSynthesis.speak(silent);
-        } catch(e) {}
+        } catch (e) {}
     }
 }
 
 export function playNotificationSound() {
+    if (isSoundMuted) return;
     try {
         initAudio();
+        if (!audioCtx) return;
         const now = audioCtx.currentTime;
         const osc1 = audioCtx.createOscillator();
         const gain1 = audioCtx.createGain();
@@ -51,7 +71,7 @@ export function playNotificationSound() {
         gain2.connect(audioCtx.destination);
         osc2.start(now + 0.15);
         osc2.stop(now + 0.7);
-    } catch (e) { }
+    } catch (e) {}
 }
 
 export const playChimeSound = playNotificationSound;
@@ -59,8 +79,10 @@ export const playKitchenNewOrderSound = playNotificationSound;
 export const playDeliveryAlertSound = playOrderReadySound;
 
 export function playOrderReadySound() {
+    if (isSoundMuted) return;
     try {
         initAudio();
+        if (!audioCtx) return;
         const now = audioCtx.currentTime;
         const notes = [523.25, 659.25, 783.99, 1046.50]; // Do (C5) - Mi (E5) - Sol (G5) - Do (C6)
         notes.forEach((freq, idx) => {
@@ -76,10 +98,11 @@ export function playOrderReadySound() {
             osc.start(start);
             osc.stop(start + 0.65);
         });
-    } catch (e) { }
+    } catch (e) {}
 }
 
 export function speakAnnouncement(text) {
+    if (isSoundMuted) return;
     try {
         if ('speechSynthesis' in window && text) {
             window.speechSynthesis.cancel();
@@ -93,7 +116,7 @@ export function speakAnnouncement(text) {
             utterance.volume = 1.0;
             window.speechSynthesis.speak(utterance);
         }
-    } catch (e) { }
+    } catch (e) {}
 }
 
 export const speakTurkish = speakAnnouncement;

@@ -1646,10 +1646,10 @@ export default function AdminView() {
                                     }}
                                 >
                                     <div style={{ fontWeight: 800, color: printerModeInput === 'rawbt' ? '#10b981' : 'white', fontSize: '14px', marginBottom: '4px' }}>
-                                        ⚡ RawBT / Termal Ağ (Önerilen)
+                                        ⚡ Direkt Baskı – RawBT (Önerilen)
                                     </div>
                                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.35 }}>
-                                        Garson tabletlerinde bekleme yapmaz, arka planda anında mutfak yazıcısına fişi basar.
+                                        Önizleme açılmaz. Fiş (logolu) doğrudan yazıcıdan çıkar. Android tabletlerde RawBT uygulaması gerekir.
                                     </div>
                                 </div>
 
@@ -1665,10 +1665,10 @@ export default function AdminView() {
                                     }}
                                 >
                                     <div style={{ fontWeight: 800, color: printerModeInput === 'browser' ? '#3b82f6' : 'white', fontSize: '14px', marginBottom: '4px' }}>
-                                        📄 Standart Tarayıcı Önizleme
+                                        🖥️ Sistem Yazdırma Penceresi
                                     </div>
                                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.35 }}>
-                                        Her yazdırmada ekranda şık bir fiş önizleme penceresi açar ve sistem yazıcısından basar.
+                                        Her fişte cihazın yazdırma ekranı açılır. Sadece bilgisayardan basılacaksa kullanın.
                                     </div>
                                 </div>
                             </div>
