@@ -97,7 +97,10 @@ export default function Navbar() {
 
                 {/* Fullscreen Button */}
                 <button
-                    onClick={toggleFullscreen}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFullscreen();
+                    }}
                     className="btn-outline"
                     title={isFullscreen ? "Tam Ekrandan Çık" : "Tam Ekran Yap"}
                     style={{

@@ -70,10 +70,7 @@ function exitFullscreen() {
 }
 
 export const DEFAULT_USERS = [
-    { id: "mgr-1", name: "Yönetici (Patron)", role: "admin", pin: "197300", phone: "0532 100 20 30" },
-    { id: "wtr-1", name: "Ahmet", role: "waiter", pin: "123456", phone: "0541 222 33 44" },
-    { id: "wtr-2", name: "Mehmet", role: "waiter", pin: "654321", phone: "0541 333 44 55" },
-    { id: "ktc-1", name: "Usta (Mutfak)", role: "kitchen", pin: "112233", phone: "0530 111 22 33" }
+    { id: "mgr-1", name: "Yönetici (Patron)", role: "admin", pin: "197300", phone: "0532 100 20 30" }
 ];
 
 export function AppProvider({ children }) {
@@ -101,6 +98,18 @@ export function AppProvider({ children }) {
     const [soundEnabled, setSoundEnabled] = useState(() => !isAudioMuted());
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [toast, setToast] = useState(null);
+
+    // Modern Evrensel Onay Modalı State'i
+    const [confirmModal, setConfirmModal] = useState({
+        isOpen: false,
+        title: 'İşlemi Onaylayın',
+        message: '',
+        confirmText: 'Evet, Onayla',
+        cancelText: 'Vazgeç',
+        variant: 'danger',
+        onConfirm: null,
+        onCancel: null
+    });
 
     // Active orders real-time map: { [table_no]: orderData }
     const [activeOrders, setActiveOrders] = useState({});
@@ -134,10 +143,12 @@ export function AppProvider({ children }) {
         };
     }, []);
 
-    // "Yapışkan" tam ekran: Tam ekran bir şekilde düşerse (RawBT'ye gidip dönme, uygulama değiştirme vb.)
-    // kullanıcının ekrana ilk dokunuşunda otomatik olarak tekrar tam ekrana geçer.
+    // "Yapışkan" tam ekran: Kullanıcı isteyerek tam ekrandan çıkmadığı sürece (wantsFullscreen() !== false)
+    // tam ekran düşerse kullanıcı ilk ekrana dokunduğunda otomatik tam ekrana geçer.
     useEffect(() => {
-        const reenter = () => {
+        const reenter = (e) => {
+            // Butonlara ve navigasyon kontrollerine dokunulduğunda tetiklenme
+            if (e?.target?.closest?.('.header-controls') || e?.target?.closest?.('button')) return;
             if (wantsFullscreen() && !getFullscreenElement() && !isStandaloneApp()) {
                 enterFullscreen();
             }
@@ -239,22 +250,60 @@ export function AppProvider({ children }) {
         setCurrentView(view);
     };
 
-    const toggleFullscreen = () => {
-        if (isStandaloneApp()) {
-            showToast('Uygulama zaten tam ekran modunda çalışıyor.', 'info');
-            return;
-        }
-        if (getFullscreenElement()) {
+    const toggleFullscreen = async () => {
+        const fsEl = getFullscreenElement();
+        if (fsEl) {
             setWantsFullscreen(false);
-            exitFullscreen();
+            setIsFullscreen(false);
+            try {
+                if (document.exitFullscreen) {
+                    await document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    await document.webkitExitFullscreen();
+                }
+            } catch (err) {
+                console.warn("exitFullscreen error:", err);
+            }
+            showToast('Tam ekrandan çıkıldı', 'info');
             return;
         }
+
         if (!isFullscreenSupported()) {
             showToast('Bu cihazın tarayıcısı tam ekranı desteklemiyor. Tarayıcı menüsünden "Ana Ekrana Ekle" yapıp uygulamayı oradan açın.', 'warning');
             return;
         }
         setWantsFullscreen(true);
         enterFullscreen();
+        setIsFullscreen(true);
+        showToast('Tam ekran yapıldı', 'success');
+    };
+
+    // Modern Evrensel Onay Modalı Çağırma Fonksiyonu (Promise Döndürür)
+    const showConfirm = ({
+        title = 'İşlemi Onaylayın',
+        message = 'Bu işlemi gerçekleştirmek istediğinize emin misiniz?',
+        confirmText = 'Evet, Onayla',
+        cancelText = 'Vazgeç',
+        variant = 'danger'
+    }) => {
+        return new Promise((resolve) => {
+            setConfirmModal({
+                isOpen: true,
+                title,
+                message,
+                confirmText,
+                cancelText,
+                variant,
+                onConfirm: () => {
+                    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                    resolve(true);
+                },
+                onCancel: () => {
+                    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                    resolve(false);
+                }
+            });
+        });
     };
 
     const toggleSound = () => {
@@ -338,7 +387,9 @@ export function AppProvider({ children }) {
             showToast,
             closeTableOrder,
             printerSettings,
-            savePrinterSettings
+            savePrinterSettings,
+            confirmModal,
+            showConfirm
         }}>
             {children}
         </AppContext.Provider>

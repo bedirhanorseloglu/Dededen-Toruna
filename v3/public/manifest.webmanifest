@@ -1,0 +1,17 @@
+{
+  "name": "Dededen Toruna - Adisyon",
+  "short_name": "Dededen Toruna",
+  "description": "Dededen Toruna restoran adisyon ve sipariş sistemi",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#0b1120",
+  "theme_color": "#0b1120",
+  "lang": "tr",
+  "icons": [
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any" }
+  ]
+}

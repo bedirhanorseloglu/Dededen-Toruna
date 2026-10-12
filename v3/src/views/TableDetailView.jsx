@@ -648,7 +648,7 @@ export default function TableDetailView() {
                                 borderRadius: '4px',
                                 border: '1px solid rgba(245, 159, 0, 0.3)'
                             }}>
-                                {existingOrder?.waiter_name || currentUser?.name || 'Ahmet'}
+                                {existingOrder?.waiter_name || currentUser?.name || 'Garson'}
                             </div>
                         </div>
                     </div>

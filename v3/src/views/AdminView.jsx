@@ -43,9 +43,12 @@ import {
     Clock
 } from 'lucide-react';
 import TableCardGrid from '../components/TableCardGrid';
+import AdminAnalyticsDashboard from '../components/AdminAnalyticsDashboard';
+import AdminStaffManagement from '../components/AdminStaffManagement';
+import AdminPrinterSettings from '../components/AdminPrinterSettings';
 
 export default function AdminView() {
-    const { tables, activeOrders, navigateTo, currentUser, showToast, closeTableOrder, printerSettings, savePrinterSettings } = useApp();
+    const { tables, activeOrders, navigateTo, currentUser, showToast, showConfirm, closeTableOrder, printerSettings, savePrinterSettings } = useApp();
     const [currentActiveTab, setCurrentActiveTab] = useState('tables'); // 'tables' | 'analytics' | 'staff' | 'printer'
     const [currentPeriod, setCurrentPeriod] = useState('today'); // 'today' | 'week' | 'month' | 'all'
     const [productSearch, setProductSearch] = useState('');
@@ -101,7 +104,7 @@ export default function AdminView() {
     const [showStaffModal, setShowStaffModal] = useState(false);
     const [staffModalRole, setStaffModalRole] = useState('waiter');
     const [staffNameInput, setStaffNameInput] = useState('');
-    const [staffExtraInput, setStaffExtraInput] = useState('');
+    const [staffHireDateInput, setStaffHireDateInput] = useState('');
     const [staffPhoneInput, setStaffPhoneInput] = useState('');
     const [staffPinInput, setStaffPinInput] = useState('');
 
@@ -130,48 +133,52 @@ export default function AdminView() {
 
     // Real-Time (Canlı) Kapanan Sipariş Dinleyicisi (Farklı cihazlardan kapanan hesaplar anında yansır)
     useEffect(() => {
-        // 1. Önce yerel arşivden yükle (anında render, 0 gecikme)
-        let archive = [];
+        // Eski test önbelleğini otomatik sıfırla (Canlı restoran lansmanı)
+        try {
+            if (localStorage.getItem('cafe_clean_launch_2026') !== 'true') {
+                localStorage.removeItem('cafe_cached_completed_orders');
+                localStorage.setItem('cafe_clean_launch_2026', 'true');
+            }
+        } catch (e) {}
+
+        // 1. Önce yerel arşivden yükle (varsa)
         try {
             const raw = localStorage.getItem('cafe_cached_completed_orders');
             if (raw) {
-                archive = JSON.parse(raw);
+                const archive = JSON.parse(raw);
                 if (Array.isArray(archive) && archive.length > 0) {
                     setCompletedOrders(archive);
+                } else {
+                    setCompletedOrders([]);
                 }
+            } else {
+                setCompletedOrders([]);
             }
         } catch (e) {
             console.warn("Local archive parse error:", e);
         }
 
-        // 2. Canlı Firestore Dinleyicisi (Son 50 kapanan sipariş gerçek zamanlı dinlenir)
-        // Herhangi bir cihazdan masa kapatıldığında buraya anında canlı yansır ve sadece 1 okuma tüketir.
+        // 2. Canlı Firestore Dinleyicisi
         const qLive = query(
             collection(db, "completed_orders"),
             orderBy("created_at", "desc"),
-            limit(50)
+            limit(100)
         );
 
         const unsubscribe = onSnapshot(qLive, (snapshot) => {
+            if (snapshot.empty) {
+                // Veritabanı boşsa önbelleği de sıfırla
+                setCompletedOrders([]);
+                try {
+                    localStorage.removeItem('cafe_cached_completed_orders');
+                } catch (e) {}
+                return;
+            }
+
             const liveDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-            
-            // Canlı gelenleri yerel arşiv ile birleştirip tekilleştir
-            const orderMap = new Map();
-            liveDocs.forEach(o => orderMap.set(o.id, o));
-            archive.forEach(o => {
-                if (!orderMap.has(o.id)) orderMap.set(o.id, o);
-            });
-
-            const merged = Array.from(orderMap.values()).sort((a, b) => {
-                const dateA = new Date(a.created_at || a.payment_collected_at || 0).getTime();
-                const dateB = new Date(b.created_at || b.payment_collected_at || 0).getTime();
-                return dateB - dateA;
-            });
-
-            archive = merged;
-            setCompletedOrders(merged);
+            setCompletedOrders(liveDocs);
             try {
-                localStorage.setItem('cafe_cached_completed_orders', JSON.stringify(merged.slice(0, 1000)));
+                localStorage.setItem('cafe_cached_completed_orders', JSON.stringify(liveDocs.slice(0, 1000)));
             } catch (e) {}
         }, (err) => {
             console.warn("Live completed orders listener error:", err);
@@ -184,17 +191,12 @@ export default function AdminView() {
     useEffect(() => {
         const unsubWaiters = onSnapshot(collection(db, "waiters"), snap => {
             const list = snap.docs.map(d => ({ id: d.id, ...d.data(), role: 'waiter' }));
-            setWaitersList(list.length > 0 ? list : [
-                { id: "wtr-1", name: "Ahmet", role: "waiter", pin: "123456", section: "Salon", total_orders_count: 24, total_revenue: 9480, total_items_sold: 72, last_order_at: new Date().toISOString() },
-                { id: "wtr-2", name: "Mehmet", role: "waiter", pin: "654321", section: "Teras", total_orders_count: 18, total_revenue: 7200, total_items_sold: 54, last_order_at: new Date().toISOString() }
-            ]);
+            setWaitersList(list);
         }, () => {});
 
         const unsubKitchen = onSnapshot(collection(db, "kitchen_staff"), snap => {
             const list = snap.docs.map(d => ({ id: d.id, ...d.data(), role: 'kitchen' }));
-            setKitchenList(list.length > 0 ? list : [
-                { id: "ktc-1", name: "Fadime Usta", role: "kitchen", pin: "112233", section: "Tatlı & Fırın Şefi", total_orders_prepared: 42, total_items_prepared: 110, avg_prep_time_minutes: 6.8, last_delivery_at: new Date().toISOString() }
-            ]);
+            setKitchenList(list);
         }, () => {});
 
         const unsubManagers = onSnapshot(collection(db, "managers"), snap => {
@@ -670,7 +672,7 @@ export default function AdminView() {
             name: staffNameInput.trim(),
             role: staffModalRole,
             pin: staffPinInput.trim(),
-            section: staffExtraInput.trim(),
+            hire_date: staffHireDateInput.trim() || null,
             phone: staffPhoneInput.trim() || '—',
             active: true,
             created_at: new Date().toISOString()
@@ -681,7 +683,7 @@ export default function AdminView() {
             showToast(`${newStaffRecord.name} sisteme başarıyla eklendi!`, "success");
             setShowStaffModal(false);
             setStaffNameInput('');
-            setStaffExtraInput('');
+            setStaffHireDateInput('');
             setStaffPhoneInput('');
             setStaffPinInput('');
         } catch (e) {
@@ -714,7 +716,15 @@ export default function AdminView() {
 
     // Delete Staff
     const handleDeleteStaff = async (id, role, name) => {
-        if (!window.confirm(`${name} isimli çalışanı silmek istediğinize emin misiniz?`)) return;
+        const ok = await showConfirm({
+            title: 'Personel Kaydını Sil',
+            message: `"${name}" isimli çalışanı silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`,
+            confirmText: 'Evet, Sil',
+            cancelText: 'Vazgeç',
+            variant: 'danger'
+        });
+        if (!ok) return;
+
         const colName = role === 'admin' ? 'managers' : (role === 'kitchen' ? 'kitchen_staff' : 'waiters');
         try {
             await deleteDoc(doc(db, colName, id));
@@ -725,74 +735,39 @@ export default function AdminView() {
         }
     };
 
-    // Seed test staff
-    const seedTestStaff = async () => {
-        showToast("Test personelleri oluşturuluyor...", "info");
+
+
+    // İstatistikleri Sıfırlama
+    const handleResetAnalytics = async () => {
+        const confirmed = await showConfirm({
+            title: "Tüm Satış Geçmişini Sıfırla",
+            message: "Bu işlem restoranın tüm satış ve ciro geçmişini sıfırlayacaktır. Canlı operasyona sıfırdan başlamak için kullanabilirsiniz. Devam edilsin mi?",
+            confirmText: "Evet, Sıfırla",
+            cancelText: "Vazgeç",
+            variant: "danger"
+        });
+
+        if (!confirmed) return;
+
         try {
-            await setDoc(doc(db, "managers", "mgr-1"), {
-                name: "Yönetici (Patron)",
-                role: "admin",
-                pin: "197300",
-                phone: "0532 100 20 30",
-                active: true,
-                created_at: new Date().toISOString()
-            });
-            await setDoc(doc(db, "waiters", "wtr-1"), {
-                name: "Ahmet",
-                role: "waiter",
-                pin: "123456",
-                section: "Salon",
-                total_orders_count: 24,
-                total_revenue: 9480,
-                total_items_sold: 72,
-                active: true,
-                last_order_at: new Date().toISOString()
-            });
-            await setDoc(doc(db, "waiters", "wtr-2"), {
-                name: "Mehmet",
-                role: "waiter",
-                pin: "654321",
-                section: "Teras",
-                total_orders_count: 18,
-                total_revenue: 7200,
-                total_items_sold: 54,
-                active: true,
-                last_order_at: new Date().toISOString()
-            });
-            showToast("Test personelleri Firestore'a yüklendi!", "success");
+            showToast("Satış verileri sıfırlanıyor...", "info");
+            const snap = await getDocs(collection(db, "completed_orders"));
+            for (const d of snap.docs) {
+                await deleteDoc(doc(db, "completed_orders", d.id));
+            }
+            try {
+                localStorage.removeItem('cafe_cached_completed_orders');
+            } catch (e) {}
+            setCompletedOrders([]);
+            showToast("Tüm ciro ve satış istatistikleri başarıyla sıfırlandı!", "success");
         } catch (e) {
-            console.error("Seed error:", e);
-            showToast("Hata oluştu.", "danger");
+            console.error("Reset error:", e);
+            showToast("Sıfırlama sırasında hata oluştu.", "danger");
         }
     };
 
     return (
         <div className="admin-page-container">
-            {/* Top Bar: Restoran Canlı Takip */}
-            <div style={{
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-card)',
-                borderRadius: 'var(--radius-md)',
-                padding: '12px 18px',
-                marginBottom: '18px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '12px',
-                boxShadow: 'var(--shadow-soft)'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '13px', flexWrap: 'wrap' }}>
-                    <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '50%', background: '#10b981' }}></span>
-                    <strong style={{ color: 'white', fontSize: '14px' }}>Restoran Canlı Takip:</strong>
-                    <span style={{ color: '#f59f00', fontWeight: 700 }}>● {openCount} Açık Masa</span>
-                    <span style={{ color: 'var(--text-muted)' }}>|</span>
-                    <span style={{ color: '#10b981', fontWeight: 700 }}>○ {freeCount} Boş</span>
-                    <span style={{ color: 'var(--text-muted)' }}>|</span>
-                    <span style={{ color: 'var(--brand-gold)', fontWeight: 800 }}>Açık Adisyon: {formatMoney(openTotal)}</span>
-                </div>
-            </div>
-
             {/* 3 Admin Nav Tabs */}
             <nav className="admin-nav-tabs" style={{ marginBottom: '20px' }}>
                 <button 
@@ -825,271 +800,18 @@ export default function AdminView() {
             {/* 1. SEKME: CİRO & SATIŞ ANALİZİ + HAFTALIK & AYLIK TABLOLAR      */}
             {/* ============================================================== */}
             {currentActiveTab === 'analytics' && (
-                <div>
-                    {/* Period filter */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '18px' }}>
-                        <div>
-                            <h2 style={{ fontSize: '20px', fontWeight: 800, letterSpacing: '-0.3px', margin: 0 }}>
-                                Finansal Performans & Satış Karnesi
-                            </h2>
-                            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
-                                Restoran cirosu, lezzet satışları ve gün gün raporlar
-                            </p>
-                        </div>
-                        <div className="filter-pill-group">
-                            <button className={`filter-pill-btn ${currentPeriod === 'today' ? 'active' : ''}`} onClick={() => setCurrentPeriod('today')}>Bugün</button>
-                            <button className={`filter-pill-btn ${currentPeriod === 'week' ? 'active' : ''}`} onClick={() => setCurrentPeriod('week')}>Bu Hafta</button>
-                            <button className={`filter-pill-btn ${currentPeriod === 'month' ? 'active' : ''}`} onClick={() => setCurrentPeriod('month')}>Bu Ay</button>
-                            <button className={`filter-pill-btn ${currentPeriod === 'all' ? 'active' : ''}`} onClick={() => setCurrentPeriod('all')}>Tüm Zamanlar</button>
-                        </div>
-                    </div>
-
-                    {/* 4 Büyük Finans Kartı */}
-                    <div className="admin-kpi-grid">
-                        <div className="stat-box" style={{ background: 'var(--bg-surface)', padding: '18px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-card)', boxShadow: 'var(--shadow-soft)' }}>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Toplam Net Ciro</div>
-                            <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--brand-gold)', marginTop: '6px' }}>{formatMoney(totalRevenue)}</div>
-                            <div style={{ fontSize: '12px', color: 'var(--success)', marginTop: '4px', fontWeight: 600 }}>Tahsil edilen tüm siparişler</div>
-                        </div>
-
-                        <div className="stat-box" style={{ background: 'var(--bg-surface)', padding: '18px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-card)', boxShadow: 'var(--shadow-soft)' }}>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Tahsilat Dağılımı</div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 700, marginTop: '8px' }}>
-                                <span style={{ color: 'var(--success)' }}>💵 Nakit: <b>{formatMoney(cashTotal)}</b></span>
-                                <span style={{ color: '#60a5fa' }}>💳 Kart: <b>{formatMoney(cardTotal)}</b></span>
-                            </div>
-                            <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '99px', marginTop: '10px', overflow: 'hidden', display: 'flex' }}>
-                                <div style={{ width: `${cashPct}%`, background: 'var(--success)', height: '100%' }}></div>
-                                <div style={{ width: `${cardPct}%`, background: '#3b82f6', height: '100%' }}></div>
-                            </div>
-                        </div>
-
-                        <div className="stat-box" style={{ background: 'var(--bg-surface)', padding: '18px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-card)', boxShadow: 'var(--shadow-soft)' }}>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Tamamlanan Adisyon</div>
-                            <div style={{ fontSize: '28px', fontWeight: 800, color: 'white', marginTop: '6px' }}>{orderCount}</div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>Kapanan masa hesabı</div>
-                        </div>
-
-                        <div className="stat-box" style={{ background: 'var(--bg-surface)', padding: '18px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-card)', boxShadow: 'var(--shadow-soft)' }}>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Ortalama Masa Sepeti</div>
-                            <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--brand-primary)', marginTop: '6px' }}>{formatMoney(avgOrder)}</div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>Masa başına düşen harcama</div>
-                        </div>
-                    </div>
-
-                    {/* MÜŞTERİ İSTEĞİ 1: BU HAFTA GÜN GÜN TABLOSU (Pzt - Paz) */}
-                    <div style={{
-                        background: 'var(--bg-surface)',
-                        padding: '20px',
-                        borderRadius: 'var(--radius-lg)',
-                        border: '1px solid var(--border-card)',
-                        boxShadow: 'var(--shadow-soft)',
-                        marginBottom: '22px'
-                    }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                            <Calendar size={18} className="text-amber-400" />
-                            <h3 style={{ fontSize: '17px', fontWeight: 800, color: 'white', margin: 0 }}>
-                                Bu Hafta Gün Gün Raporu (Pazartesi - Pazar)
-                            </h3>
-                        </div>
-
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                                <thead>
-                                    <tr style={{ textAlign: 'left', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-card)' }}>
-                                        <th style={{ padding: '10px 10px' }}>Gün</th>
-                                        <th style={{ padding: '10px 10px' }}>Tarih</th>
-                                        <th style={{ padding: '10px 10px' }}>Adisyon Sayısı</th>
-                                        <th style={{ padding: '10px 10px' }}>Nakit</th>
-                                        <th style={{ padding: '10px 10px' }}>Kredi Kartı</th>
-                                        <th style={{ padding: '10px 10px', textAlign: 'right' }}>Toplam Ciro</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {weeklyDayStats.map((d, i) => (
-                                        <tr 
-                                            key={i}
-                                            style={{
-                                                borderBottom: '1px solid var(--border-subtle)',
-                                                background: d.isToday ? 'rgba(247, 103, 7, 0.12)' : 'transparent'
-                                            }}
-                                        >
-                                            <td style={{ padding: '12px 10px', fontWeight: 800, color: d.isToday ? 'var(--brand-primary)' : 'white' }}>
-                                                {d.dayName} {d.isToday && <span style={{ fontSize: '10px', background: 'var(--brand-primary)', color: 'white', padding: '2px 6px', borderRadius: '3px', marginLeft: '6px' }}>BUGÜN</span>}
-                                            </td>
-                                            <td style={{ padding: '12px 10px', color: 'var(--text-secondary)' }}>{d.dateStr}</td>
-                                            <td style={{ padding: '12px 10px', color: 'var(--text-secondary)' }}>{d.count} adisyon</td>
-                                            <td style={{ padding: '12px 10px', color: 'var(--success)', fontWeight: 700 }}>{formatMoney(d.cash)}</td>
-                                            <td style={{ padding: '12px 10px', color: 'var(--brand-gold)', fontWeight: 700 }}>{formatMoney(d.card)}</td>
-                                            <td style={{ padding: '12px 10px', color: 'white', fontWeight: 800, textAlign: 'right' }}>{formatMoney(d.revenue)}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    {/* MÜŞTERİ İSTEĞİ 2: BU AY GÜN GÜN TABLOSU (1 - 31) */}
-                    <div style={{
-                        background: 'var(--bg-surface)',
-                        padding: '20px',
-                        borderRadius: 'var(--radius-lg)',
-                        border: '1px solid var(--border-card)',
-                        boxShadow: 'var(--shadow-soft)',
-                        marginBottom: '22px'
-                    }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                            <CalendarDays size={18} className="text-amber-400" />
-                            <h3 style={{ fontSize: '17px', fontWeight: 800, color: 'white', margin: 0 }}>
-                                Bu Ay Gün Gün Raporu (1 - 31)
-                            </h3>
-                        </div>
-
-                        <div style={{ overflowX: 'auto', maxHeight: '360px' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                                <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-surface)' }}>
-                                    <tr style={{ textAlign: 'left', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-card)' }}>
-                                        <th style={{ padding: '10px 10px' }}>Gün</th>
-                                        <th style={{ padding: '10px 10px' }}>Tarih</th>
-                                        <th style={{ padding: '10px 10px' }}>Adisyon Sayısı</th>
-                                        <th style={{ padding: '10px 10px' }}>Nakit</th>
-                                        <th style={{ padding: '10px 10px' }}>Kredi Kartı</th>
-                                        <th style={{ padding: '10px 10px', textAlign: 'right' }}>Günlük Ciro</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {monthlyDayStats.map((m, i) => (
-                                        <tr 
-                                            key={i}
-                                            style={{
-                                                borderBottom: '1px solid var(--border-subtle)',
-                                                background: m.isToday ? 'rgba(247, 103, 7, 0.12)' : 'transparent'
-                                            }}
-                                        >
-                                            <td style={{ padding: '10px 10px', fontWeight: 800, color: m.isToday ? 'var(--brand-primary)' : 'white' }}>
-                                                Gün {m.dayNumber} {m.isToday && <span style={{ fontSize: '10px', background: 'var(--brand-primary)', color: 'white', padding: '2px 6px', borderRadius: '3px', marginLeft: '6px' }}>BUGÜN</span>}
-                                            </td>
-                                            <td style={{ padding: '10px 10px', color: 'var(--text-secondary)' }}>{m.dateDisplay}</td>
-                                            <td style={{ padding: '10px 10px', color: 'var(--text-secondary)' }}>{m.count > 0 ? `${m.count} adisyon` : '-'}</td>
-                                            <td style={{ padding: '10px 10px', color: 'var(--success)', fontWeight: 700 }}>{formatMoney(m.cash)}</td>
-                                            <td style={{ padding: '10px 10px', color: 'var(--brand-gold)', fontWeight: 700 }}>{formatMoney(m.card)}</td>
-                                            <td style={{ padding: '10px 10px', color: 'white', fontWeight: 800, textAlign: 'right' }}>{formatMoney(m.revenue)}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    {/* 2-Sütunlu Analiz Tabloları (En Çok Satan Lezzetler + Garson/Mutfak Karnesi) */}
-                    <div className="analytics-grid">
-                        {/* Sol Sütun: En Çok Satan Lezzetler */}
-                        <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-card)', boxShadow: 'var(--shadow-soft)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
-                                <div>
-                                    <h3 style={{ fontSize: '17px', fontWeight: 800, margin: 0 }}>🏆 En Çok Satan Lezzetler</h3>
-                                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>Hangi üründen kaç adet satıldı, ciro sağladı?</p>
-                                </div>
-                                <input 
-                                    type="text" 
-                                    placeholder="Ürün ara..." 
-                                    value={productSearch}
-                                    onChange={(e) => setProductSearch(e.target.value)}
-                                    style={{ padding: '6px 12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: 'white', borderRadius: 'var(--radius-sm)', fontSize: '13px' }}
-                                />
-                            </div>
-
-                            <div style={{ overflowX: 'auto', maxHeight: '420px' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                                    <thead>
-                                        <tr style={{ textAlign: 'left', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-card)' }}>
-                                            <th style={{ padding: '10px 6px' }}>#</th>
-                                            <th style={{ padding: '10px 8px' }}>Ürün</th>
-                                            <th style={{ padding: '10px 8px', textAlign: 'center' }}>Satış</th>
-                                            <th style={{ padding: '10px 8px', textAlign: 'right' }}>Ciro</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {productStats.length === 0 ? (
-                                            <tr><td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>Satış kaydı bulunamadı.</td></tr>
-                                        ) : (
-                                            productStats.map((p, idx) => {
-                                                const sharePct = totalRevenue > 0 ? ((p.revenue / totalRevenue) * 100).toFixed(1) : 0;
-                                                const rankClass = idx === 0 ? 'top-1' : (idx === 1 ? 'top-2' : (idx === 2 ? 'top-3' : ''));
-                                                return (
-                                                    <tr key={idx} style={{ borderBottom: '1px solid var(--border-card)' }}>
-                                                        <td style={{ padding: '10px 6px' }}>
-                                                            <span className={`rank-badge ${rankClass}`}>{idx + 1}</span>
-                                                        </td>
-                                                        <td style={{ padding: '10px 8px', fontWeight: 700 }}>
-                                                            <div>{p.name}</div>
-                                                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{sharePct}% Ciro Payı</div>
-                                                        </td>
-                                                        <td style={{ padding: '10px 8px', textAlign: 'center', fontWeight: 800, color: 'var(--brand-primary)' }}>{p.quantity}x</td>
-                                                        <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 800, color: 'white' }}>{formatMoney(p.revenue)}</td>
-                                                    </tr>
-                                                );
-                                            })
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        {/* Sağ Sütun: Garson Ciro Karnesi & Mutfak Teslimat */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                            {/* Garson Ciro Karnesi */}
-                            <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-card)', boxShadow: 'var(--shadow-soft)' }}>
-                                <h3 style={{ fontSize: '17px', fontWeight: 800, margin: '0 0 4px 0' }}>👤 Garson Ciro & Performans Karnesi</h3>
-                                <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 14px 0' }}>Hangi garson kaç masaya baktı, ne kadar ciro sağladı?</p>
-
-                                <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                                        <thead>
-                                            <tr style={{ textAlign: 'left', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-card)' }}>
-                                                <th style={{ padding: '10px 8px' }}>Garson</th>
-                                                <th style={{ padding: '10px 8px', textAlign: 'center' }}>Masa</th>
-                                                <th style={{ padding: '10px 8px', textAlign: 'right' }}>Ciro</th>
-                                                <th style={{ padding: '10px 8px', textAlign: 'right' }}>Ort. Masa</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {waiterStats.length === 0 ? (
-                                                <tr><td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>Kayıt bulunmuyor.</td></tr>
-                                            ) : (
-                                                waiterStats.map((w, idx) => (
-                                                    <tr key={idx} style={{ borderBottom: '1px solid var(--border-card)' }}>
-                                                        <td style={{ padding: '10px 8px', fontWeight: 700 }}>👤 {w.name}</td>
-                                                        <td style={{ padding: '10px 8px', textAlign: 'center', color: 'var(--brand-gold)', fontWeight: 700 }}>{w.orderCount} Masa</td>
-                                                        <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 800, color: 'white' }}>{formatMoney(w.revenue)}</td>
-                                                        <td style={{ padding: '10px 8px', textAlign: 'right', color: 'var(--text-muted)' }}>{formatMoney(w.revenue / Math.max(1, w.orderCount))}</td>
-                                                    </tr>
-                                                ))
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            {/* Mutfak Teslimat Karnesi */}
-                            <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-card)', boxShadow: 'var(--shadow-soft)' }}>
-                                <h3 style={{ fontSize: '17px', fontWeight: 800, margin: '0 0 4px 0' }}>🍳 Mutfak Operasyon & Teslimat</h3>
-                                <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 14px 0' }}>Mutfak ekibinin hazırladığı ve teslim ettiği ürün sayısı</p>
-                                
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                                    <div style={{ background: 'var(--bg-surface-elevated)', padding: '14px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
-                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>HAZIRLANAN KALEM</div>
-                                        <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--brand-gold)', marginTop: '4px' }}>{totalKitchenItemsCount} Adet</div>
-                                    </div>
-                                    <div style={{ background: 'var(--bg-surface-elevated)', padding: '14px', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
-                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>TAMAMLANAN MASALAR</div>
-                                        <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--success)', marginTop: '4px' }}>{orderCount} Masa</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <AdminAnalyticsDashboard
+                    completedOrders={completedOrders}
+                    currentPeriod={currentPeriod}
+                    setCurrentPeriod={setCurrentPeriod}
+                    weeklyDayStats={weeklyDayStats}
+                    monthlyDayStats={monthlyDayStats}
+                    productStats={productStats}
+                    waiterStats={waiterStats}
+                    productSearch={productSearch}
+                    setProductSearch={setProductSearch}
+                    handleResetAnalytics={handleResetAnalytics}
+                />
             )}
 
             {/* ============================================================== */}
@@ -1168,75 +890,6 @@ export default function AdminView() {
                             showControls={false}
                         />
                     </div>
-
-                    {/* Detaylı Açık Hesaplar Tablosu */}
-                    <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-card)', boxShadow: 'var(--shadow-soft)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                            <h3 style={{ fontSize: '17px', fontWeight: 800, margin: 0 }}>🧾 Açık Adisyonlar (Kasa Tahsilatı)</h3>
-                            {selectedWaiterFilter !== 'all' && (
-                                <button
-                                    className="btn-outline"
-                                    style={{ fontSize: '11px', padding: '3px 10px' }}
-                                    onClick={() => setSelectedWaiterFilter('all')}
-                                >
-                                    Filtreyi Temizle (Tümünü Göster)
-                                </button>
-                            )}
-                        </div>
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                                <thead>
-                                    <tr style={{ textAlign: 'left', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-card)' }}>
-                                        <th style={{ padding: '12px 10px' }}>Masa</th>
-                                        <th style={{ padding: '12px 10px' }}>Garson</th>
-                                        <th style={{ padding: '12px 10px' }}>Durum</th>
-                                        <th style={{ padding: '12px 10px' }}>Ürünler</th>
-                                        <th style={{ padding: '12px 10px' }}>Tutar</th>
-                                        <th style={{ padding: '12px 10px', textAlign: 'right' }}>İşlem</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {openOrdersList.filter(o => selectedWaiterFilter === 'all' || o.waiter_name === selectedWaiterFilter).length === 0 ? (
-                                        <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '36px' }}>Şu an açık hesap bulunmuyor.</td></tr>
-                                    ) : (
-                                        openOrdersList
-                                            .filter(o => selectedWaiterFilter === 'all' || o.waiter_name === selectedWaiterFilter)
-                                            .map(order => {
-                                                const tNo = order.table_no;
-                                                const allDelivered = (order.items || []).every(i => i.status === 'delivered');
-                                                const itemsSummary = (order.items || []).map(i => `${i.quantity}x ${i.name}`).join(', ');
-
-                                                return (
-                                                    <tr key={order.id} style={{ borderBottom: '1px solid var(--border-card)' }}>
-                                                        <td style={{ padding: '12px 10px', fontWeight: 800, fontSize: '16px' }}>Masa {tNo}</td>
-                                                        <td style={{ padding: '12px 10px', fontWeight: 700, color: 'var(--brand-gold)' }}>👤 {order.waiter_name || 'Personel'}</td>
-                                                        <td style={{ padding: '12px 10px' }}>
-                                                            <span className="user-role-tag" style={{ background: allDelivered ? 'var(--success)' : 'var(--danger)' }}>
-                                                                {allDelivered ? 'SERVİS EDİLDİ' : 'MUTFAKTA'}
-                                                            </span>
-                                                        </td>
-                                                        <td style={{ padding: '12px 10px', maxWidth: '280px', fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={itemsSummary}>
-                                                            {itemsSummary}
-                                                        </td>
-                                                        <td style={{ padding: '12px 10px', fontWeight: 800, fontSize: '16px', color: 'white' }}>{formatMoney(order.total)}</td>
-                                                        <td style={{ padding: '12px 10px', textAlign: 'right' }}>
-                                                            <button 
-                                                                className="btn-outline" 
-                                                                style={{ padding: '6px 14px', fontSize: '13px', fontWeight: 700, borderRadius: '6px' }}
-                                                                onClick={() => setSelectedDrawerTable(tNo)}
-                                                                title="Adisyonu Aç"
-                                                            >
-                                                                Adisyon ↗
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
                 </div>
             )}
 
@@ -1244,133 +897,17 @@ export default function AdminView() {
             {/* 3. SEKME: PERSONEL & PIN YÖNETİMİ (FIRESTORE 3 TABLO CRUD)      */}
             {/* ============================================================== */}
             {currentActiveTab === 'staff' && (
-                <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-                        <div>
-                            <h2 style={{ fontSize: '20px', fontWeight: 800, letterSpacing: '-0.3px', margin: 0 }}>👥 Personel & Görev Yönetimi</h2>
-                            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>Garsonlar ve Yöneticiler Firestore veritabanında ayrı tablolarda tutulur.</p>
-                        </div>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                            <button className="btn-outline" style={{ padding: '10px 14px', fontSize: '13px', borderColor: 'var(--brand-gold)', color: '#ffd43b' }} onClick={seedTestStaff}>
-                                ⚡ Test Personellerini Oluştur
-                            </button>
-                            <button className="btn-primary" style={{ padding: '10px 18px', fontSize: '13px' }} onClick={() => setShowStaffModal(true)}>
-                                + Yeni Personel Ekle
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* 1. TABLO: GARSONLAR (waiters) */}
-                    <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-card)', boxShadow: 'var(--shadow-soft)', marginBottom: '22px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{ fontSize: '22px' }}>📱</span>
-                                <div>
-                                    <h3 style={{ fontSize: '17px', fontWeight: 800, color: 'white', margin: 0 }}>Garsonlar Tablosu <code style={{ fontSize: '12px', color: 'var(--brand-gold)', background: 'rgba(245,159,0,0.1)', padding: '2px 6px', borderRadius: '4px' }}>firestore/waiters</code></h3>
-                                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>Sipariş alan ve masaları servis eden garson kadrosu</p>
-                                </div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{ fontSize: '12px', fontWeight: 800, background: 'var(--bg-surface-elevated)', color: 'var(--brand-gold)', padding: '4px 10px', borderRadius: '20px', border: '1px solid var(--border-card)' }}>{waitersList.length} Garson</span>
-                                <button className="btn-outline" style={{ fontSize: '12px', padding: '6px 12px', borderColor: 'var(--brand-gold)', color: '#ffd43b' }} onClick={() => { setStaffModalRole('waiter'); setShowStaffModal(true); }}>+ Garson Ekle</button>
-                            </div>
-                        </div>
-
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '13px' }}>
-                                <thead>
-                                    <tr style={{ textAlign: 'left', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-card)' }}>
-                                        <th style={{ padding: '12px 10px' }}>Garson Adı</th>
-                                        <th style={{ padding: '12px 10px' }}>Giriş PIN</th>
-                                        <th style={{ padding: '12px 10px' }}>Alınan Sipariş</th>
-                                        <th style={{ padding: '12px 10px' }}>Toplam Ciro</th>
-                                        <th style={{ padding: '12px 10px' }}>Satılan Ürün</th>
-                                        <th style={{ padding: '12px 10px' }}>Durum</th>
-                                        <th style={{ padding: '12px 10px', textAlign: 'right' }}>İşlem</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {waitersList.map(w => (
-                                        <tr key={w.id} style={{ borderBottom: '1px solid var(--border-card)' }}>
-                                            <td style={{ padding: '14px 10px', fontWeight: 700, color: 'white' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></span>
-                                                    <span>{w.name}</span>
-                                                    {w.section && <span style={{ fontSize: '10px', color: 'var(--brand-gold)', background: 'rgba(245,159,0,0.1)', padding: '2px 6px', borderRadius: '3px' }}>{w.section}</span>}
-                                                </div>
-                                            </td>
-                                            <td style={{ padding: '14px 10px', fontFamily: 'monospace', fontSize: '14px', color: 'var(--brand-gold)', fontWeight: 800 }}>{w.pin || '------'}</td>
-                                            <td style={{ padding: '14px 10px', fontWeight: 700, color: 'white' }}>{w.total_orders_count || 0} Adet</td>
-                                            <td style={{ padding: '14px 10px', fontWeight: 800, color: '#ffd43b' }}>{formatMoney(w.total_revenue || 0)}</td>
-                                            <td style={{ padding: '14px 10px', color: 'var(--text-secondary)' }}>{w.total_items_sold || 0} Kalem</td>
-                                            <td style={{ padding: '14px 10px' }}><span style={{ color: 'var(--success)', fontSize: '12px', fontWeight: 700, background: 'rgba(16,185,129,0.1)', padding: '3px 8px', borderRadius: '4px' }}>● Aktif</span></td>
-                                            <td style={{ padding: '14px 10px', textAlign: 'right' }}>
-                                                <div style={{ display: 'inline-flex', gap: '6px' }}>
-                                                    <button className="btn-outline" style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--brand-gold)', borderColor: 'rgba(245,159,0,0.4)' }} onClick={() => { setEditingStaffPin(w); setNewPinInput(''); setShowPinModal(true); }}>🔑 PIN</button>
-                                                    <button className="btn-outline" style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.4)' }} onClick={() => handleDeleteStaff(w.id, 'waiter', w.name)}>Sil</button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    {/* 3. TABLO: YÖNETİCİLER (managers) */}
-                    <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-card)', boxShadow: 'var(--shadow-soft)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{ fontSize: '22px' }}>👑</span>
-                                <div>
-                                    <h3 style={{ fontSize: '17px', fontWeight: 800, color: 'white', margin: 0 }}>Yöneticiler Tablosu <code style={{ fontSize: '12px', color: '#ff6b6b', background: 'rgba(255,107,107,0.1)', padding: '2px 6px', borderRadius: '4px' }}>firestore/managers</code></h3>
-                                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>Tüm restorana, kasaya ve istatistiklere tam yetkili yöneticiler</p>
-                                </div>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{ fontSize: '12px', fontWeight: 800, background: 'var(--bg-surface-elevated)', color: '#ff6b6b', padding: '4px 10px', borderRadius: '20px', border: '1px solid var(--border-card)' }}>{managersList.length} Yönetici</span>
-                                <button className="btn-outline" style={{ fontSize: '12px', padding: '6px 12px', borderColor: '#ff6b6b', color: '#ff6b6b' }} onClick={() => { setStaffModalRole('admin'); setShowStaffModal(true); }}>+ Yönetici Ekle</button>
-                            </div>
-                        </div>
-
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', minWidth: '600px', borderCollapse: 'collapse', fontSize: '13px' }}>
-                                <thead>
-                                    <tr style={{ textAlign: 'left', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-card)' }}>
-                                        <th style={{ padding: '12px 10px' }}>Yönetici Adı</th>
-                                        <th style={{ padding: '12px 10px' }}>Giriş PIN</th>
-                                        <th style={{ padding: '12px 10px' }}>İletişim</th>
-                                        <th style={{ padding: '12px 10px' }}>Yetki Seviyesi</th>
-                                        <th style={{ padding: '12px 10px' }}>Durum</th>
-                                        <th style={{ padding: '12px 10px', textAlign: 'right' }}>İşlem</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {managersList.map(m => (
-                                        <tr key={m.id} style={{ borderBottom: '1px solid var(--border-card)' }}>
-                                            <td style={{ padding: '14px 10px', fontWeight: 700, color: 'white' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#ffd43b' }}></span>
-                                                    <span>{m.name}</span>
-                                                </div>
-                                            </td>
-                                            <td style={{ padding: '14px 10px', fontFamily: 'monospace', fontSize: '14px', color: '#ff6b6b', fontWeight: 800 }}>{m.pin || '------'}</td>
-                                            <td style={{ padding: '14px 10px', color: 'var(--text-secondary)' }}>{m.phone || '0532 100 20 30'}</td>
-                                            <td style={{ padding: '14px 10px' }}><span style={{ color: 'var(--brand-gold)', fontSize: '11px', fontWeight: 800, background: 'rgba(245,159,0,0.15)', padding: '3px 8px', borderRadius: '4px' }}>👑 Tam Yetki</span></td>
-                                            <td style={{ padding: '14px 10px' }}><span style={{ color: 'var(--brand-gold)', fontSize: '12px', fontWeight: 700 }}>● Aktif</span></td>
-                                            <td style={{ padding: '14px 10px', textAlign: 'right' }}>
-                                                <div style={{ display: 'inline-flex', gap: '6px' }}>
-                                                    <button className="btn-outline" style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--brand-gold)', borderColor: 'rgba(245,159,0,0.4)' }} onClick={() => { setEditingStaffPin(m); setNewPinInput(''); setShowPinModal(true); }}>🔑 PIN</button>
-                                                    <button className="btn-outline" style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.4)' }} onClick={() => handleDeleteStaff(m.id, 'admin', m.name)}>Sil</button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+                <AdminStaffManagement
+                    waitersList={waitersList}
+                    kitchenList={kitchenList}
+                    managersList={managersList}
+                    setStaffModalRole={setStaffModalRole}
+                    setShowStaffModal={setShowStaffModal}
+                    setEditingStaffPin={setEditingStaffPin}
+                    setNewPinInput={setNewPinInput}
+                    setShowPinModal={setShowPinModal}
+                    handleDeleteStaff={handleDeleteStaff}
+                />
             )}
 
             {/* MODAL: YENİ PERSONEL İŞE AL MODALI */}
@@ -1415,13 +952,12 @@ export default function AdminView() {
                             </div>
 
                             <div>
-                                <label style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '4px' }}>Çalışma Alanı / Bölüm:</label>
+                                <label style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '4px' }}>İşe Giriş Tarihi (İsteğe Bağlı):</label>
                                 <input 
-                                    type="text" 
-                                    value={staffExtraInput} 
-                                    onChange={(e) => setStaffExtraInput(e.target.value)}
-                                    placeholder="Örn: Teras, Salon, Bahçe" 
-                                    style={{ width: '100%', padding: '12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: 'white', borderRadius: 'var(--radius-md)', fontSize: '14px' }} 
+                                    type="date" 
+                                    value={staffHireDateInput} 
+                                    onChange={(e) => setStaffHireDateInput(e.target.value)}
+                                    style={{ width: '100%', padding: '12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: 'white', borderRadius: 'var(--radius-md)', fontSize: '14px', colorScheme: 'dark' }} 
                                 />
                             </div>
 
@@ -1510,220 +1046,12 @@ export default function AdminView() {
             {/* 4. SEKME: YAZICI AYARLARI (MERKEZİ MUTFAK & KASA AĞ ENTEGRASYONU) */}
             {/* ============================================================== */}
             {currentActiveTab === 'printer' && (
-                <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-                    {/* Üst Bilgi Kartı */}
-                    <div style={{
-                        background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(15, 23, 42, 0.6))',
-                        border: '1px solid rgba(59, 130, 246, 0.35)',
-                        borderRadius: 'var(--radius-lg)',
-                        padding: '20px 24px',
-                        marginBottom: '24px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        flexWrap: 'wrap',
-                        gap: '16px'
-                    }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                            <div style={{
-                                width: '50px',
-                                height: '50px',
-                                borderRadius: '12px',
-                                background: 'rgba(37, 99, 235, 0.25)',
-                                border: '1px solid #3b82f6',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '24px'
-                            }}>
-                                🖨️
-                            </div>
-                            <div>
-                                <h2 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 4px 0', color: 'white' }}>
-                                    Merkezi Mutfak Yazıcısı Yapılandırması
-                                </h2>
-                                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                                    Buraya gireceğiniz IP adresi <strong>tüm garson tablet ve telefonlarına anında aktarılır</strong>. Garsonların hiçbir ayar yapmasına gerek kalmaz!
-                                </p>
-                            </div>
-                        </div>
-
-                        <div style={{
-                            padding: '8px 14px',
-                            borderRadius: '8px',
-                            background: printerSettings?.ip ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 159, 0, 0.15)',
-                            border: `1px solid ${printerSettings?.ip ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 159, 0, 0.4)'}`,
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            color: printerSettings?.ip ? '#10b981' : '#f59f00'
-                        }}>
-                            {printerSettings?.ip ? `● Aktif IP: ${printerSettings.ip}:${printerSettings.port || '9100'}` : '○ Henüz IP Girilmedi'}
-                        </div>
-                    </div>
-
-                    {/* Ayar Formu */}
-                    <div style={{
-                        background: 'var(--bg-surface)',
-                        border: '1px solid var(--border-card)',
-                        borderRadius: 'var(--radius-lg)',
-                        padding: '24px',
-                        marginBottom: '24px',
-                        boxShadow: 'var(--shadow-soft)'
-                    }}>
-                        <h3 style={{ fontSize: '16px', fontWeight: 800, marginBottom: '16px', color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span>⚙️</span> Bağlantı Parametreleri
-                        </h3>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px', marginBottom: '20px' }}>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                                    Mutfak Yazıcısı IP Adresi (Modemden Alınan IP):
-                                </label>
-                                <input 
-                                    type="text" 
-                                    value={printerIpInput} 
-                                    onChange={(e) => setPrinterIpInput(e.target.value)} 
-                                    placeholder="Örn: 192.168.1.199" 
-                                    style={{
-                                        width: '100%',
-                                        padding: '12px 14px',
-                                        background: 'var(--bg-surface-elevated)',
-                                        border: '1px solid var(--border-card)',
-                                        borderRadius: 'var(--radius-md)',
-                                        color: '#38bdf8',
-                                        fontFamily: 'monospace',
-                                        fontSize: '16px',
-                                        fontWeight: 800
-                                    }}
-                                />
-                                <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                                    Xprinter XP-Q805K veya benzeri Ethernet termal yazıcınızın IP'si.
-                                </span>
-                            </div>
-
-                            <div>
-                                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                                    Port Numarası (Varsayılan 9100):
-                                </label>
-                                <input 
-                                    type="text" 
-                                    value={printerPortInput} 
-                                    onChange={(e) => setPrinterPortInput(e.target.value)} 
-                                    placeholder="9100" 
-                                    style={{
-                                        width: '100%',
-                                        padding: '12px 14px',
-                                        background: 'var(--bg-surface-elevated)',
-                                        border: '1px solid var(--border-card)',
-                                        borderRadius: 'var(--radius-md)',
-                                        color: 'white',
-                                        fontFamily: 'monospace',
-                                        fontSize: '16px',
-                                        fontWeight: 700
-                                    }}
-                                />
-                                <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                                    Termal fiş yazıcılarının standart RAW ESC/POS portu 9100'dür.
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Mod Seçimi */}
-                        <div style={{ marginBottom: '20px' }}>
-                            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                                Yazdırma Modu:
-                            </label>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px' }}>
-                                <div 
-                                    onClick={() => setPrinterModeInput('rawbt')}
-                                    style={{
-                                        padding: '14px 16px',
-                                        borderRadius: 'var(--radius-md)',
-                                        border: `2px solid ${printerModeInput === 'rawbt' ? '#10b981' : 'var(--border-card)'}`,
-                                        background: printerModeInput === 'rawbt' ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-surface-elevated)',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.15s ease'
-                                    }}
-                                >
-                                    <div style={{ fontWeight: 800, color: printerModeInput === 'rawbt' ? '#10b981' : 'white', fontSize: '14px', marginBottom: '4px' }}>
-                                        ⚡ Direkt Baskı – RawBT (Önerilen)
-                                    </div>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.35 }}>
-                                        Önizleme açılmaz. Fiş (logolu) doğrudan yazıcıdan çıkar. Android tabletlerde RawBT uygulaması gerekir.
-                                    </div>
-                                </div>
-
-                                <div 
-                                    onClick={() => setPrinterModeInput('browser')}
-                                    style={{
-                                        padding: '14px 16px',
-                                        borderRadius: 'var(--radius-md)',
-                                        border: `2px solid ${printerModeInput === 'browser' ? '#3b82f6' : 'var(--border-card)'}`,
-                                        background: printerModeInput === 'browser' ? 'rgba(59, 130, 246, 0.1)' : 'var(--bg-surface-elevated)',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.15s ease'
-                                    }}
-                                >
-                                    <div style={{ fontWeight: 800, color: printerModeInput === 'browser' ? '#3b82f6' : 'white', fontSize: '14px', marginBottom: '4px' }}>
-                                        🖥️ Sistem Yazdırma Penceresi
-                                    </div>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.35 }}>
-                                        Her fişte cihazın yazdırma ekranı açılır. Sadece bilgisayardan basılacaksa kullanın.
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Aksiyon Butonları */}
-                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'flex-end', paddingTop: '10px', borderTop: '1px solid var(--border-card)' }}>
-                            <button 
-                                onClick={handleTestPrintTicket} 
-                                className="btn-outline" 
-                                style={{ padding: '12px 20px', fontSize: '13px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', color: '#38bdf8', borderColor: '#38bdf8' }}
-                            >
-                                🧪 Deneme / Test Fişi Bas
-                            </button>
-                            <button 
-                                onClick={handleSavePrinterSettings} 
-                                className="btn-primary" 
-                                style={{ padding: '12px 24px', fontSize: '14px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, #10b981, #059669)' }}
-                            >
-                                💾 Ayarları Kaydet ve Tüm Cihazlara Uygula
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Kolay Kurulum Rehberi */}
-                    <div style={{
-                        background: 'var(--bg-surface)',
-                        border: '1px solid var(--border-card)',
-                        borderRadius: 'var(--radius-lg)',
-                        padding: '24px',
-                        boxShadow: 'var(--shadow-soft)'
-                    }}>
-                        <h3 style={{ fontSize: '16px', fontWeight: 800, marginBottom: '14px', color: 'white' }}>
-                            📖 Adım Adım Kurulum Rehberi (Xprinter XP-Q805K)
-                        </h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
-                            <div style={{ display: 'flex', gap: '12px' }}>
-                                <span style={{ background: 'rgba(255,255,255,0.1)', color: 'white', fontWeight: 800, borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>1</span>
-                                <div><strong>Kablo Bağlantısı:</strong> Yazıcıyı mutfağa koyun, güç kablosunu prize takın ve Ethernet (LAN) kablosunu restoranınızın ana modemine bağlayın.</div>
-                            </div>
-                            <div style={{ display: 'flex', gap: '12px' }}>
-                                <span style={{ background: 'rgba(255,255,255,0.1)', color: 'white', fontWeight: 800, borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>2</span>
-                                <div><strong>IP Adresini Öğrenme (Self-Test):</strong> Yazıcı kapalıyken önündeki <code>FEED</code> (Kağıt Besleme) tuşuna basılı tutun ve o basılıyken açma anahtarına basın. 3 saniye sonra bırakın. Yazıcı bir test fişi basacaktır ve üzerinde <code>IP Address: 192.168.1.XXX</code> yazacaktır.</div>
-                            </div>
-                            <div style={{ display: 'flex', gap: '12px' }}>
-                                <span style={{ background: 'rgba(255,255,255,0.1)', color: 'white', fontWeight: 800, borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>3</span>
-                                <div><strong>Sisteme Tanımlama:</strong> Yukarıdaki "Mutfak Yazıcısı IP Adresi" kutucuğuna test fişindeki IP'yi yazın ve <strong>"Ayarları Kaydet"</strong> butonuna basın.</div>
-                            </div>
-                            <div style={{ display: 'flex', gap: '12px' }}>
-                                <span style={{ background: 'rgba(255,255,255,0.1)', color: 'white', fontWeight: 800, borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>4</span>
-                                <div><strong>Tamamlandı!</strong> Artık hiçbir garsonun tabletinde IP girmesine gerek yoktur. Sipariş verildiğinde fiş otomatik olarak mutfaktaki yazıcıdan çıkacaktır.</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <AdminPrinterSettings
+                    printerSettings={printerSettings}
+                    savePrinterSettings={savePrinterSettings}
+                    handleTestPrintTicket={handleTestPrintTicket}
+                    showToast={showToast}
+                />
             )}
 
             {/* ============================================================== */}
@@ -1797,7 +1125,7 @@ export default function AdminView() {
                                     borderRadius: '4px',
                                     border: '1px solid rgba(245, 159, 0, 0.3)'
                                 }}>
-                                    {drawerOrder?.waiter_name || 'Ahmet'}
+                                    {drawerOrder?.waiter_name || '—'}
                                 </div>
                             </div>
                         </div>

@@ -1,16 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useApp, DEFAULT_USERS } from '../context/AppContext';
+import { db, collection, onSnapshot } from '../config/firebase';
 import { playChimeSound } from '../services/audioService';
 
 export default function LoginView() {
     const { login, showToast } = useApp();
-    const [currentRole, setCurrentRole] = useState('waiter');
+    const [currentRole, setCurrentRole] = useState('admin');
     const [selectedStaffId, setSelectedStaffId] = useState('');
     const [enteredPin, setEnteredPin] = useState('');
     const [isShaking, setIsShaking] = useState(false);
 
-    const filteredStaff = DEFAULT_USERS.filter(u => u.role === currentRole);
+    const [waiters, setWaiters] = useState([]);
+    const [managers, setManagers] = useState(DEFAULT_USERS);
+
+    useEffect(() => {
+        const unsubW = onSnapshot(collection(db, "waiters"), snap => {
+            const list = snap.docs.map(d => ({ id: d.id, ...d.data(), role: 'waiter' }));
+            setWaiters(list);
+        }, () => {});
+
+        const unsubM = onSnapshot(collection(db, "managers"), snap => {
+            const list = snap.docs.map(d => ({ id: d.id, ...d.data(), role: 'admin' }));
+            setManagers(list.length > 0 ? list : DEFAULT_USERS);
+        }, () => {});
+
+        return () => {
+            unsubW();
+            unsubM();
+        };
+    }, []);
+
+    const filteredStaff = currentRole === 'admin' ? (managers.length > 0 ? managers : DEFAULT_USERS) : waiters;
 
     useEffect(() => {
         if (filteredStaff.length > 0) {
@@ -19,7 +40,7 @@ export default function LoginView() {
             setSelectedStaffId('');
         }
         setEnteredPin('');
-    }, [currentRole]);
+    }, [currentRole, waiters, managers]);
 
     const pressNum = (num) => {
         if (enteredPin.length < 6) {
@@ -111,29 +132,44 @@ export default function LoginView() {
                     <label style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 700 }}>
                         Personel Seçiniz:
                     </label>
-                    <select
-                        id="staff-select"
-                        value={selectedStaffId}
-                        onChange={(e) => setSelectedStaffId(e.target.value)}
-                        style={{
-                            width: '100%',
-                            padding: '14px',
-                            background: 'var(--bg-surface-elevated)',
-                            border: '1px solid var(--border-card)',
-                            color: 'white',
+                    {filteredStaff.length === 0 ? (
+                        <div style={{
+                            padding: '12px',
+                            background: 'rgba(245, 158, 11, 0.1)',
+                            border: '1px solid rgba(245, 158, 11, 0.3)',
                             borderRadius: 'var(--radius-md)',
-                            marginTop: '6px',
-                            fontSize: '15px',
-                            fontWeight: 700,
-                            cursor: 'pointer'
-                        }}
-                    >
-                        {filteredStaff.map(staff => (
-                            <option key={staff.id} value={staff.id}>
-                                {staff.name} {staff.role === 'admin' ? '(Tüm Yetkiler)' : ''}
-                            </option>
-                        ))}
-                    </select>
+                            fontSize: '12px',
+                            color: '#f59e0b',
+                            lineHeight: 1.4,
+                            marginTop: '6px'
+                        }}>
+                            ⚠️ Henüz kayıtlı garson personeli bulunmuyor. Yönetici girişi yaparak <strong>Personel & Ekip Yönetimi</strong> sekmesinden garson ekleyebilirsiniz.
+                        </div>
+                    ) : (
+                        <select
+                            id="staff-select"
+                            value={selectedStaffId}
+                            onChange={(e) => setSelectedStaffId(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '14px',
+                                background: 'var(--bg-surface-elevated)',
+                                border: '1px solid var(--border-card)',
+                                color: 'white',
+                                borderRadius: 'var(--radius-md)',
+                                marginTop: '6px',
+                                fontSize: '15px',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                            }}
+                        >
+                            {filteredStaff.map(staff => (
+                                <option key={staff.id} value={staff.id}>
+                                    {staff.name} {staff.role === 'admin' ? '(Tüm Yetkiler)' : ''}
+                                </option>
+                            ))}
+                        </select>
+                    )}
                 </div>
 
                 {/* PIN Dots */}
@@ -170,39 +206,6 @@ export default function LoginView() {
                     >
                         ✓
                     </button>
-                </div>
-
-                {/* Hızlı Test Girişleri */}
-                <div style={{ marginTop: '20px', borderTop: '1px solid var(--border-card)', paddingTop: '12px' }}>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: 700 }}>
-                        HIZLI TEST GİRİŞLERİ
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                        <button 
-                            type="button" 
-                            className="btn-outline"
-                            onClick={() => login(DEFAULT_USERS[0])}
-                            style={{ padding: '6px 10px', fontSize: '12px', borderColor: 'var(--brand-gold)', color: 'var(--brand-gold)' }}
-                        >
-                            👑 Patron
-                        </button>
-                        <button 
-                            type="button" 
-                            className="btn-outline"
-                            onClick={() => login(DEFAULT_USERS[1])}
-                            style={{ padding: '6px 10px', fontSize: '12px', borderColor: 'var(--success)', color: 'var(--success)' }}
-                        >
-                            📱 Ahmet
-                        </button>
-                        <button 
-                            type="button" 
-                            className="btn-outline"
-                            onClick={() => login(DEFAULT_USERS[2])}
-                            style={{ padding: '6px 10px', fontSize: '12px', borderColor: 'var(--success)', color: 'var(--success)' }}
-                        >
-                            📱 Mehmet
-                        </button>
-                    </div>
                 </div>
             </motion.div>
         </div>

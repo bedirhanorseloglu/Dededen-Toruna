@@ -7,11 +7,12 @@ import WaiterView from './views/WaiterView';
 import TableDetailView from './views/TableDetailView';
 import AdminView from './views/AdminView';
 import KitchenView from './views/KitchenView';
+import ConfirmModal from './components/ConfirmModal';
 import { registerServiceWorker, requestNotificationPermission } from './services/notificationService';
 import { unlockAudioContext } from './services/audioService';
 
 function AppContent() {
-    const { currentUser, currentView, selectedTableId, toast } = useApp();
+    const { currentUser, currentView, selectedTableId, toast, confirmModal } = useApp();
 
     useEffect(() => {
         registerServiceWorker();
@@ -95,6 +96,9 @@ function AppContent() {
                     )}
                 </AnimatePresence>
             </div>
+
+            {/* Modern Evrensel Onay Modalı */}
+            {confirmModal && <ConfirmModal {...confirmModal} />}
         </div>
     );
 }
