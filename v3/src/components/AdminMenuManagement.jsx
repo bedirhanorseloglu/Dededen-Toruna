@@ -17,9 +17,7 @@ import {
     XCircle,
     Filter,
     ChevronDown,
-    ChevronUp,
-    Layers,
-    LayoutGrid
+    ChevronUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatMoney } from '../data/menu';
@@ -38,21 +36,6 @@ export default function AdminMenuManagement({
     const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'out_of_stock'
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Görünüm Modu: 'grid' (Kare kart ızgarası) | 'stack' (Liste yığını)
-    const [viewMode, setViewMode] = useState(() => {
-        try {
-            return localStorage.getItem('menu_admin_view_mode') || 'grid';
-        } catch {
-            return 'grid';
-        }
-    });
-
-    const handleSwitchViewMode = (mode) => {
-        setViewMode(mode);
-        try {
-            localStorage.setItem('menu_admin_view_mode', mode);
-        } catch (_) { }
-    };
     // Akordeon Kategori Yığını (Açılır/Kapanır Kategoriler)
     const [collapsedCategories, setCollapsedCategories] = useState({});
 
@@ -268,7 +251,59 @@ export default function AdminMenuManagement({
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end' }}>
+                    {/* Arama Kutusu (Kompakt & Entegre) */}
+                    <div style={{
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'center',
+                        background: 'rgba(0, 0, 0, 0.45)',
+                        border: '1px solid var(--border-card)',
+                        borderRadius: '12px',
+                        padding: '6px 12px',
+                        minWidth: '180px',
+                        flex: '1 1 200px',
+                        maxWidth: '340px'
+                    }}>
+                        <Search size={15} color="var(--brand-gold)" style={{ flexShrink: 0, marginRight: '8px' }} />
+                        <input
+                            type="text"
+                            placeholder="Lezzet veya ürün ara..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                outline: 'none',
+                                color: 'white',
+                                fontSize: '12.5px',
+                                fontWeight: 600,
+                                width: '100%'
+                            }}
+                        />
+                        {searchTerm && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{
+                                    fontSize: '10px',
+                                    fontWeight: 800,
+                                    padding: '2px 6px',
+                                    borderRadius: '8px',
+                                    background: 'rgba(245, 159, 0, 0.18)',
+                                    color: 'var(--brand-gold)',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    {filteredProducts.length}
+                                </span>
+                                <button
+                                    onClick={() => setSearchTerm('')}
+                                    style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
                     {/* Canlı Stok Durum Filtresi (Buton kalabalığı yerine 3 net dokunmatik hap) */}
                     <div style={{
                         display: 'flex',
@@ -344,67 +379,19 @@ export default function AdminMenuManagement({
                         onClick={() => handleOpenModal(null)}
                         className="btn-primary"
                         style={{
-                            padding: '10px 20px',
+                            padding: '9px 18px',
                             fontSize: '13px',
                             fontWeight: 800,
                             display: 'flex',
                             alignItems: 'center',
                             gap: '8px',
-                            boxShadow: 'var(--shadow-glow)'
+                            boxShadow: 'var(--shadow-glow)',
+                            whiteSpace: 'nowrap'
                         }}
                     >
                         <Plus size={16} /> Yeni Lezzet Ekle
                     </button>
                 </div>
-            </div>
-
-            {/* 2. ARAMA BARI (Modern Full-Width Arama) */}
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-card)',
-                borderRadius: 'var(--radius-lg)',
-                padding: '12px 18px',
-                boxShadow: 'var(--shadow-soft)'
-            }}>
-                <Search size={18} color="var(--brand-gold)" />
-                <input
-                    type="text"
-                    placeholder="Menüde lezzet veya ürün ara (Serpme kahvaltı, kuymak, hamburger, tost...)"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    style={{
-                        background: 'transparent',
-                        border: 'none',
-                        outline: 'none',
-                        color: 'white',
-                        fontSize: '14px',
-                        fontWeight: 600,
-                        width: '100%'
-                    }}
-                />
-                {searchTerm && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            padding: '3px 8px',
-                            borderRadius: '10px',
-                            background: 'rgba(245, 159, 0, 0.15)',
-                            color: 'var(--brand-gold)'
-                        }}>
-                            {filteredProducts.length} sonuç
-                        </span>
-                        <button
-                            onClick={() => setSearchTerm('')}
-                            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                        >
-                            <X size={16} />
-                        </button>
-                    </div>
-                )}
             </div>
 
             {/* 3. MODERN KATEGORİ IZGARASI (Menüdeki gibi 2-Row Responsive Pills, scrollbar yok) */}
@@ -436,7 +423,7 @@ export default function AdminMenuManagement({
                 })}
             </div>
 
-            {/* 4. DÜZENLEME & STACK KONTROL ARAÇ ÇUBUĞU */}
+            {/* 4. KATEGORİ KONTROL ARAÇ ÇUBUĞU */}
             <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -451,52 +438,11 @@ export default function AdminMenuManagement({
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 800 }}>
-                        Görünüm:
+                        Toplam:
                     </span>
-                    <button
-                        type="button"
-                        onClick={() => handleSwitchViewMode('grid')}
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '6px 14px',
-                            background: viewMode === 'grid' ? 'linear-gradient(135deg, var(--brand-primary), #e8590c)' : 'transparent',
-                            color: viewMode === 'grid' ? 'white' : 'var(--text-muted)',
-                            border: `1px solid ${viewMode === 'grid' ? 'transparent' : 'var(--border-subtle)'}`,
-                            borderRadius: 'var(--radius-md)',
-                            fontSize: '12px',
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
-                            boxShadow: viewMode === 'grid' ? '0 2px 8px rgba(247, 103, 7, 0.3)' : 'none'
-                        }}
-                    >
-                        <LayoutGrid size={14} />
-                        <span>▦ Kare Izgara</span>
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleSwitchViewMode('stack')}
-                        style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '6px 14px',
-                            background: viewMode === 'stack' ? 'linear-gradient(135deg, var(--brand-primary), #e8590c)' : 'transparent',
-                            color: viewMode === 'stack' ? 'white' : 'var(--text-muted)',
-                            border: `1px solid ${viewMode === 'stack' ? 'transparent' : 'var(--border-subtle)'}`,
-                            borderRadius: 'var(--radius-md)',
-                            fontSize: '12px',
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease',
-                            boxShadow: viewMode === 'stack' ? '0 2px 8px rgba(247, 103, 7, 0.3)' : 'none'
-                        }}
-                    >
-                        <Layers size={14} />
-                        <span>☰ Liste Yığını</span>
-                    </button>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--brand-gold)' }}>
+                        {categories.length} Kategori • {menuProducts.length} Lezzet
+                    </span>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -690,225 +636,6 @@ export default function AdminMenuManagement({
                                                 fontSize: '13px'
                                             }}>
                                                 Bu kategoride arama kriterine uygun lezzet bulunamadı.
-                                            </div>
-                                        ) : viewMode === 'stack' ? (
-                                            /* GÖRÜNÜM 1: MODERN KART YIĞINI (STACK LIST) */
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                                {group.items.map((p) => {
-                                                    const isOutOfStock = p.active === false;
-                                                    const isEditingThisPrice = editingPriceId === p.id;
-
-                                                    return (
-                                                        <div
-                                                            key={p.id}
-                                                            style={{
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                justifyContent: 'space-between',
-                                                                flexWrap: 'wrap',
-                                                                gap: '12px',
-                                                                padding: '10px 16px',
-                                                                background: isOutOfStock
-                                                                    ? 'rgba(239, 68, 68, 0.035)'
-                                                                    : 'rgba(255, 255, 255, 0.025)',
-                                                                border: isOutOfStock
-                                                                    ? '1px dashed rgba(239, 68, 68, 0.3)'
-                                                                    : '1px solid var(--border-subtle)',
-                                                                borderRadius: 'var(--radius-md)',
-                                                                transition: 'all 0.15s ease',
-                                                                opacity: isOutOfStock ? 0.75 : 1
-                                                            }}
-                                                            onMouseEnter={(e) => {
-                                                                if (!isOutOfStock) {
-                                                                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.045)';
-                                                                    e.currentTarget.style.borderColor = 'rgba(245, 158, 11, 0.35)';
-                                                                }
-                                                            }}
-                                                            onMouseLeave={(e) => {
-                                                                if (!isOutOfStock) {
-                                                                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.025)';
-                                                                    e.currentTarget.style.borderColor = 'var(--border-subtle)';
-                                                                }
-                                                            }}
-                                                        >
-                                                            {/* Sol Grup: Durum Noktası & Ürün Adı */}
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '220px' }}>
-                                                                <span style={{
-                                                                    width: '8px',
-                                                                    height: '8px',
-                                                                    borderRadius: '50%',
-                                                                    background: !isOutOfStock ? '#10b981' : '#ef4444',
-                                                                    boxShadow: !isOutOfStock ? '0 0 8px rgba(16, 185, 129, 0.6)' : 'none',
-                                                                    flexShrink: 0
-                                                                }} />
-                                                                <span style={{
-                                                                    fontSize: '14px',
-                                                                    fontWeight: 800,
-                                                                    color: isOutOfStock ? 'var(--text-muted)' : '#ffffff',
-                                                                    textDecoration: isOutOfStock ? 'line-through' : 'none',
-                                                                    letterSpacing: '-0.2px'
-                                                                }}>
-                                                                    {p.name}
-                                                                </span>
-                                                            </div>
-
-                                                            {/* Orta Grup: Tıklanabilir Hızlı Fiyat */}
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                {isEditingThisPrice ? (
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                                        <input
-                                                                            type="text"
-                                                                            inputMode="decimal"
-                                                                            value={editingPriceValue}
-                                                                            onChange={(e) => setEditingPriceValue(e.target.value.replace(/[^0-9.]/g, ''))}
-                                                                            autoFocus
-                                                                            style={{
-                                                                                width: '80px',
-                                                                                background: '#110d0c',
-                                                                                border: '1px solid var(--brand-gold)',
-                                                                                borderRadius: '6px',
-                                                                                padding: '4px 8px',
-                                                                                color: 'var(--brand-gold)',
-                                                                                fontWeight: 900,
-                                                                                fontSize: '13px',
-                                                                                outline: 'none',
-                                                                                textAlign: 'right'
-                                                                            }}
-                                                                            onKeyDown={(e) => {
-                                                                                if (e.key === 'Enter') handleSaveInlinePrice(p);
-                                                                                else if (e.key === 'Escape') setEditingPriceId(null);
-                                                                            }}
-                                                                        />
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => handleSaveInlinePrice(p)}
-                                                                            className="btn-primary"
-                                                                            style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                                        >
-                                                                            <Check size={13} />
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => setEditingPriceId(null)}
-                                                                            className="btn-outline"
-                                                                            style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                                        >
-                                                                            <X size={13} />
-                                                                        </button>
-                                                                    </div>
-                                                                ) : (
-                                                                    <div
-                                                                        onClick={() => {
-                                                                            setEditingPriceId(p.id);
-                                                                            setEditingPriceValue(String(p.price));
-                                                                        }}
-                                                                        style={{
-                                                                            fontSize: '14px',
-                                                                            fontWeight: 900,
-                                                                            color: 'var(--brand-gold)',
-                                                                            cursor: 'pointer',
-                                                                            display: 'flex',
-                                                                            alignItems: 'center',
-                                                                            gap: '5px',
-                                                                            padding: '3px 9px',
-                                                                            borderRadius: '6px',
-                                                                            background: 'rgba(245, 159, 0, 0.08)',
-                                                                            border: '1px solid rgba(245, 159, 0, 0.2)',
-                                                                            transition: 'all 0.15s ease'
-                                                                        }}
-                                                                        title="Fiyatı anında değiştirmek için tıklayın"
-                                                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(245, 159, 0, 0.18)'}
-                                                                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(245, 159, 0, 0.08)'}
-                                                                    >
-                                                                        {formatMoney(p.price)}
-                                                                        <Edit3 size={11} style={{ opacity: 0.6 }} />
-                                                                    </div>
-                                                                )}
-                                                            </div>
-
-                                                            {/* Sağ Grup: Stok Durumu ve İşlemler */}
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
-                                                                {/* Stok Durum Butonu */}
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => toggleMenuItemAvailability(p.id, p.active !== false)}
-                                                                    style={{
-                                                                        border: 'none',
-                                                                        cursor: 'pointer',
-                                                                        background: !isOutOfStock ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-                                                                        color: !isOutOfStock ? '#10b981' : '#ef4444',
-                                                                        border: `1px solid ${!isOutOfStock ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-                                                                        borderRadius: '20px',
-                                                                        padding: '4px 10px',
-                                                                        fontSize: '11px',
-                                                                        fontWeight: 800,
-                                                                        display: 'flex',
-                                                                        alignItems: 'center',
-                                                                        gap: '5px',
-                                                                        transition: 'all 0.15s ease'
-                                                                    }}
-                                                                    title="Siparişe açık veya tükendi olarak işaretle"
-                                                                >
-                                                                    <span style={{
-                                                                        width: '6px',
-                                                                        height: '6px',
-                                                                        borderRadius: '50%',
-                                                                        background: !isOutOfStock ? '#10b981' : '#ef4444'
-                                                                    }} />
-                                                                    {!isOutOfStock ? 'Satışta' : 'Tükendi'}
-                                                                </button>
-
-                                                                {/* Düzenle */}
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleOpenModal(p)}
-                                                                    style={{
-                                                                        background: 'rgba(255, 255, 255, 0.05)',
-                                                                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                                                                        borderRadius: '6px',
-                                                                        width: '28px',
-                                                                        height: '28px',
-                                                                        display: 'flex',
-                                                                        alignItems: 'center',
-                                                                        justifyContent: 'center',
-                                                                        color: 'var(--text-secondary)',
-                                                                        cursor: 'pointer',
-                                                                        transition: 'all 0.15s ease'
-                                                                    }}
-                                                                    title="Ürünü Düzenle"
-                                                                    onMouseEnter={(e) => e.currentTarget.style.color = '#ffffff'}
-                                                                    onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
-                                                                >
-                                                                    <Edit3 size={13} />
-                                                                </button>
-
-                                                                {/* Sil */}
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleDelete(p)}
-                                                                    style={{
-                                                                        background: 'rgba(239, 68, 68, 0.08)',
-                                                                        border: '1px solid rgba(239, 68, 68, 0.2)',
-                                                                        borderRadius: '6px',
-                                                                        width: '28px',
-                                                                        height: '28px',
-                                                                        display: 'flex',
-                                                                        alignItems: 'center',
-                                                                        justifyContent: 'center',
-                                                                        color: '#ef4444',
-                                                                        cursor: 'pointer',
-                                                                        transition: 'all 0.15s ease'
-                                                                    }}
-                                                                    title="Ürünü Sil"
-                                                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'}
-                                                                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)'}
-                                                                >
-                                                                    <Trash2 size={13} />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
                                             </div>
                                         ) : (
                                             /* GÖRÜNÜM 2: KARE KART IZGARASI (GRID - KARE KARE YAN YANA) */

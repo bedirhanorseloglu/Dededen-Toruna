@@ -781,18 +781,31 @@ body {
    ========================================================================== */
 .order-screen-layout {
     display: grid;
-    grid-template-columns: 1fr 400px;
+    grid-template-columns: 1fr 390px;
     height: calc(100vh - 72px);
-    max-height: calc(100vh - 72px);
+    height: calc(100dvh - 72px);
+    max-height: calc(100dvh - 72px);
     min-height: 0;
     overflow: hidden;
 }
 
-@media (max-width: 991px) {
+/* TABLET POS DÜZENİ (768px - 1024px) - Yanyana 2 sütunlu rahat POS ekranı */
+@media (min-width: 768px) and (max-width: 1024px) {
+    .order-screen-layout {
+        grid-template-columns: 1fr 330px;
+        height: calc(100vh - 68px);
+        height: calc(100dvh - 68px);
+        max-height: calc(100dvh - 68px);
+    }
+}
+
+/* AKILLI TELEFON DÜZENİ (<= 767px) - Tam ekran menü + alt çekmece & yüzen sepet */
+@media (max-width: 767px) {
     .order-screen-layout {
         grid-template-columns: 1fr;
-        height: calc(100vh - 66px);
-        max-height: calc(100vh - 66px);
+        height: calc(100vh - 64px);
+        height: calc(100dvh - 64px);
+        max-height: calc(100dvh - 64px);
         overflow: hidden;
         position: relative;
     }
@@ -808,7 +821,7 @@ body {
     border-right: 1px solid var(--border-subtle);
 }
 
-@media (max-width: 991px) {
+@media (max-width: 767px) {
     .menu-side {
         border-right: none;
     }
@@ -995,7 +1008,7 @@ body {
     border-left: 1px solid var(--border-subtle);
 }
 
-@media (max-width: 991px) {
+@media (max-width: 767px) {
     .receipt-backdrop {
         display: block;
         position: fixed;
@@ -1020,7 +1033,8 @@ body {
         right: 0;
         width: 100%;
         height: 88vh;
-        max-height: 88vh;
+        height: 88dvh;
+        max-height: 88dvh;
         border-radius: 28px 28px 0 0;
         border-left: none;
         border-top: 1px solid rgba(247, 103, 7, 0.5);
@@ -1046,7 +1060,7 @@ body {
     flex-shrink: 0;
 }
 
-@media (max-width: 991px) {
+@media (max-width: 767px) {
     .receipt-header {
         border-radius: 28px 28px 0 0;
         padding: 14px 18px;
@@ -1057,7 +1071,7 @@ body {
     display: none;
 }
 
-@media (max-width: 991px) {
+@media (max-width: 767px) {
     .drawer-drag-pill {
         display: block;
         width: 44px;
@@ -1763,7 +1777,7 @@ body {
     display: none;
 }
 
-@media (max-width: 991px) {
+@media (max-width: 767px) {
     .mobile-cart-bar {
         display: flex;
         align-items: center;
@@ -3198,10 +3212,10 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
     }
 }
 
-/* 8. MODAL KARTLARININ RESPONSİVE YAPISI */
+/* 8. MODAL KARTLARININ RESPONSİVE YAPISI (Android Telefon & Tablet & Desktop) */
 .modal-responsive-card {
-    width: 94vw !important;
-    max-width: 460px;
+    width: 95vw !important;
+    max-width: 480px;
     max-height: 90dvh;
     max-height: 90vh;
     overflow-y: auto;
@@ -3212,10 +3226,19 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
     margin: auto;
 }
 
+.modal-responsive-card.modal-lg {
+    max-width: 720px !important;
+}
+
+.modal-responsive-card.modal-xl {
+    max-width: 960px !important;
+}
+
 @media (max-width: 480px) {
     .modal-responsive-card {
         padding: 16px 12px !important;
         border-radius: 16px !important;
+        width: 96vw !important;
     }
 }
 
@@ -3462,3 +3485,60 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
     }
 }
 
+
+/* ==========================================================================
+   12. ANDROID YATAY EKRAN (LANDSCAPE) VE TOUCH İYİLEŞTİRMELERİ
+   ========================================================================== */
+@media (max-height: 520px) {
+    .app-header {
+        padding: 4px 12px !important;
+        min-height: 44px !important;
+    }
+    .brand-logo-img {
+        width: 26px !important;
+        height: 26px !important;
+    }
+    .brand-text h1 {
+        font-size: 13px !important;
+    }
+    .order-screen-layout {
+        height: calc(100vh - 46px) !important;
+        height: calc(100dvh - 46px) !important;
+        max-height: calc(100dvh - 46px) !important;
+    }
+    .modal-responsive-card {
+        max-height: 94dvh !important;
+        padding: 12px 14px !important;
+    }
+    .receipt-side.mobile-open {
+        height: 94dvh !important;
+        max-height: 94dvh !important;
+    }
+    .receipt-scroll {
+        max-height: calc(94dvh - 150px) !important;
+    }
+    .mobile-cart-bar {
+        bottom: 8px !important;
+        padding: 8px 14px !important;
+    }
+    .admin-nav-header {
+        margin-bottom: 8px !important;
+    }
+    .admin-nav-tabs {
+        padding: 3px !important;
+    }
+    .admin-nav-btn {
+        padding: 4px 8px !important;
+        min-height: 34px !important;
+    }
+}
+
+/* Dokunmatik kaydırma akıcılığı (Android & iOS) */
+.menu-products-scroll,
+.receipt-scroll,
+.tables-scroll,
+.admin-main-content,
+.modal-responsive-card {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}

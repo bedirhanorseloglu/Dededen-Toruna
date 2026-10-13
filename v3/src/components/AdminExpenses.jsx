@@ -16,9 +16,7 @@ import {
     Calendar,
     Tag,
     ChevronRight,
-    SlidersHorizontal,
-    LayoutGrid,
-    List
+    SlidersHorizontal
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatMoney } from '../data/menu';
@@ -48,21 +46,6 @@ export default function AdminExpenses({
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
     const [sortOption, setSortOption] = useState('newest'); // 'newest' | 'highest' | 'lowest' | 'name'
-    const [viewMode, setViewMode] = useState(() => {
-        try {
-            return localStorage.getItem('expenses_view_mode') || 'grid';
-        } catch {
-            return 'grid';
-        }
-    }); // 'grid' (kare kare yan yana) | 'list'
-
-    const handleSwitchViewMode = (mode) => {
-        setViewMode(mode);
-        try {
-            localStorage.setItem('expenses_view_mode', mode);
-        } catch (_) {}
-    };
-
     // Sağdan açılan çekmece (Drawer) State'leri
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [editingExpense, setEditingExpense] = useState(null); // null => yeni ekleme, object => düzenleme
@@ -533,57 +516,6 @@ export default function AdminExpenses({
                         <option value="name" style={{ background: '#1c1514', color: 'white' }}>🔤 İsim (A-Z)</option>
                     </select>
 
-                    {/* Görünüm Modu Seçici (Kare Izgara ▦ / Liste ☰) */}
-                    <div style={{
-                        display: 'flex',
-                        background: 'rgba(0, 0, 0, 0.35)',
-                        borderRadius: '10px',
-                        padding: '3px',
-                        border: '1px solid rgba(255, 255, 255, 0.08)'
-                    }}>
-                        <button
-                            onClick={() => handleSwitchViewMode('grid')}
-                            style={{
-                                background: viewMode === 'grid' ? 'var(--brand-primary)' : 'transparent',
-                                border: 'none',
-                                color: viewMode === 'grid' ? 'white' : 'var(--text-muted)',
-                                borderRadius: '7px',
-                                padding: '5px 8px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                fontSize: '12px',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease'
-                            }}
-                            title="Kare Kartlar"
-                        >
-                            <LayoutGrid size={14} />
-                            <span>Kare</span>
-                        </button>
-                        <button
-                            onClick={() => handleSwitchViewMode('list')}
-                            style={{
-                                background: viewMode === 'list' ? 'var(--brand-primary)' : 'transparent',
-                                border: 'none',
-                                color: viewMode === 'list' ? 'white' : 'var(--text-muted)',
-                                borderRadius: '7px',
-                                padding: '5px 8px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                fontSize: '12px',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease'
-                            }}
-                            title="Liste Görünümü"
-                        >
-                            <List size={14} />
-                            <span>Liste</span>
-                        </button>
-                    </div>
 
                     {/* Sayaç */}
                     <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-muted)', padding: '0 4px' }}>
@@ -616,27 +548,26 @@ export default function AdminExpenses({
                 </div>
             </div>
 
-            {/* 3. GİDER LİSTESİ (KARE KARE YAN YANA IZGARA VEYA LİSTE) */}
-            {viewMode === 'grid' ? (
-                <div className="admin-expenses-grid">
-                    <AnimatePresence>
-                        {filteredExpenses.map((exp) => {
-                            const cat = EXPENSE_CATEGORIES.find(c => c.id === exp.category);
-                            const isCash = exp.payment_method === 'cash';
-                            const catColor = cat?.color || '#ef4444';
+            {/* 3. GİDER LİSTESİ (KARE KARE YAN YANA IZGARA) */}
+            <div className="admin-expenses-grid">
+                <AnimatePresence>
+                    {filteredExpenses.map((exp) => {
+                        const cat = EXPENSE_CATEGORIES.find(c => c.id === exp.category);
+                        const isCash = exp.payment_method === 'cash';
+                        const catColor = cat?.color || '#ef4444';
 
-                            return (
-                                <motion.div
-                                    key={exp.id}
-                                    layout
-                                    initial={{ opacity: 0, scale: 0.95 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.95 }}
-                                    whileHover={{ y: -3 }}
-                                    className="admin-expense-grid-card"
-                                    style={{ '--card-accent': catColor }}
-                                    onClick={() => handleOpenEditDrawer(exp)}
-                                >
+                        return (
+                            <motion.div
+                                key={exp.id}
+                                initial={{ opacity: 0, scale: 0.96 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.96 }}
+                                transition={{ duration: 0.18 }}
+                                whileHover={{ y: -3 }}
+                                className="admin-expense-grid-card"
+                                style={{ '--card-accent': catColor }}
+                                onClick={() => handleOpenEditDrawer(exp)}
+                            >
                                     {/* Kart Üst Bölüm: Kategori İkonu + Rozetler + Sağda Aksiyonlar */}
                                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -789,165 +720,6 @@ export default function AdminExpenses({
                         })}
                     </AnimatePresence>
                 </div>
-            ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <AnimatePresence>
-                        {filteredExpenses.map((exp) => {
-                            const cat = EXPENSE_CATEGORIES.find(c => c.id === exp.category);
-                            const isCash = exp.payment_method === 'cash';
-                            const catColor = cat?.color || '#ef4444';
-
-                            return (
-                                <motion.div
-                                    key={exp.id}
-                                    layout
-                                    initial={{ opacity: 0, y: 6 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.98 }}
-                                    className="admin-expense-item-card"
-                                    onClick={() => handleOpenEditDrawer(exp)}
-                                >
-                                    {/* Sol: Kategori İkonu ve Gider Bilgileri */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: 0 }}>
-                                        <div style={{
-                                            width: '42px',
-                                            height: '42px',
-                                            borderRadius: '12px',
-                                            background: `${catColor}15`,
-                                            border: `1px solid ${catColor}35`,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            fontSize: '20px',
-                                            flexShrink: 0
-                                        }}>
-                                            {cat?.icon || '📦'}
-                                        </div>
-
-                                        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                            <div style={{
-                                                fontSize: '15px',
-                                                fontWeight: 800,
-                                                color: 'white',
-                                                whiteSpace: 'nowrap',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis'
-                                            }}>
-                                                {exp.title}
-                                            </div>
-
-                                            <div style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '8px',
-                                                fontSize: '12px',
-                                                color: 'var(--text-muted)',
-                                                flexWrap: 'wrap'
-                                            }}>
-                                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                    📅 {exp.date || (exp.created_at ? exp.created_at.slice(0, 10) : 'Bugün')}
-                                                </span>
-                                                <span>•</span>
-                                                <span style={{
-                                                    background: `${catColor}18`,
-                                                    color: catColor,
-                                                    padding: '2px 8px',
-                                                    borderRadius: '6px',
-                                                    fontWeight: 700,
-                                                    fontSize: '11px',
-                                                    border: `1px solid ${catColor}30`
-                                                }}>
-                                                    {cat?.name || 'Genel'}
-                                                </span>
-                                                <span>•</span>
-                                                <span style={{
-                                                    background: isCash ? 'rgba(245, 158, 11, 0.12)' : 'rgba(56, 189, 248, 0.12)',
-                                                    color: isCash ? 'var(--brand-gold)' : '#38bdf8',
-                                                    padding: '2px 8px',
-                                                    borderRadius: '6px',
-                                                    fontWeight: 700,
-                                                    fontSize: '11px',
-                                                    border: isCash ? '1px solid rgba(245, 158, 11, 0.25)' : '1px solid rgba(56, 189, 248, 0.25)'
-                                                }}>
-                                                    {isCash ? '💵 Nakit (Kasa)' : '💳 Kart / Banka'}
-                                                </span>
-                                                {exp.notes && (
-                                                    <>
-                                                        <span>•</span>
-                                                        <span style={{ fontStyle: 'italic', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                            "{exp.notes}"
-                                                        </span>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Sağ: Tutar ve Aksiyon Butonları */}
-                                    <div className="expense-card-right" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-                                        <div style={{
-                                            fontSize: '18px',
-                                            fontWeight: 900,
-                                            color: '#f87171',
-                                            fontFamily: 'monospace'
-                                        }}>
-                                            -{formatMoney(exp.amount)}
-                                        </div>
-
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleOpenEditDrawer(exp);
-                                                }}
-                                                style={{
-                                                    background: 'rgba(255, 255, 255, 0.05)',
-                                                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                                                    borderRadius: '10px',
-                                                    width: '34px',
-                                                    height: '34px',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    color: 'var(--text-secondary)',
-                                                    cursor: 'pointer',
-                                                    transition: 'all 0.15s ease'
-                                                }}
-                                                title="Düzenle"
-                                            >
-                                                <Pencil size={14} />
-                                            </button>
-
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleDeleteExpense(exp);
-                                                }}
-                                                style={{
-                                                    background: 'rgba(239, 68, 68, 0.1)',
-                                                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                                                    borderRadius: '10px',
-                                                    width: '34px',
-                                                    height: '34px',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    color: '#f87171',
-                                                    cursor: 'pointer',
-                                                    transition: 'all 0.15s ease'
-                                                }}
-                                                title="Sil"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            );
-                        })}
-                    </AnimatePresence>
-                </div>
-            )}
 
             {/* Boş Durum (Empty State) */}
             {filteredExpenses.length === 0 && (
