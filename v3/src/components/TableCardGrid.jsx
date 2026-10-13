@@ -147,6 +147,7 @@ export default function TableCardGrid({
                     const allDelivered = isBusy && (order.items || []).length > 0 && order.items.every(i => i.status === 'delivered');
                     const isMyTable = currentUser?.role === 'waiter' && order && (order.waiter_id === currentUser.id || order.waiter_name === currentUser.name);
                     const itemCount = isBusy ? (order.items || []).reduce((acc, it) => acc + (Number(it.quantity) || 1), 0) : 0;
+                    const deliveredCount = isBusy ? (order.items || []).filter(it => it.status === 'delivered').reduce((acc, it) => acc + (Number(it.quantity) || 1), 0) : 0;
 
                     return (
                         <motion.div
@@ -186,9 +187,22 @@ export default function TableCardGrid({
                                                 👤 {order.waiter_name || 'Garson'}
                                                 {isMyTable && <span className="my-table-tag">BENİM</span>}
                                             </span>
-                                            <span className="items-count-chip">
-                                                🍽️ {itemCount} Ürün
-                                            </span>
+                                            <div className="items-badge-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' }}>
+                                                <span className="items-count-chip">
+                                                    🍽️ {itemCount} Ürün
+                                                </span>
+                                                <span 
+                                                    className="delivered-count-sub"
+                                                    style={{
+                                                        fontSize: '11px',
+                                                        fontWeight: 700,
+                                                        color: allDelivered ? '#10b981' : '#f59e0b',
+                                                        letterSpacing: '-0.2px'
+                                                    }}
+                                                >
+                                                    {deliveredCount}/{itemCount} Teslim Edildi
+                                                </span>
+                                            </div>
                                         </div>
                                         <div className="table-amount is-active-amount">
                                             {formatMoney(order.total)}

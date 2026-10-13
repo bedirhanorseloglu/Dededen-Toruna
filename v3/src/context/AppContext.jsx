@@ -7,12 +7,16 @@ import {
     where, 
     doc, 
     setDoc, 
+    addDoc,
     updateDoc, 
     deleteDoc,
     getDocs,
+    orderBy,
+    limit,
+    writeBatch,
     serverTimestamp 
 } from '../config/firebase';
-import { DEFAULT_TABLES } from '../data/menu';
+import { DEFAULT_TABLES, MENU_PRODUCTS, MENU_CATEGORIES } from '../data/menu';
 import { playChimeSound, playKitchenNewOrderSound, playDeliveryAlertSound, speakTurkish, setAudioMuted, isAudioMuted } from '../services/audioService';
 
 const AppContext = createContext(null);
@@ -202,6 +206,227 @@ export function AppProvider({ children }) {
         return () => unsubPrinter();
     }, []);
 
+    // ------------------------------------------------------------------
+    // MENÜ YÖNETİMİ (Dinamik Menü & Fiyatlandırma)
+    // ------------------------------------------------------------------
+    const [menuProducts, setMenuProducts] = useState(MENU_PRODUCTS);
+
+    // Canlı Menü Dinleyicisi
+    useEffect(() => {
+        const unsubMenu = onSnapshot(collection(db, "menu_products"), (snap) => {
+            if (!snap.empty) {
+                const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                setMenuProducts(list);
+            } else {
+                setMenuProducts(MENU_PRODUCTS);
+            }
+        }, (err) => {
+            console.warn("Menu products listener fallback to default menu:", err.message);
+            setMenuProducts(MENU_PRODUCTS);
+        });
+        return () => unsubMenu();
+    }, []);
+
+    const saveMenuItem = async (item) => {
+        const id = item.id || `p_${Date.now()}`;
+        const itemData = {
+            ...item,
+            id,
+            name: item.name.trim(),
+            price: Number(item.price) || 0,
+            category_id: item.category_id || 'diger',
+            active: item.active !== false,
+            updated_at: new Date().toISOString()
+        };
+
+        // 1. İyimser yerel state güncellemesi (Ekranlar ve garsonlar anında yeni fiyatı görür)
+        setMenuProducts(prev => {
+            const idx = prev.findIndex(p => p.id === id);
+            if (idx >= 0) {
+                const next = [...prev];
+                next[idx] = itemData;
+                return next;
+            }
+            return [itemData, ...prev];
+        });
+
+        // 2. Firestore senkronizasyonu
+        try {
+            await setDoc(doc(db, "menu_products", id), itemData, { merge: true });
+        } catch (e) {
+            console.warn("Firestore menu save error:", e.message);
+        }
+
+        showToast(`"${itemData.name}" güncellendi!`, "success");
+        return itemData;
+    };
+
+    const toggleMenuItemAvailability = async (id, currentActive) => {
+        // 1. İyimser yerel state güncellemesi
+        setMenuProducts(prev => prev.map(p => p.id === id ? { ...p, active: !currentActive } : p));
+
+        // 2. Firestore senkronizasyonu
+        try {
+            const existing = menuProducts.find(p => p.id === id);
+            if (existing) {
+                await setDoc(doc(db, "menu_products", id), {
+                    ...existing,
+                    active: !currentActive,
+                    updated_at: new Date().toISOString()
+                }, { merge: true });
+            } else {
+                await updateDoc(doc(db, "menu_products", id), {
+                    active: !currentActive,
+                    updated_at: new Date().toISOString()
+                });
+            }
+        } catch (e) {
+            console.warn("Firestore menu toggle error:", e.message);
+        }
+
+        showToast(currentActive ? "Ürün 'Tükendi' olarak işaretlendi" : "Ürün tekrar satışa açıldı", "info");
+    };
+
+    const deleteMenuItem = async (id, name = '') => {
+        // 1. İyimser yerel state silme
+        setMenuProducts(prev => prev.filter(p => p.id !== id));
+
+        // 2. Firestore'dan sil
+        try {
+            await deleteDoc(doc(db, "menu_products", id));
+        } catch (e) {
+            console.warn("Firestore menu delete error:", e.message);
+        }
+
+        showToast(name ? `"${name}" menüden silindi` : "Ürün menüden silindi", "info");
+    };
+
+    const seedDefaultMenu = async () => {
+        try {
+            const batch = writeBatch(db);
+            MENU_PRODUCTS.forEach(p => {
+                const ref = doc(db, "menu_products", p.id);
+                batch.set(ref, {
+                    ...p,
+                    updated_at: new Date().toISOString()
+                });
+            });
+            await batch.commit();
+            showToast("Varsayılan menü veritabanına aktarıldı!", "success");
+        } catch (e) {
+            console.warn("Seed menu error:", e.message);
+            setMenuProducts(MENU_PRODUCTS);
+            showToast("Varsayılan menü yüklendi.", "info");
+        }
+    };
+
+    // ------------------------------------------------------------------
+    // GİDERLER & ÖDEMELER MODÜLÜ (Restoran Harcamaları & Kasa Takibi)
+    // ------------------------------------------------------------------
+    const [expenses, setExpenses] = useState(() => {
+        try {
+            const saved = localStorage.getItem('adisyon_expenses_backup');
+            return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+            return [];
+        }
+    });
+
+    useEffect(() => {
+        const qExp = query(
+            collection(db, "expenses"),
+            orderBy("created_at", "desc"),
+            limit(300)
+        );
+        const unsubExp = onSnapshot(qExp, (snap) => {
+            const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            setExpenses(list);
+            try { localStorage.setItem('adisyon_expenses_backup', JSON.stringify(list)); } catch (e) {}
+        }, (err) => {
+            console.warn("Expenses listener error (using localStorage):", err);
+            try {
+                const saved = localStorage.getItem('adisyon_expenses_backup');
+                if (saved) setExpenses(JSON.parse(saved));
+            } catch (e) {}
+        });
+        return () => unsubExp();
+    }, []);
+
+    const addExpense = async (data) => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const defaultLocalDate = `${year}-${month}-${day}`;
+
+        const newExpense = {
+            id: 'exp_' + Date.now(),
+            title: (data.title || '').trim(),
+            amount: Number(data.amount) || 0,
+            category: data.category || 'diger',
+            payment_method: data.payment_method || 'cash',
+            date: data.date || defaultLocalDate,
+            notes: (data.notes || '').trim(),
+            created_by: currentUser?.name || 'Yönetici',
+            created_at: new Date().toISOString()
+        };
+
+        try {
+            const ref = await addDoc(collection(db, "expenses"), newExpense);
+            newExpense.id = ref.id;
+        } catch (err) {
+            console.warn("Firestore expense add error, saving locally:", err);
+            setExpenses(prev => {
+                const next = [newExpense, ...prev.filter(x => x.id !== newExpense.id)];
+                try { localStorage.setItem('adisyon_expenses_backup', JSON.stringify(next)); } catch (e) {}
+                return next;
+            });
+        }
+        showToast("Gider kaydı başarıyla eklendi!", "success");
+        return newExpense;
+    };
+
+    const deleteExpense = async (id) => {
+        try {
+            await deleteDoc(doc(db, "expenses", id));
+        } catch (err) {
+            console.warn("Firestore delete error, removing locally:", err);
+        }
+        setExpenses(prev => {
+            const next = prev.filter(e => e.id !== id);
+            try { localStorage.setItem('adisyon_expenses_backup', JSON.stringify(next)); } catch (e) {}
+            return next;
+        });
+        showToast("Gider kaydı silindi.", "info");
+    };
+
+    const updateExpense = async (id, updatedData) => {
+        const payload = {
+            title: (updatedData.title || '').trim(),
+            amount: Number(updatedData.amount) || 0,
+            category: updatedData.category || 'diger',
+            payment_method: updatedData.payment_method || 'cash',
+            date: updatedData.date,
+            notes: (updatedData.notes || '').trim(),
+            updated_at: new Date().toISOString()
+        };
+
+        try {
+            await setDoc(doc(db, "expenses", id), payload, { merge: true });
+        } catch (err) {
+            console.warn("Firestore expense update error, updating locally:", err);
+        }
+
+        setExpenses(prev => {
+            const next = prev.map(e => e.id === id ? { ...e, ...payload } : e);
+            try { localStorage.setItem('adisyon_expenses_backup', JSON.stringify(next)); } catch (e) {}
+            return next;
+        });
+
+        showToast("Gider kaydı güncellendi!", "success");
+        return { id, ...payload };
+    };
+
     const savePrinterSettings = async (newSettings) => {
         try {
             await setDoc(doc(db, "settings", "printer"), {
@@ -389,7 +614,17 @@ export function AppProvider({ children }) {
             printerSettings,
             savePrinterSettings,
             confirmModal,
-            showConfirm
+            showConfirm,
+            menuProducts,
+            categories: MENU_CATEGORIES,
+            saveMenuItem,
+            toggleMenuItemAvailability,
+            deleteMenuItem,
+            seedDefaultMenu,
+            expenses,
+            addExpense,
+            updateExpense,
+            deleteExpense
         }}>
             {children}
         </AppContext.Provider>

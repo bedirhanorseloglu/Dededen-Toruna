@@ -1,35 +1,35 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatMoney, MENU_PRODUCTS } from '../data/menu';
-import { 
-    db, 
-    collection, 
-    doc, 
-    getDocs, 
-    setDoc, 
-    addDoc, 
-    updateDoc, 
-    deleteDoc, 
+import {
+    db,
+    collection,
+    doc,
+    getDocs,
+    setDoc,
+    addDoc,
+    updateDoc,
+    deleteDoc,
     onSnapshot,
     query,
     orderBy,
-    limit 
+    limit
 } from '../config/firebase';
 import { recordCompletedOrder } from '../services/analyticsService';
 import { printCustomerReceipt, printKitchenOrderTicket } from '../services/printService';
 import { playChimeSound, playDeliveryAlertSound } from '../services/audioService';
-import { 
-    TrendingUp, 
-    CreditCard, 
-    Banknote, 
-    Receipt, 
-    Users, 
-    Calendar, 
-    CalendarDays, 
-    Search, 
-    Plus, 
-    Key, 
-    Trash2, 
+import {
+    TrendingUp,
+    CreditCard,
+    Banknote,
+    Receipt,
+    Users,
+    Calendar,
+    CalendarDays,
+    Search,
+    Plus,
+    Key,
+    Trash2,
     X,
     ChefHat,
     ShieldCheck,
@@ -46,13 +46,54 @@ import TableCardGrid from '../components/TableCardGrid';
 import AdminAnalyticsDashboard from '../components/AdminAnalyticsDashboard';
 import AdminStaffManagement from '../components/AdminStaffManagement';
 import AdminPrinterSettings from '../components/AdminPrinterSettings';
+import AdminMenuManagement from '../components/AdminMenuManagement';
+import AdminExpenses from '../components/AdminExpenses';
+import DailyClosingModal from '../components/DailyClosingModal';
+import ModernDatePicker from '../components/ModernDatePicker';
 
 export default function AdminView() {
-    const { tables, activeOrders, navigateTo, currentUser, showToast, showConfirm, closeTableOrder, printerSettings, savePrinterSettings } = useApp();
-    const [currentActiveTab, setCurrentActiveTab] = useState('tables'); // 'tables' | 'analytics' | 'staff' | 'printer'
+    const {
+        tables,
+        activeOrders,
+        navigateTo,
+        currentUser,
+        showToast,
+        showConfirm,
+        closeTableOrder,
+        printerSettings,
+        savePrinterSettings,
+        menuProducts,
+        categories,
+        saveMenuItem,
+        toggleMenuItemAvailability,
+        deleteMenuItem,
+        seedDefaultMenu,
+        expenses,
+        addExpense,
+        updateExpense,
+        deleteExpense
+    } = useApp();
+    const [currentActiveTab, setCurrentActiveTab] = useState('tables'); // 'tables' | 'analytics' | 'menu' | 'expenses' | 'staff' | 'printer'
     const [currentPeriod, setCurrentPeriod] = useState('today'); // 'today' | 'week' | 'month' | 'all'
     const [productSearch, setProductSearch] = useState('');
     const [completedOrders, setCompletedOrders] = useState([]);
+    const [showDailyClosingModal, setShowDailyClosingModal] = useState(false);
+
+    // Seçilen dönemin anlık cirosu (Giderler ve Net Kâr hesabı için)
+    const currentPeriodRevenue = useMemo(() => {
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const startOfWeek = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000)).getTime();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+        return completedOrders.filter(o => {
+            const t = new Date(o.created_at || o.closed_at || 0).getTime();
+            if (currentPeriod === 'today') return t >= startOfToday;
+            if (currentPeriod === 'week') return t >= startOfWeek;
+            if (currentPeriod === 'month') return t >= startOfMonth;
+            return true;
+        }).reduce((s, o) => s + (Number(o.total) || 0), 0);
+    }, [completedOrders, currentPeriod]);
 
     // Merkezi Yazıcı Ayarları Form State
     const [printerIpInput, setPrinterIpInput] = useState(printerSettings?.ip || '');
@@ -139,7 +180,7 @@ export default function AdminView() {
                 localStorage.removeItem('cafe_cached_completed_orders');
                 localStorage.setItem('cafe_clean_launch_2026', 'true');
             }
-        } catch (e) {}
+        } catch (e) { }
 
         // 1. Önce yerel arşivden yükle (varsa)
         try {
@@ -162,7 +203,7 @@ export default function AdminView() {
         const qLive = query(
             collection(db, "completed_orders"),
             orderBy("created_at", "desc"),
-            limit(100)
+            limit(1000)
         );
 
         const unsubscribe = onSnapshot(qLive, (snapshot) => {
@@ -171,7 +212,7 @@ export default function AdminView() {
                 setCompletedOrders([]);
                 try {
                     localStorage.removeItem('cafe_cached_completed_orders');
-                } catch (e) {}
+                } catch (e) { }
                 return;
             }
 
@@ -179,7 +220,7 @@ export default function AdminView() {
             setCompletedOrders(liveDocs);
             try {
                 localStorage.setItem('cafe_cached_completed_orders', JSON.stringify(liveDocs.slice(0, 1000)));
-            } catch (e) {}
+            } catch (e) { }
         }, (err) => {
             console.warn("Live completed orders listener error:", err);
         });
@@ -190,21 +231,44 @@ export default function AdminView() {
     // Listen to Waiters, Kitchen Staff, and Managers from Firestore
     useEffect(() => {
         const unsubWaiters = onSnapshot(collection(db, "waiters"), snap => {
-            const list = snap.docs.map(d => ({ id: d.id, ...d.data(), role: 'waiter' }));
-            setWaitersList(list);
-        }, () => {});
+            const validList = [];
+            snap.docs.forEach(d => {
+                const data = d.data();
+                const docId = String(d.id || '').trim();
+                const waiterName = String(data.name || '').trim();
+
+                // Hayalet/Geçersiz Garson Tespiti:
+                // id 'undefined', 'null', 'mgr-' olan veya ismi boş/'undefined' olanlar temizlenir
+                if (
+                    docId === 'undefined' || 
+                    docId === 'null' || 
+                    docId === '' || 
+                    docId.startsWith('mgr') || 
+                    docId.startsWith('admin') ||
+                    !waiterName || 
+                    waiterName.toLowerCase() === 'undefined' || 
+                    waiterName.toLowerCase() === 'null'
+                ) {
+                    deleteDoc(doc(db, "waiters", d.id)).catch(() => {});
+                    return;
+                }
+
+                validList.push({ id: d.id, ...data, role: 'waiter' });
+            });
+            setWaitersList(validList);
+        }, () => { });
 
         const unsubKitchen = onSnapshot(collection(db, "kitchen_staff"), snap => {
             const list = snap.docs.map(d => ({ id: d.id, ...d.data(), role: 'kitchen' }));
             setKitchenList(list);
-        }, () => {});
+        }, () => { });
 
         const unsubManagers = onSnapshot(collection(db, "managers"), snap => {
             const list = snap.docs.map(d => ({ id: d.id, ...d.data(), role: 'admin' }));
             setManagersList(list.length > 0 ? list : [
                 { id: "mgr-1", name: "Yönetici (Patron)", role: "admin", pin: "197300", phone: "0532 100 20 30", last_login_at: new Date().toISOString() }
             ]);
-        }, () => {});
+        }, () => { });
 
         return () => {
             unsubWaiters();
@@ -281,39 +345,53 @@ export default function AdminView() {
     const openCount = openOrdersList.length;
     const freeCount = Math.max(0, tables.length - openCount);
 
-    // MÜŞTERİ İSTEĞİ: "BU HAFTA GÜN GÜN TABLOSU" (Pzt-Paz)
+    // MÜŞTERİ İSTEĞİ: "BU HAFTA GÜN GÜN TABLOSU" (Pzt-Paz - Ciro, Gider ve Net Kâr)
     const weeklyDayStats = useMemo(() => {
         const dayNames = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
         const now = new Date();
-        const currentDayOfWeek = (now.getDay() + 6) % 7;
-        const monday = new Date(now);
-        monday.setDate(now.getDate() - currentDayOfWeek);
-        monday.setHours(0, 0, 0, 0);
+        const currentDayOfWeek = (now.getDay() + 6) % 7; // 0 = Pazartesi, 1 = Salı, ...
+        const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currentDayOfWeek, 12, 0, 0);
 
         return dayNames.map((name, idx) => {
-            const date = new Date(monday);
-            date.setDate(monday.getDate() + idx);
-            const dateStr = date.toISOString().slice(0, 10);
+            const date = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + idx, 12, 0, 0);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const localDateStr = `${year}-${month}-${day}`;
+            const displayDateStr = `${day}.${month}`;
 
-            const dayOrders = completedOrders.filter(o => (o.created_at || '').startsWith(dateStr));
+            const dayOrders = completedOrders.filter(o => {
+                const oDate = (o.created_at || o.closed_at || '').slice(0, 10);
+                return oDate === localDateStr;
+            });
             const revenue = dayOrders.reduce((s, o) => s + (Number(o.total) || 0), 0);
             const cash = dayOrders.filter(o => o.payment_method === 'cash').reduce((s, o) => s + (Number(o.total) || 0), 0);
             const card = dayOrders.filter(o => o.payment_method === 'card').reduce((s, o) => s + (Number(o.total) || 0), 0);
             const count = dayOrders.length;
 
+            const dayExpenses = (expenses || []).filter(e => {
+                const eDate = e.date || (e.created_at ? e.created_at.slice(0, 10) : '');
+                return eDate === localDateStr;
+            });
+            const expense = dayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+            const netProfit = revenue - expense;
+
             return {
                 dayName: name,
-                dateStr: `${String(date.getDate()).padStart(2, '0')}.${String(date.getMonth() + 1).padStart(2, '0')}`,
+                dateStr: displayDateStr,
+                fullDateStr: localDateStr,
                 revenue,
                 cash,
                 card,
                 count,
+                expense,
+                netProfit,
                 isToday: idx === currentDayOfWeek
             };
         });
-    }, [completedOrders]);
+    }, [completedOrders, expenses]);
 
-    // MÜŞTERİ İSTEĞİ: "BU AY GÜN GÜN TABLOSU" (1..31)
+    // MÜŞTERİ İSTEĞİ: "BU AY GÜN GÜN TABLOSU" (1..31 - Ciro, Gider ve Net Kâr)
     const monthlyDayStats = useMemo(() => {
         const now = new Date();
         const year = now.getFullYear();
@@ -324,37 +402,56 @@ export default function AdminView() {
         const list = [];
         for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const dayOrders = completedOrders.filter(o => (o.created_at || '').startsWith(dateStr));
+            const dayOrders = completedOrders.filter(o => {
+                const oDate = (o.created_at || o.closed_at || '').slice(0, 10);
+                return oDate === dateStr;
+            });
 
             const revenue = dayOrders.reduce((s, o) => s + (Number(o.total) || 0), 0);
             const cash = dayOrders.filter(o => o.payment_method === 'cash').reduce((s, o) => s + (Number(o.total) || 0), 0);
             const card = dayOrders.filter(o => o.payment_method === 'card').reduce((s, o) => s + (Number(o.total) || 0), 0);
             const count = dayOrders.length;
 
+            const dayExpenses = (expenses || []).filter(e => {
+                const eDate = e.date || (e.created_at ? e.created_at.slice(0, 10) : '');
+                return eDate === dateStr;
+            });
+            const expense = dayExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+            const netProfit = revenue - expense;
+
             list.push({
                 dayNumber: day,
                 dateDisplay: `${String(day).padStart(2, '0')}.${String(month + 1).padStart(2, '0')}.${year}`,
+                fullDateStr: dateStr,
                 revenue,
                 cash,
                 card,
                 count,
+                expense,
+                netProfit,
                 isToday: day === todayDate
             });
         }
         return list;
-    }, [completedOrders]);
+    }, [completedOrders, expenses]);
 
     // Admin direct checkout from tables tab
     const handleAdminDirectCheckout = async (tableNo, method) => {
         const order = activeOrders[String(tableNo)];
         if (!order) return;
 
+        const orderToClose = {
+            ...order,
+            waiter_id: order.waiter_id || currentUser?.id || 'mgr-1',
+            waiter_name: order.waiter_name || currentUser?.name || 'Yönetici (Patron)'
+        };
+
         // 1. Bildirim ve sesi ANINDA ver (0 ms gecikme, tam eş zamanlı)
         playChimeSound();
         showToast(`Masa ${tableNo} hesabı (${formatMoney(order.total)}) kasadan kapatıldı!`, "success");
 
         try {
-            await recordCompletedOrder(order, method);
+            await recordCompletedOrder(orderToClose, method);
             await closeTableOrder(tableNo, order.id);
         } catch (e) {
             console.error("Admin checkout error:", e);
@@ -737,17 +834,37 @@ export default function AdminView() {
 
 
 
-    // İstatistikleri Sıfırlama
+    // İstatistikleri Sıfırlama (Müşteri Talebi: 3 Kademeli Güvenlik Onayı - Modern & Profesyonel)
     const handleResetAnalytics = async () => {
-        const confirmed = await showConfirm({
-            title: "Tüm Satış Geçmişini Sıfırla",
-            message: "Bu işlem restoranın tüm satış ve ciro geçmişini sıfırlayacaktır. Canlı operasyona sıfırdan başlamak için kullanabilirsiniz. Devam edilsin mi?",
-            confirmText: "Evet, Sıfırla",
+        // 1. Onay
+        const confirm1 = await showConfirm({
+            title: "Satış & Ciro Geçmişini Sıfırla",
+            message: "Restoranın tamamlanan adisyon kayıtları ve ciro geçmişinin tamamı sıfırlanacaktır. Silmek istediğinize emin misiniz?",
+            confirmText: "Devam Et (Adım 1/3)",
+            cancelText: "Vazgeç",
+            variant: "warning"
+        });
+        if (!confirm1) return;
+
+        // 2. Onay
+        const confirm2 = await showConfirm({
+            title: "Rapor & Grafik Kayıtları Temizlensin mi?",
+            message: "Tüm kapatılan hesaplar, ürün satış karnesi ve garson analizleri temizlenecektir. Bu işlem geri alınamaz.",
+            confirmText: "Onaylıyorum (Adım 2/3)",
             cancelText: "Vazgeç",
             variant: "danger"
         });
+        if (!confirm2) return;
 
-        if (!confirmed) return;
+        // 3. Onay
+        const confirm3 = await showConfirm({
+            title: "Sistemdeki Ciro Bilgileri Silinsin Mi?",
+            message: "Son güvenlik onayı: Satış arşivi silinecektir.",
+            confirmText: "Evet, Sistemi Sıfırla (Adım 3/3)",
+            cancelText: "İptal Et",
+            variant: "danger"
+        });
+        if (!confirm3) return;
 
         try {
             showToast("Satış verileri sıfırlanıyor...", "info");
@@ -757,7 +874,7 @@ export default function AdminView() {
             }
             try {
                 localStorage.removeItem('cafe_cached_completed_orders');
-            } catch (e) {}
+            } catch (e) { }
             setCompletedOrders([]);
             showToast("Tüm ciro ve satış istatistikleri başarıyla sıfırlandı!", "success");
         } catch (e) {
@@ -768,33 +885,111 @@ export default function AdminView() {
 
     return (
         <div className="admin-page-container">
-            {/* 3 Admin Nav Tabs */}
-            <nav className="admin-nav-tabs" style={{ marginBottom: '20px' }}>
-                <button 
-                    className={`admin-nav-btn ${currentActiveTab === 'tables' ? 'active' : ''}`}
-                    onClick={() => setCurrentActiveTab('tables')}
-                >
-                    <span>🪑</span> Canlı Masalar & Kasa (17)
-                </button>
-                <button 
-                    className={`admin-nav-btn ${currentActiveTab === 'analytics' ? 'active' : ''}`}
-                    onClick={() => setCurrentActiveTab('analytics')}
-                >
-                    <span>📊</span> Ciro & Satış Analizi
-                </button>
-                <button 
-                    className={`admin-nav-btn ${currentActiveTab === 'staff' ? 'active' : ''}`}
-                    onClick={() => setCurrentActiveTab('staff')}
-                >
-                    <span>👥</span> Personel & PIN Yönetimi
-                </button>
-                <button 
-                    className={`admin-nav-btn ${currentActiveTab === 'printer' ? 'active' : ''}`}
-                    onClick={() => setCurrentActiveTab('printer')}
-                >
-                    <span>🖨️</span> Yazıcı Ayarları (Mutfak Ağ)
-                </button>
-            </nav>
+            {/* Admin Nav Header & Tabs (Tablet dikey/yatay ve mobilde tam sığan ultra-responsive yapı) */}
+            <header className="admin-nav-header">
+                <nav className="admin-nav-tabs">
+                    <button
+                        className={`admin-nav-btn ${currentActiveTab === 'tables' ? 'active' : ''}`}
+                        onClick={() => setCurrentActiveTab('tables')}
+                        title="Canlı Masalar & Kasa (17)"
+                    >
+                        <span className="tab-icon">🪑</span>
+                        <span className="tab-label-full">Canlı Masalar & Kasa (17)</span>
+                        <span className="tab-label-short">Masalar (17)</span>
+                    </button>
+                    <button
+                        className={`admin-nav-btn ${currentActiveTab === 'analytics' ? 'active' : ''}`}
+                        onClick={() => setCurrentActiveTab('analytics')}
+                        title="Ciro & Satış Analizi"
+                    >
+                        <span className="tab-icon">📊</span>
+                        <span className="tab-label-full">Ciro & Satış Analizi</span>
+                        <span className="tab-label-short">Satış Analizi</span>
+                    </button>
+                    <button
+                        className={`admin-nav-btn ${currentActiveTab === 'expenses' ? 'active' : ''}`}
+                        onClick={() => setCurrentActiveTab('expenses')}
+                        title="Giderler & Harcama"
+                    >
+                        <span className="tab-icon">💸</span>
+                        <span className="tab-label-full">Giderler & Harcama</span>
+                        <span className="tab-label-short">Giderler</span>
+                    </button>
+                    <button
+                        className={`admin-nav-btn ${currentActiveTab === 'menu' ? 'active' : ''}`}
+                        onClick={() => setCurrentActiveTab('menu')}
+                        title="Menü Yönetimi"
+                    >
+                        <span className="tab-icon">🍔</span>
+                        <span className="tab-label-full">Menü Yönetimi</span>
+                        <span className="tab-label-short">Menü</span>
+                    </button>
+                    <button
+                        className={`admin-nav-btn ${currentActiveTab === 'staff' ? 'active' : ''}`}
+                        onClick={() => setCurrentActiveTab('staff')}
+                        title="Personel & PIN"
+                    >
+                        <span className="tab-icon">👥</span>
+                        <span className="tab-label-full">Personel & PIN</span>
+                        <span className="tab-label-short">Personel</span>
+                    </button>
+                    <button
+                        className={`admin-nav-btn ${currentActiveTab === 'printer' ? 'active' : ''}`}
+                        onClick={() => setCurrentActiveTab('printer')}
+                        title="Kasa Yazıcısı"
+                    >
+                        <span className="tab-icon">🖨️</span>
+                        <span className="tab-label-full">Kasa Yazıcısı</span>
+                        <span className="tab-label-short">Yazıcı</span>
+                    </button>
+                </nav>
+
+                <div className="admin-nav-actions">
+                    <button
+                        className="btn-daily-closing"
+                        onClick={() => setShowDailyClosingModal(true)}
+                        title="Gün Sonu Hesap Özeti (Z-Raporu)"
+                    >
+                        <span className="tab-icon">🌅</span>
+                        <span className="tab-label-full">Gün Sonu Özeti (Z-Raporu)</span>
+                        <span className="tab-label-short">Gün Sonu (Z-Raporu)</span>
+                    </button>
+                </div>
+            </header>
+
+            {/* ============================================================== */}
+            {/* MENÜ YÖNETİMİ SEKMESİ                                          */}
+            {/* ============================================================== */}
+            {currentActiveTab === 'menu' && (
+                <AdminMenuManagement
+                    menuProducts={menuProducts}
+                    categories={categories}
+                    saveMenuItem={saveMenuItem}
+                    toggleMenuItemAvailability={toggleMenuItemAvailability}
+                    deleteMenuItem={deleteMenuItem}
+                    seedDefaultMenu={seedDefaultMenu}
+                    showConfirm={showConfirm}
+                    showToast={showToast}
+                />
+            )}
+
+            {/* ============================================================== */}
+            {/* GİDERLER & ÖDEMELER SEKMESİ                                    */}
+            {/* ============================================================== */}
+            {currentActiveTab === 'expenses' && (
+                <AdminExpenses
+                    expenses={expenses}
+                    addExpense={addExpense}
+                    updateExpense={updateExpense}
+                    deleteExpense={deleteExpense}
+                    completedOrders={completedOrders}
+                    totalRevenue={currentPeriodRevenue}
+                    currentPeriod={currentPeriod}
+                    setCurrentPeriod={setCurrentPeriod}
+                    showConfirm={showConfirm}
+                    showToast={showToast}
+                />
+            )}
 
             {/* ============================================================== */}
             {/* 1. SEKME: CİRO & SATIŞ ANALİZİ + HAFTALIK & AYLIK TABLOLAR      */}
@@ -802,6 +997,11 @@ export default function AdminView() {
             {currentActiveTab === 'analytics' && (
                 <AdminAnalyticsDashboard
                     completedOrders={completedOrders}
+                    expenses={expenses}
+                    addExpense={addExpense}
+                    updateExpense={updateExpense}
+                    deleteExpense={deleteExpense}
+                    onNavigateToExpenses={() => setCurrentActiveTab('expenses')}
                     currentPeriod={currentPeriod}
                     setCurrentPeriod={setCurrentPeriod}
                     weeklyDayStats={weeklyDayStats}
@@ -930,19 +1130,19 @@ export default function AdminView() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                             <div>
                                 <label style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '4px' }}>Ad Soyad:</label>
-                                <input 
-                                    type="text" 
-                                    value={staffNameInput} 
+                                <input
+                                    type="text"
+                                    value={staffNameInput}
                                     onChange={(e) => setStaffNameInput(e.target.value)}
-                                    placeholder="Örn: Burak Kaya" 
-                                    style={{ width: '100%', padding: '12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: 'white', borderRadius: 'var(--radius-md)', fontSize: '14px' }} 
+                                    placeholder="Örn: Burak Kaya"
+                                    style={{ width: '100%', padding: '12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: 'white', borderRadius: 'var(--radius-md)', fontSize: '14px' }}
                                 />
                             </div>
 
                             <div>
                                 <label style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '4px' }}>Görevi / Rolü:</label>
-                                <select 
-                                    value={staffModalRole} 
+                                <select
+                                    value={staffModalRole}
                                     onChange={(e) => setStaffModalRole(e.target.value)}
                                     style={{ width: '100%', padding: '12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: 'white', borderRadius: 'var(--radius-md)', fontWeight: 700, fontSize: '14px' }}
                                 >
@@ -953,44 +1153,43 @@ export default function AdminView() {
 
                             <div>
                                 <label style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '4px' }}>İşe Giriş Tarihi (İsteğe Bağlı):</label>
-                                <input 
-                                    type="date" 
-                                    value={staffHireDateInput} 
-                                    onChange={(e) => setStaffHireDateInput(e.target.value)}
-                                    style={{ width: '100%', padding: '12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: 'white', borderRadius: 'var(--radius-md)', fontSize: '14px', colorScheme: 'dark' }} 
+                                <ModernDatePicker
+                                    value={staffHireDateInput}
+                                    onChange={setStaffHireDateInput}
+                                    placeholder="Tarih Seçiniz"
                                 />
                             </div>
 
                             <div>
                                 <label style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '4px' }}>Telefon (İsteğe Bağlı):</label>
-                                <input 
-                                    type="tel" 
-                                    value={staffPhoneInput} 
+                                <input
+                                    type="tel"
+                                    value={staffPhoneInput}
                                     onChange={(e) => setStaffPhoneInput(e.target.value)}
-                                    placeholder="Örn: 0542 000 00 00" 
-                                    style={{ width: '100%', padding: '12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: 'white', borderRadius: 'var(--radius-md)', fontSize: '14px' }} 
+                                    placeholder="Örn: 0542 000 00 00"
+                                    style={{ width: '100%', padding: '12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: 'white', borderRadius: 'var(--radius-md)', fontSize: '14px' }}
                                 />
                             </div>
 
                             <div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                                     <label style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 700 }}>6 Haneli Giriş PIN'i:</label>
-                                    <button 
-                                        type="button" 
+                                    <button
+                                        type="button"
                                         onClick={() => setStaffPinInput(String(Math.floor(100000 + Math.random() * 900000)))}
-                                        className="btn-outline" 
+                                        className="btn-outline"
                                         style={{ padding: '2px 8px', fontSize: '11px', color: 'var(--brand-gold)', borderColor: 'var(--brand-gold)' }}
                                     >
                                         🎲 Rastgele PIN
                                     </button>
                                 </div>
-                                <input 
-                                    type="text" 
-                                    maxLength={6} 
-                                    value={staffPinInput} 
+                                <input
+                                    type="text"
+                                    maxLength={6}
+                                    value={staffPinInput}
                                     onChange={(e) => setStaffPinInput(e.target.value)}
-                                    placeholder="6 Haneli PIN (örn: 543210)" 
-                                    style={{ width: '100%', padding: '12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: '#ffd43b', fontWeight: 800, fontSize: '16px', borderRadius: 'var(--radius-md)', fontFamily: 'monospace', letterSpacing: '4px' }} 
+                                    placeholder="6 Haneli PIN (örn: 543210)"
+                                    style={{ width: '100%', padding: '12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: '#ffd43b', fontWeight: 800, fontSize: '16px', borderRadius: 'var(--radius-md)', fontFamily: 'monospace', letterSpacing: '4px' }}
                                 />
                             </div>
                         </div>
@@ -1015,22 +1214,22 @@ export default function AdminView() {
                         <div style={{ marginBottom: '16px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                                 <label style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 700 }}>Yeni 6 Haneli PIN:</label>
-                                <button 
-                                    type="button" 
+                                <button
+                                    type="button"
                                     onClick={() => setNewPinInput(String(Math.floor(100000 + Math.random() * 900000)))}
-                                    className="btn-outline" 
+                                    className="btn-outline"
                                     style={{ padding: '2px 8px', fontSize: '11px', color: 'var(--brand-gold)', borderColor: 'var(--brand-gold)' }}
                                 >
                                     🎲 Üret
                                 </button>
                             </div>
-                            <input 
-                                type="text" 
-                                maxLength={6} 
-                                value={newPinInput} 
+                            <input
+                                type="text"
+                                maxLength={6}
+                                value={newPinInput}
                                 onChange={(e) => setNewPinInput(e.target.value)}
-                                placeholder="Yeni PIN" 
-                                style={{ width: '100%', padding: '12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: '#ffd43b', fontWeight: 800, fontSize: '16px', borderRadius: 'var(--radius-md)', fontFamily: 'monospace', letterSpacing: '4px' }} 
+                                placeholder="Yeni PIN"
+                                style={{ width: '100%', padding: '12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: '#ffd43b', fontWeight: 800, fontSize: '16px', borderRadius: 'var(--radius-md)', fontFamily: 'monospace', letterSpacing: '4px' }}
                             />
                         </div>
 
@@ -1059,9 +1258,9 @@ export default function AdminView() {
             {/* ============================================================== */}
             {selectedDrawerTable !== null && (
                 <>
-                    <div 
-                        className="admin-receipt-backdrop" 
-                        onClick={() => setSelectedDrawerTable(null)} 
+                    <div
+                        className="admin-receipt-backdrop"
+                        onClick={() => setSelectedDrawerTable(null)}
                     />
                     <aside className="admin-receipt-drawer">
                         {/* Mobil için sürükleme/kapatma çizgisi */}
@@ -1079,21 +1278,21 @@ export default function AdminView() {
                                     </h2>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <button 
+                                    <button
                                         className="btn-outline"
                                         onClick={() => { setMoveSourceTable(selectedDrawerTable); setMoveTargetTable(''); setShowMoveModal(true); }}
                                         style={{ fontSize: '12px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
                                     >
                                         <MoveHorizontal size={13} /> Taşı
                                     </button>
-                                    <button 
+                                    <button
                                         className="btn-outline"
                                         onClick={() => { setSplitTable(selectedDrawerTable); setSplitSelections({}); setSplitPayMethod('cash'); setShowSplitModal(true); }}
                                         style={{ fontSize: '12px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
                                     >
                                         <Scissors size={13} /> Böl
                                     </button>
-                                    <button 
+                                    <button
                                         className="admin-drawer-close-btn"
                                         onClick={() => setSelectedDrawerTable(null)}
                                         title="Adisyonu Kapat (ESC)"
@@ -1146,8 +1345,8 @@ export default function AdminView() {
                                     <div style={{ fontSize: '40px', marginBottom: '10px' }}>🍽️</div>
                                     <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-secondary)' }}>Adisyon Henüz Boş</div>
                                     <div style={{ fontSize: '12px', marginTop: '4px', marginBottom: '16px' }}>Bu masada henüz aktif sipariş bulunmuyor.</div>
-                                    <button 
-                                        className="btn-primary" 
+                                    <button
+                                        className="btn-primary"
                                         style={{ padding: '8px 18px', fontSize: '12px' }}
                                         onClick={() => navigateTo('table', selectedDrawerTable)}
                                     >
@@ -1210,7 +1409,7 @@ export default function AdminView() {
                                             {drawerOrder.items.map((item, idx) => {
                                                 if (item.status === 'delivered') return null;
                                                 return (
-                                                    <div 
+                                                    <div
                                                         key={idx}
                                                         className="receipt-item-row pending"
                                                         style={{
@@ -1330,7 +1529,7 @@ export default function AdminView() {
                                             {drawerOrder.items.map((item, idx) => {
                                                 if (item.status !== 'delivered') return null;
                                                 return (
-                                                    <div 
+                                                    <div
                                                         key={idx}
                                                         className="receipt-item-row delivered"
                                                         style={{
@@ -1595,10 +1794,10 @@ export default function AdminView() {
                             <button onClick={() => setShowMoveModal(false)} className="btn-outline" style={{ flex: 1 }}>
                                 Vazgeç
                             </button>
-                            <button 
+                            <button
                                 onClick={handleAdminMoveOrMergeTable}
                                 disabled={!moveTargetTable}
-                                className="btn-primary" 
+                                className="btn-primary"
                                 style={{ flex: 2, padding: '10px' }}
                             >
                                 Onayla ve Aktar
@@ -1634,7 +1833,7 @@ export default function AdminView() {
                                 const maxQty = Number(item.quantity) || 1;
 
                                 return (
-                                    <div 
+                                    <div
                                         key={idx}
                                         style={{
                                             background: 'var(--bg-surface)',
@@ -1776,6 +1975,16 @@ export default function AdminView() {
                     </div>
                 </div>
             )}
+
+            {/* GÜN SONU HESAP ÖZETİ (Z-RAPORU) MODALI */}
+            <DailyClosingModal
+                isOpen={showDailyClosingModal}
+                onClose={() => setShowDailyClosingModal(false)}
+                completedOrders={completedOrders}
+                expenses={expenses}
+                printerSettings={printerSettings}
+                showToast={showToast}
+            />
         </div>
     );
 }

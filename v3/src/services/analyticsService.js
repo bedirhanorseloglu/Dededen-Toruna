@@ -4,26 +4,41 @@ import {
     db, 
     collection, 
     doc, 
-    setDoc,
+    updateDoc,
     addDoc, 
     increment 
 } from "../config/firebase";
 
 /**
  * 1. GARSON İSTATİSTİĞİ GÜNCELLEME (0 Read, Atomik increment)
+ * Sadece veritabanında gerçekten var olan garsonları günceller.
+ * Yöneticiler (mgr-), tanımsız/geçersiz id'ler için asla garson dokümanı oluşturmaz.
  */
 export async function updateWaiterStats(waiterId, orderAmount, itemsCount) {
     if (!waiterId) return;
+    const idStr = String(waiterId).trim();
+    if (
+        idStr === 'undefined' || 
+        idStr === 'null' || 
+        idStr === '' || 
+        idStr.startsWith('mgr') || 
+        idStr.startsWith('admin')
+    ) {
+        return;
+    }
+
     try {
-        const waiterRef = doc(db, "waiters", waiterId);
-        await setDoc(waiterRef, {
+        const waiterRef = doc(db, "waiters", idStr);
+        // updateDoc doküman yoksa YENİ HAREKETSİZ/HAYALET DOKÜMAN YARATMAZ
+        await updateDoc(waiterRef, {
             total_orders_count: increment(1),
             total_revenue: increment(Number(orderAmount || 0)),
             total_items_sold: increment(Number(itemsCount || 0)),
             last_order_at: new Date().toISOString()
-        }, { merge: true });
+        });
     } catch(e) {
-        console.warn("Waiter stats update failed:", e);
+        // Garson dokümanı mevcut değilse hata yutulur ve hayalet garson yaratılması önlenir
+        console.warn("Waiter stats update skipped/failed:", e?.message || e);
     }
 }
 
@@ -36,10 +51,27 @@ export async function recordCompletedOrder(order, paymentMethod = 'cash') {
         const nowIso = new Date().toISOString();
         const itemsCount = (order.items || []).reduce((s, i) => s + (Number(i.quantity) || 1), 0);
         
+        // Yönetici / Patron kontrolü
+        const isManager = 
+            String(order.waiter_id || '').startsWith('mgr') || 
+            String(order.waiter_id || '').startsWith('admin') ||
+            String(order.waiter_name || '').toLowerCase().includes('yönetici') ||
+            String(order.waiter_name || '').toLowerCase().includes('patron');
+
+        let cleanWaiterId = order.waiter_id;
+        if (!cleanWaiterId || cleanWaiterId === 'undefined' || cleanWaiterId === 'null') {
+            cleanWaiterId = isManager ? 'mgr-1' : 'wtr-1';
+        }
+
+        let cleanWaiterName = order.waiter_name;
+        if (!cleanWaiterName || cleanWaiterName === 'undefined' || cleanWaiterName === 'null') {
+            cleanWaiterName = isManager ? 'Yönetici (Patron)' : 'Garson';
+        }
+
         const record = {
             table_no: Number(order.table_no),
-            waiter_id: order.waiter_id || "wtr-1",
-            waiter_name: order.waiter_name || "Garson",
+            waiter_id: cleanWaiterId,
+            waiter_name: cleanWaiterName,
             order_taken_at: order.created_at || order.updated_at || nowIso,
             payment_collected_at: nowIso,
             items: order.items || [],
@@ -62,8 +94,9 @@ export async function recordCompletedOrder(order, paymentMethod = 'cash') {
             localStorage.setItem('cafe_cached_completed_orders', JSON.stringify(cached.slice(0, 1000)));
         } catch(e) {}
         
-        if (record.waiter_id) {
-            await updateWaiterStats(record.waiter_id, record.total, itemsCount);
+        // YALNIZCA gerçek garson ise garson istatistiğini güncelle (Yönetici için garson koleksiyonu tetiklenmez!)
+        if (!isManager && cleanWaiterId && !cleanWaiterId.startsWith('mgr')) {
+            await updateWaiterStats(cleanWaiterId, record.total, itemsCount);
         }
 
         return docRef.id;

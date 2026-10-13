@@ -49,10 +49,15 @@ export default function AdminStaffManagement({
         ];
 
         return list.filter(item => {
+            const name = String(item.name || '').trim();
+            const id = String(item.id || '').trim();
+            if (!name || name.toLowerCase() === 'undefined' || name.toLowerCase() === 'null' || id === 'undefined' || id === 'null') {
+                return false;
+            }
             const matchesRole = selectedRoleFilter === 'all' || item.role === selectedRoleFilter;
             const q = searchQuery.trim().toLocaleLowerCase('tr-TR');
             const matchesQuery = !q || 
-                (item.name && item.name.toLocaleLowerCase('tr-TR').includes(q)) ||
+                (name && name.toLocaleLowerCase('tr-TR').includes(q)) ||
                 (item.pin && item.pin.includes(q)) ||
                 (item.phone && item.phone.includes(q));
             return matchesRole && matchesQuery;

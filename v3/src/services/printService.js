@@ -283,42 +283,32 @@ function renderCustomerTicket({ tableNo, items, total, title }) {
     });
 }
 
+const isTabletOrMobile = () => {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    const isTouch = (typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 0);
+    return /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua) || (ua.includes('Macintosh') && isTouch);
+};
+
 /* ------------------------------------------------------------------ */
 /* Gönderim                                                            */
 /* ------------------------------------------------------------------ */
 
 function dispatchImage(dataUrl, title, settings) {
-    const isAndroidDevice = isAndroid();
+    const isMobile = isTabletOrMobile();
 
-    // 1. Android Tablet / Telefon: Doğrudan RawBT'ye fırlat (SIFIR YENİ SEKME, SIFIR ÖNİZLEME)
-    if (isAndroidDevice && settings?.mode !== 'browser') {
+    // 1. Tablet / Mobil Cihazlar: Doğrudan termal yazıcıya (RawBT) fırlat. KESİNLİKLE YENİ SEKME VEYA ÖNİZLEME AÇMAZ!
+    if (isMobile || settings?.mode === 'rawbt' || settings?.mode === 'thermal') {
         try {
-            const oldFrame = document.getElementById('rawbt-intent-iframe');
-            if (oldFrame) oldFrame.remove();
-
-            const iframe = document.createElement('iframe');
-            iframe.id = 'rawbt-intent-iframe';
-            iframe.style.position = 'fixed';
-            iframe.style.top = '-9999px';
-            iframe.style.left = '-9999px';
-            iframe.style.width = '1px';
-            iframe.style.height = '1px';
-            iframe.style.opacity = '0';
-            iframe.style.border = 'none';
-            iframe.src = 'rawbt:' + dataUrl;
-            document.body.appendChild(iframe);
-            setTimeout(() => {
-                if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
-            }, 3000);
-            return true;
-        } catch (e) {
-            console.warn("RawBT iframe error, falling back to window.location:", e);
+            // Android tabletlerde doğrudan RawBT protokolüne yönlendirerek sıfır önizleme ile yazdırır
             window.location.href = 'rawbt:' + dataUrl;
             return true;
+        } catch (e) {
+            console.warn("Direct RawBT launch failed, fallback to silent iframe:", e);
         }
     }
 
-    // 2. Bilgisayar / Masaüstü: KESİNLİKLE YENİ SEKME AÇMAZ! Gizli arka plan iframe üzerinden doğrudan yazdırır
+    // 2. Bilgisayar / Masaüstü: Arka plan gizli iframe üzerinden doğrudan yazdırır
     printViaSilentIframe(dataUrl);
     return false;
 }
@@ -406,5 +396,143 @@ export function printCustomerReceipt(order, customTitle = 'Masa Adisyon Fişi', 
 
     const dataUrl = renderCustomerTicket({ tableNo, items: order.items, total, title: customTitle });
     dispatchImage(dataUrl, `Adisyon - Masa ${tableNo}`, settings);
+    return true;
+}
+
+/**
+ * 📋 Gün Sonu Z-Raporu Termal Fişi
+ */
+export function renderZReportTicket(zData) {
+    const { date, time } = nowStrings();
+    const {
+        reportDate = date,
+        reportTime = time,
+        reportNo = `Z-${Date.now().toString().slice(-6)}`,
+        totalRevenue = 0,
+        cashTotal = 0,
+        cardTotal = 0,
+        expensesTotal = 0,
+        cashExpenses = 0,
+        netCash = 0,
+        netProfit = 0,
+        orderCount = 0,
+        avgOrder = 0,
+        totalItemsCount = 0,
+        topProducts = [],
+        waiterStats = []
+    } = zData || {};
+
+    return renderToDataUrl((ctx, draw) => {
+        let y = 20;
+        y = drawLogo(ctx, draw, y, 140) + 10;
+        y = centerText(ctx, draw, 'DEDEDEN TORUNA', y, `900 36px ${FONT}`, 36) + 6;
+        y = centerText(ctx, draw, 'Hamsiköy Sütlacı & Cafe', y, `500 22px ${FONT}`, 22) + 16;
+
+        // Z-Raporu Başlığı
+        const badgeW = 380, badgeH = 56;
+        if (draw) {
+            ctx.lineWidth = 2.5;
+            roundRect(ctx, (PAPER_WIDTH - badgeW) / 2, y, badgeW, badgeH, 12);
+            ctx.stroke();
+        }
+        centerText(ctx, draw, 'GÜN SONU HESAP ÖZETİ', y + 10, `900 26px ${FONT}`, 26);
+        y += badgeH + 12;
+
+        y = drawMetaRow(ctx, draw, y, reportDate, reportTime) + 6;
+        if (draw) {
+            ctx.font = `600 18px ${FONT}`;
+            ctx.fillStyle = '#666';
+            ctx.fillText(`Rapor No: ${reportNo}`, PAD, y);
+            ctx.fillStyle = '#000';
+        }
+        y += 24;
+
+        if (draw) dashedLine(ctx, y);
+        y += 18;
+
+        // 1. Finansal Özet Tablosu
+        const printRow = (label, val, isBold = false, size = 24) => {
+            if (draw) {
+                ctx.font = `${isBold ? 800 : 500} ${size}px ${FONT}`;
+                ctx.textBaseline = 'top';
+                ctx.fillText(label, PAD, y);
+                ctx.textAlign = 'right';
+                ctx.fillText(val, PAPER_WIDTH - PAD, y);
+                ctx.textAlign = 'left';
+            }
+            y += size + 10;
+        };
+
+        printRow('Toplam Brüt Ciro:', formatMoney(totalRevenue), true, 26);
+        printRow('💵 Nakit Tahsilat:', formatMoney(cashTotal), false, 23);
+        printRow('💳 Kredi Kartı Tahsilat:', formatMoney(cardTotal), false, 23);
+        
+        y += 6;
+        if (draw) dashedLine(ctx, y);
+        y += 18;
+
+        printRow('💸 Toplam Giderler:', formatMoney(expensesTotal), false, 23);
+        if (cashExpenses > 0) {
+            printRow('   ↳ Kasadan Çıkan (Nakit):', formatMoney(cashExpenses), false, 20);
+        }
+        printRow('💰 NET KASA (Nakit Kalan):', formatMoney(netCash), true, 26);
+        printRow('📈 NET İŞLETME KÂRI:', formatMoney(netProfit), true, 26);
+
+        y += 6;
+        if (draw) dashedLine(ctx, y);
+        y += 18;
+
+        // 2. Operasyon Metrikleri
+        printRow('Kapanan Adisyon / Masa:', `${orderCount} Masa`, false, 22);
+        printRow('Ortalama Masa Harcaması:', formatMoney(avgOrder), false, 22);
+        printRow('Satılan Toplam Ürün:', `${totalItemsCount} Adet`, false, 22);
+
+        // 3. En Çok Satan İlk 5 Ürün
+        if (topProducts && topProducts.length > 0) {
+            y += 8;
+            if (draw) dashedLine(ctx, y);
+            y += 18;
+            if (draw) {
+                ctx.font = `800 22px ${FONT}`;
+                ctx.fillText('EN ÇOK SATAN ÜRÜNLER', PAD, y);
+            }
+            y += 28;
+
+            topProducts.slice(0, 5).forEach((p, idx) => {
+                const pLine = `${idx + 1}. ${p.name || ''} (${p.quantity} Adet)`;
+                printRow(pLine, formatMoney(p.revenue), false, 20);
+            });
+        }
+
+        // 4. Garson Dağılımı
+        if (waiterStats && waiterStats.length > 0) {
+            y += 8;
+            if (draw) dashedLine(ctx, y);
+            y += 18;
+            if (draw) {
+                ctx.font = `800 22px ${FONT}`;
+                ctx.fillText('GARSON PERFORMANS ÖZETİ', PAD, y);
+            }
+            y += 28;
+
+            waiterStats.forEach(w => {
+                const wLine = `👤 ${w.name || ''} (${w.orderCount || 0} Masa)`;
+                printRow(wLine, formatMoney(w.revenue), false, 20);
+            });
+        }
+
+        y += 14;
+        if (draw) dashedLine(ctx, y);
+        y += 20;
+
+        y = centerText(ctx, draw, '*** GÜN SONU KAPANIK RAPORUDUR ***', y, `800 22px ${FONT}`, 22) + 8;
+        y = centerText(ctx, draw, 'Mali değeri yoktur - İşletme İçi Z-Raporu', y, `400 17px ${FONT}`, 17);
+        return y + 60;
+    });
+}
+
+export function printZReportTicket(zData, settings = null) {
+    const dataUrl = renderZReportTicket(zData);
+    dispatchImage(dataUrl, `Gün Sonu Z-Raporu`, settings);
     return true;
 }

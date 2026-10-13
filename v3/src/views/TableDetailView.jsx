@@ -52,8 +52,11 @@ export default function TableDetailView() {
         showToast,
         tables,
         closeTableOrder,
-        printerSettings
+        printerSettings,
+        menuProducts
     } = useApp();
+
+    const currentProducts = menuProducts || MENU_PRODUCTS;
 
     const tableNo = Number(selectedTableId);
     const existingOrder = activeOrders[String(tableNo)] || null;
@@ -106,8 +109,8 @@ export default function TableDetailView() {
         const payload = {
             table_no: tableNo,
             table_id: tableNo,
-            waiter_id: existingOrder?.waiter_id || currentUser?.id || "wtr-1",
-            waiter_name: existingOrder?.waiter_name || currentUser?.name || "Garson",
+            waiter_id: existingOrder?.waiter_id || (currentUser?.role === 'admin' ? (currentUser?.id || 'mgr-1') : (currentUser?.id || 'wtr-1')),
+            waiter_name: existingOrder?.waiter_name || (currentUser?.role === 'admin' ? (currentUser?.name || 'Yönetici (Patron)') : (currentUser?.name || 'Garson')),
             items: items,
             items_count: items.reduce((s, i) => s + (Number(i.quantity) || 1), 0),
             subtotal: total,
@@ -261,8 +264,8 @@ export default function TableDetailView() {
 
         const orderToClose = {
             table_no: tableNo,
-            waiter_id: existingOrder?.waiter_id || currentUser?.id || 'wtr-1',
-            waiter_name: existingOrder?.waiter_name || currentUser?.name || 'Garson',
+            waiter_id: existingOrder?.waiter_id || (currentUser?.role === 'admin' ? (currentUser?.id || 'mgr-1') : (currentUser?.id || 'wtr-1')),
+            waiter_name: existingOrder?.waiter_name || (currentUser?.role === 'admin' ? (currentUser?.name || 'Yönetici (Patron)') : (currentUser?.name || 'Garson')),
             items: cartItems,
             subtotal: orderSubtotal,
             total: orderSubtotal,
@@ -376,8 +379,8 @@ export default function TableDetailView() {
         try {
             const partialOrderRecord = {
                 table_no: tableNo,
-                waiter_id: existingOrder?.waiter_id || currentUser?.id || 'wtr-1',
-                waiter_name: existingOrder?.waiter_name || currentUser?.name || 'Garson',
+                waiter_id: existingOrder?.waiter_id || (currentUser?.role === 'admin' ? (currentUser?.id || 'mgr-1') : (currentUser?.id || 'wtr-1')),
+                waiter_name: existingOrder?.waiter_name || (currentUser?.role === 'admin' ? (currentUser?.name || 'Yönetici (Patron)') : (currentUser?.name || 'Garson')),
                 items: payingItems,
                 subtotal: payingSubtotal,
                 total: payingSubtotal,
@@ -412,7 +415,7 @@ export default function TableDetailView() {
     };
 
     const filteredProducts = useMemo(() => {
-        return MENU_PRODUCTS.filter(product => {
+        return currentProducts.filter(product => {
             if (selectedCategory !== 'all' && product.category_id !== selectedCategory) {
                 return false;
             }
@@ -422,16 +425,16 @@ export default function TableDetailView() {
             }
             return true;
         });
-    }, [selectedCategory, menuSearch]);
+    }, [currentProducts, selectedCategory, menuSearch]);
 
     // Kategori bazlı lezzet sayıları (hap badge'ler için)
     const categoryCounts = useMemo(() => {
         const counts = {};
-        MENU_PRODUCTS.forEach(p => {
+        currentProducts.forEach(p => {
             counts[p.category_id] = (counts[p.category_id] || 0) + 1;
         });
         return counts;
-    }, []);
+    }, [currentProducts]);
 
     return (
         <div className="order-screen-layout">
@@ -484,7 +487,7 @@ export default function TableDetailView() {
                         >
                             <span className="pill-icon">🍽️</span>
                             <span className="pill-title">Tümü</span>
-                            <span className="pill-badge">{MENU_PRODUCTS.length}</span>
+                            <span className="pill-badge">{currentProducts.length}</span>
                         </motion.button>
                         {MENU_CATEGORIES.map(cat => {
                             const count = categoryCounts[cat.id] || 0;
@@ -519,7 +522,7 @@ export default function TableDetailView() {
                         >
                             {selectedCategory === 'all' && !menuSearch.trim() ? (
                                 MENU_CATEGORIES.map(cat => {
-                                    const catProducts = MENU_PRODUCTS.filter(p => p.category_id === cat.id);
+                                    const catProducts = currentProducts.filter(p => p.category_id === cat.id);
                                     if (catProducts.length === 0) return null;
 
                                     return (
@@ -1251,22 +1254,33 @@ export default function TableDetailView() {
 // Product Card
 function ProductItemCard({ product, onAdd }) {
     const isInstant = isInstantDeliveryCategory(product.category_id, product.name);
+    const isOutOfStock = product.active === false;
 
     return (
         <motion.div 
-            className="product-item-card" 
-            onClick={onAdd} 
-            style={{ position: 'relative' }}
-            whileHover={{ y: -3, transition: { duration: 0.12 } }}
-            whileTap={{ scale: 0.96 }}
+            className={`product-item-card ${isOutOfStock ? 'is-out-of-stock' : ''}`} 
+            onClick={isOutOfStock ? undefined : onAdd} 
+            style={{ 
+                position: 'relative',
+                opacity: isOutOfStock ? 0.45 : 1,
+                cursor: isOutOfStock ? 'not-allowed' : 'pointer'
+            }}
+            whileHover={isOutOfStock ? {} : { y: -3, transition: { duration: 0.12 } }}
+            whileTap={isOutOfStock ? {} : { scale: 0.96 }}
         >
             <div className="product-info">
-                <div className="product-name">{product.name}</div>
-                {isInstant && (
+                <div className="product-name" style={{ textDecoration: isOutOfStock ? 'line-through' : 'none' }}>
+                    {product.name}
+                </div>
+                {isOutOfStock ? (
+                    <span style={{ fontSize: '10px', color: '#ef4444', fontWeight: 800 }}>
+                        ⛔ TÜKENDİ
+                    </span>
+                ) : isInstant ? (
                     <span style={{ fontSize: '10px', color: 'var(--success)', fontWeight: 700 }}>
                         ⚡ Tezgahtan Verilir
                     </span>
-                )}
+                ) : null}
             </div>
             <div className="product-price">{formatMoney(product.price)}</div>
         </motion.div>

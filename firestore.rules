@@ -58,6 +58,18 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /daily_closings/{closingId} {
+      allow read, write: if true;
+    }
+
+    match /settings/{docId} {
+      allow read, write: if true;
+    }
+
+    match /menu_products/{docId} {
+      allow read, write: if true;
+    }
+
     // Diğer tüm bilinmeyen koleksiyonları varsayılan olarak koru
     match /{document=**} {
       allow read, write: if false;
