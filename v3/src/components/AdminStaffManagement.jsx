@@ -1,5 +1,7 @@
+import StaffPerformanceModal from './StaffPerformanceModal';
 import React, { useState, useMemo } from 'react';
 import { formatMoney } from '../data/menu';
+import { db, doc, updateDoc } from '../config/firebase';
 import { 
     Users, 
     UserPlus, 
@@ -16,25 +18,46 @@ import {
     Sparkles,
     Phone,
     TrendingUp,
-    UtensilsCrossed
+    UtensilsCrossed,
+    Clock,
+    Calendar,
+    CalendarDays,
+    RotateCcw,
+    X,
+    ShoppingBag,
+    Receipt,
+    ChevronRight,
+    CreditCard,
+    Banknote,
+    BarChart3,
+    ArrowUpRight,
+    Award
 } from 'lucide-react';
 
 export default function AdminStaffManagement({
     waitersList = [],
     kitchenList = [],
     managersList = [],
+    completedOrders = [],
     setStaffModalRole,
     setShowStaffModal,
     setEditingStaffPin,
     setNewPinInput,
     setShowPinModal,
-    handleDeleteStaff
+    handleDeleteStaff,
+    showConfirm,
+    showToast
 }) {
     // Filtreler: 'all' | 'waiter' | 'kitchen' | 'admin'
     const [selectedRoleFilter, setSelectedRoleFilter] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'table'
     const [revealedPins, setRevealedPins] = useState({}); // { [staffId]: boolean }
+
+    // Garson / Personel Performans Modalı State'leri
+    const [selectedStaffForPerformance, setSelectedStaffForPerformance] = useState(null);
+    const [perfPeriod, setPerfPeriod] = useState('today'); // 'today' | 'week' | 'month' | 'all'
+    const [isResettingStats, setIsResettingStats] = useState(false);
 
     // PIN görünürlük toggle
     const toggleRevealPin = (id) => {
@@ -72,6 +95,151 @@ export default function AdminStaffManagement({
         setShowStaffModal(true);
     };
 
+    // Seçilen personele ve periyoda ait performans analizi
+    const staffPerformanceData = useMemo(() => {
+        if (!selectedStaffForPerformance) return null;
+        const staff = selectedStaffForPerformance;
+
+        const staffNameLower = String(staff.name || '').trim().toLowerCase();
+        const staffIdStr = String(staff.id || '').trim();
+
+        // 1. Personele ait tüm tamamlanan siparişleri filtrele
+        const staffOrders = (completedOrders || []).filter(o => {
+            const oWaiterId = String(o.waiter_id || '').trim();
+            const oWaiterName = String(o.waiter_name || '').trim().toLowerCase();
+            
+            if (oWaiterId && oWaiterId === staffIdStr) return true;
+            if (oWaiterName && oWaiterName === staffNameLower) return true;
+            if (staff.role === 'admin' && (oWaiterId.startsWith('mgr') || oWaiterId.startsWith('admin'))) return true;
+            return false;
+        });
+
+        // 2. Zaman aralığı filtresi
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = now.getMonth();
+        const d = now.getDate();
+        const todayStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const monthStr = `${y}-${String(m + 1).padStart(2, '0')}`;
+        const startOfToday = new Date(y, m, d, 0, 0, 0).getTime();
+        const startOfWeek = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000)).getTime();
+        const startOfMonth = new Date(y, m, 1, 0, 0, 0).getTime();
+
+        const filteredOrders = staffOrders.filter(o => {
+            const rawTime = o.created_at || o.closed_at || o.order_taken_at || o.timestamp || 0;
+            const t = new Date(rawTime).getTime();
+            const dateStr = typeof rawTime === 'string' ? rawTime.slice(0, 10) : '';
+
+            if (perfPeriod === 'today') {
+                return (dateStr && dateStr === todayStr) || (t && t >= startOfToday);
+            }
+            if (perfPeriod === 'week') {
+                return t >= startOfWeek;
+            }
+            if (perfPeriod === 'month') {
+                return (dateStr && dateStr.startsWith(monthStr)) || (t && t >= startOfMonth);
+            }
+            return true; // 'all'
+        });
+
+        // 3. Metrik hesaplamaları
+        let periodRevenue = filteredOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+        let periodOrdersCount = filteredOrders.length;
+        let periodCashRevenue = filteredOrders.reduce((sum, o) => sum + (o.payment_method === 'cash' ? (Number(o.total) || 0) : 0), 0);
+        let periodCardRevenue = filteredOrders.reduce((sum, o) => sum + (o.payment_method === 'card' ? (Number(o.total) || 0) : 0), 0);
+
+        // Eğer 'all' seçiliyse ve sipariş listesi boşsa, personelin statik sayacını fallback yap
+        if (perfPeriod === 'all' && periodOrdersCount === 0) {
+            periodRevenue = Number(staff.total_revenue) || 0;
+            periodOrdersCount = Number(staff.total_orders_count) || 0;
+        }
+
+        const avgOrder = periodOrdersCount > 0 ? (periodRevenue / periodOrdersCount) : 0;
+
+        // Ürün bazlı satış analizi
+        const productMap = {};
+        let totalItemsSold = 0;
+        filteredOrders.forEach(o => {
+            (o.items || []).forEach(it => {
+                const pName = it.name || 'Ürün';
+                const qty = Number(it.quantity || it.count || 1);
+                const price = Number(it.price || 0);
+                totalItemsSold += qty;
+                if (!productMap[pName]) {
+                    productMap[pName] = { name: pName, quantity: 0, revenue: 0 };
+                }
+                productMap[pName].quantity += qty;
+                productMap[pName].revenue += (qty * price);
+            });
+        });
+
+        const topProducts = Object.values(productMap).sort((a, b) => b.quantity - a.quantity).slice(0, 10);
+
+        // Siparişleri yeniden eskiye sırala
+        const sortedOrders = [...filteredOrders].sort((a, b) => {
+            const ta = new Date(a.closed_at || a.created_at || 0).getTime();
+            const tb = new Date(b.closed_at || b.created_at || 0).getTime();
+            return tb - ta;
+        });
+
+        return {
+            orders: sortedOrders,
+            revenue: periodRevenue,
+            ordersCount: periodOrdersCount,
+            cashRevenue: periodCashRevenue,
+            cardRevenue: periodCardRevenue,
+            avgOrder,
+            totalItemsSold,
+            topProducts,
+            allTimeTotalRevenue: Number(staff.total_revenue) || 0,
+            allTimeTotalOrders: Number(staff.total_orders_count) || 0
+        };
+    }, [selectedStaffForPerformance, completedOrders, perfPeriod]);
+
+    // Personel Sayaç Sıfırlama (Firestore Document Update)
+    const handleResetStaffStats = async (staff, e) => {
+        if (e) e.stopPropagation();
+        if (!staff) return;
+
+        const collectionName = staff.role === 'admin' ? 'managers' : (staff.role === 'kitchen' ? 'kitchen_staff' : 'waiters');
+
+        const doReset = async () => {
+            setIsResettingStats(true);
+            try {
+                await updateDoc(doc(db, collectionName, staff.id), {
+                    total_revenue: 0,
+                    total_orders_count: 0,
+                    total_items_sold: 0
+                });
+                setSelectedStaffForPerformance(prev => prev ? ({
+                    ...prev,
+                    total_revenue: 0,
+                    total_orders_count: 0,
+                    total_items_sold: 0
+                }) : null);
+                if (showToast) showToast(`${staff.name} isimli personelin ciro ve sipariş sayaçları sıfırlandı!`, 'success');
+            } catch (err) {
+                console.error("Staff stats reset error:", err);
+                if (showToast) showToast('Sayaç sıfırlanırken hata oluştu.', 'error');
+            } finally {
+                setIsResettingStats(false);
+            }
+        };
+
+        if (showConfirm) {
+            showConfirm(
+                `${staff.name} Personel Sayacını Sıfırla`,
+                `"${staff.name}" adlı personelin toplam ciro ve sipariş adet sayaçları 0,00 ₺ olarak sıfırlanacaktır. Bu işlem geri alınamaz. Onaylıyor musunuz?`,
+                doReset,
+                'danger'
+            );
+        } else {
+            if (window.confirm(`${staff.name} personelinin ciro sayacını sıfırlamak istediğinize emin misiniz?`)) {
+                doReset();
+            }
+        }
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
             {/* Üst Başlık & Aksiyon Butonları */}
@@ -92,7 +260,7 @@ export default function AdminStaffManagement({
                         <span style={{ color: 'var(--brand-gold)' }}>👥</span> Personel & Ekip Yönetimi
                     </h2>
                     <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                        Garsonlar, mutfak şefleri ve yöneticilerin sisteme giriş PIN kodları ve yetkileri
+                        Garsonlar, mutfak şefleri ve yöneticilerin sisteme giriş PIN kodları, yetkileri ve performans raporları
                     </p>
                 </div>
 
@@ -308,6 +476,10 @@ export default function AdminStaffManagement({
                         return (
                             <div
                                 key={staff.id}
+                                onClick={() => {
+                                    setSelectedStaffForPerformance(staff);
+                                    setPerfPeriod('today');
+                                }}
                                 style={{
                                     background: 'var(--bg-surface)',
                                     borderRadius: 'var(--radius-lg)',
@@ -318,10 +490,21 @@ export default function AdminStaffManagement({
                                     flexDirection: 'column',
                                     gap: '14px',
                                     position: 'relative',
-                                    transition: 'all 0.2s ease'
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.borderColor = 'var(--brand-gold)';
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.35)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.borderColor = 'var(--border-card)';
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                    e.currentTarget.style.boxShadow = 'var(--shadow-soft)';
                                 }}
                             >
-                                {/* Kart Başlığı: Avatar, İsim & Rol Rozeti */}
+                                {/* Kart Başlığı: Avatar, İsim & Rol Rozeti & Performans İpucu */}
                                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                         {/* Renkli Avatar Baş Harfi */}
@@ -364,23 +547,44 @@ export default function AdminStaffManagement({
                                             {staff.hire_date && (
                                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                     <span>📅</span>
-                                                    <span>İşe Giriş: {new Date(staff.hire_date).toLocaleDateString('tr-TR')}</span>
+                                                    <span>İşe Giriş: {new Date(staff.hire_date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                                                 </div>
                                             )}
                                         </div>
                                     </div>
+
+                                    {/* Performans İncele Rozeti */}
+                                    <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        fontSize: '11px',
+                                        fontWeight: 800,
+                                        color: 'var(--brand-gold)',
+                                        background: 'rgba(245, 158, 11, 0.1)',
+                                        border: '1px solid rgba(245, 158, 11, 0.25)',
+                                        padding: '4px 8px',
+                                        borderRadius: '6px'
+                                    }}>
+                                        <BarChart3 size={13} />
+                                        <span>Performans</span>
+                                        <ChevronRight size={13} />
+                                    </div>
                                 </div>
 
                                 {/* Orta Kısım: PIN Kodu Kutusu (Göz ikonuyla açıp kapatılabilir) */}
-                                <div style={{
-                                    background: 'var(--bg-surface-elevated)',
-                                    borderRadius: '10px',
-                                    padding: '10px 14px',
-                                    border: '1px solid var(--border-subtle)',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center'
-                                }}>
+                                <div 
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{
+                                        background: 'var(--bg-surface-elevated)',
+                                        borderRadius: '10px',
+                                        padding: '10px 14px',
+                                        border: '1px solid var(--border-subtle)',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center'
+                                    }}
+                                >
                                     <div>
                                         <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Giriş PIN Kodu</div>
                                         <div style={{ fontSize: '16px', fontWeight: 900, color: 'white', fontFamily: 'monospace', letterSpacing: isPinVisible ? '2px' : '3px' }}>
@@ -389,7 +593,10 @@ export default function AdminStaffManagement({
                                     </div>
                                     <button
                                         type="button"
-                                        onClick={() => toggleRevealPin(staff.id)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            toggleRevealPin(staff.id);
+                                        }}
                                         style={{
                                             background: 'rgba(255, 255, 255, 0.05)',
                                             border: 'none',
@@ -457,10 +664,14 @@ export default function AdminStaffManagement({
                                 </div>
 
                                 {/* Aksiyon Butonları */}
-                                <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border-card)' }}>
+                                <div 
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{ display: 'flex', gap: '8px', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border-card)' }}
+                                >
                                     <button
                                         type="button"
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                            e.stopPropagation();
                                             setEditingStaffPin(staff);
                                             setNewPinInput('');
                                             setShowPinModal(true);
@@ -488,7 +699,10 @@ export default function AdminStaffManagement({
 
                                     <button
                                         type="button"
-                                        onClick={() => handleDeleteStaff(staff.id, staff.role, staff.name)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteStaff(staff.id, staff.role, staff.name);
+                                        }}
                                         style={{
                                             padding: '8px 12px',
                                             background: 'rgba(239, 68, 68, 0.08)',
@@ -542,15 +756,25 @@ export default function AdminStaffManagement({
                                 const displayPin = isPinVisible ? (staff.pin || '------') : '••••••';
 
                                 return (
-                                    <tr key={staff.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                    <tr 
+                                        key={staff.id} 
+                                        onClick={() => {
+                                            setSelectedStaffForPerformance(staff);
+                                            setPerfPeriod('today');
+                                        }}
+                                        style={{ borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer' }}
+                                    >
                                         <td style={{ padding: '14px 10px', fontWeight: 800, color: 'white' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                                 <span style={{ fontSize: '16px' }}>{staff.icon}</span>
                                                 <div>
-                                                    <div>{staff.name}</div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        {staff.name}
+                                                        <span style={{ fontSize: '11px', color: 'var(--brand-gold)' }}>📊</span>
+                                                    </div>
                                                     {staff.hire_date && (
                                                         <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500, marginTop: '2px' }}>
-                                                            📅 İşe Giriş: {new Date(staff.hire_date).toLocaleDateString('tr-TR')}
+                                                            📅 İşe Giriş: {new Date(staff.hire_date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
                                                         </div>
                                                     )}
                                                 </div>
@@ -569,12 +793,18 @@ export default function AdminStaffManagement({
                                             </span>
                                         </td>
                                         <td style={{ padding: '14px 10px' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <div 
+                                                onClick={(e) => e.stopPropagation()}
+                                                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                                            >
                                                 <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '14px', color: 'white', letterSpacing: isPinVisible ? '1px' : '2px' }}>
                                                     {displayPin}
                                                 </span>
                                                 <button
-                                                    onClick={() => toggleRevealPin(staff.id)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        toggleRevealPin(staff.id);
+                                                    }}
                                                     style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
                                                 >
                                                     {isPinVisible ? <EyeOff size={13} /> : <Eye size={13} />}
@@ -597,11 +827,27 @@ export default function AdminStaffManagement({
                                             </span>
                                         </td>
                                         <td style={{ padding: '14px 10px', textAlign: 'right' }}>
-                                            <div style={{ display: 'inline-flex', gap: '6px' }}>
+                                            <div 
+                                                onClick={(e) => e.stopPropagation()}
+                                                style={{ display: 'inline-flex', gap: '6px' }}
+                                            >
+                                                <button
+                                                    className="btn-outline"
+                                                    style={{ padding: '5px 10px', fontSize: '12px', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedStaffForPerformance(staff);
+                                                        setPerfPeriod('today');
+                                                    }}
+                                                    title="Performansı İncele"
+                                                >
+                                                    <BarChart3 size={13} /> Performans
+                                                </button>
                                                 <button
                                                     className="btn-outline"
                                                     style={{ padding: '5px 10px', fontSize: '12px', color: 'var(--brand-gold)', borderColor: 'rgba(245,159,0,0.4)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                                    onClick={() => {
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
                                                         setEditingStaffPin(staff);
                                                         setNewPinInput('');
                                                         setShowPinModal(true);
@@ -612,7 +858,10 @@ export default function AdminStaffManagement({
                                                 <button
                                                     className="btn-outline"
                                                     style={{ padding: '5px 10px', fontSize: '12px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                                    onClick={() => handleDeleteStaff(staff.id, staff.role, staff.name)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeleteStaff(staff.id, staff.role, staff.name);
+                                                    }}
                                                 >
                                                     <Trash2 size={13} /> Sil
                                                 </button>
@@ -625,6 +874,18 @@ export default function AdminStaffManagement({
                     </table>
                 </div>
             )}
+
+                        {/* GARSON & PERSONEL PERFORMANS MODALI */}
+            <StaffPerformanceModal
+                staff={selectedStaffForPerformance}
+                data={staffPerformanceData}
+                period={perfPeriod}
+                setPeriod={setPerfPeriod}
+                onClose={() => setSelectedStaffForPerformance(null)}
+                onResetStats={handleResetStaffStats}
+                isResettingStats={isResettingStats}
+            />
         </div>
     );
 }
+

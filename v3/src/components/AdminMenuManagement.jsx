@@ -199,6 +199,7 @@ export default function AdminMenuManagement({
         }
     };
 
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
             {/* 1. ÜST KONTROL & STATS ÇUBUĞU (Modern POS Kokpiti) */}
@@ -445,8 +446,8 @@ export default function AdminMenuManagement({
                     </span>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginRight: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', margin: '0 4px' }}>
                         Kategoriler:
                     </span>
                     <button

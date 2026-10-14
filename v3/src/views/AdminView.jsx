@@ -1101,12 +1101,15 @@ export default function AdminView() {
                     waitersList={waitersList}
                     kitchenList={kitchenList}
                     managersList={managersList}
+                    completedOrders={completedOrders}
                     setStaffModalRole={setStaffModalRole}
                     setShowStaffModal={setShowStaffModal}
                     setEditingStaffPin={setEditingStaffPin}
                     setNewPinInput={setNewPinInput}
                     setShowPinModal={setShowPinModal}
                     handleDeleteStaff={handleDeleteStaff}
+                    showConfirm={showConfirm}
+                    showToast={showToast}
                 />
             )}
 

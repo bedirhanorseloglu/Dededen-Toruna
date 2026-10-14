@@ -211,15 +211,25 @@ export function AppProvider({ children }) {
     // ------------------------------------------------------------------
     const [menuProducts, setMenuProducts] = useState(MENU_PRODUCTS);
 
-    // Canlı Menü Dinleyicisi
+    // Canlı Menü Dinleyicisi (Default katalog ile Firestore belgelerini akıllıca birleştirir)
     useEffect(() => {
         const unsubMenu = onSnapshot(collection(db, "menu_products"), (snap) => {
-            if (!snap.empty) {
-                const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                setMenuProducts(list);
-            } else {
-                setMenuProducts(MENU_PRODUCTS);
-            }
+            const productMap = new Map();
+            // 1. Önce standart menüdeki ürünleri varsayılan olarak yükle
+            MENU_PRODUCTS.forEach(p => productMap.set(p.id, { ...p }));
+
+            // 2. Firestore'daki kayıtları üzerine birleştir (fiyat güncellemeleri, yeni eklenen ürünler veya silinenler)
+            snap.docs.forEach(d => {
+                const data = { id: d.id, ...d.data() };
+                if (data.deleted === true) {
+                    productMap.delete(d.id);
+                } else {
+                    productMap.set(d.id, data);
+                }
+            });
+
+            const list = Array.from(productMap.values());
+            setMenuProducts(list);
         }, (err) => {
             console.warn("Menu products listener fallback to default menu:", err.message);
             setMenuProducts(MENU_PRODUCTS);
@@ -236,6 +246,7 @@ export function AppProvider({ children }) {
             price: Number(item.price) || 0,
             category_id: item.category_id || 'diger',
             active: item.active !== false,
+            deleted: false,
             updated_at: new Date().toISOString()
         };
 
@@ -291,9 +302,13 @@ export function AppProvider({ children }) {
         // 1. İyimser yerel state silme
         setMenuProducts(prev => prev.filter(p => p.id !== id));
 
-        // 2. Firestore'dan sil
+        // 2. Firestore'da silindi (soft delete) olarak işaretle
         try {
-            await deleteDoc(doc(db, "menu_products", id));
+            await setDoc(doc(db, "menu_products", id), {
+                id,
+                deleted: true,
+                updated_at: new Date().toISOString()
+            }, { merge: true });
         } catch (e) {
             console.warn("Firestore menu delete error:", e.message);
         }
@@ -308,8 +323,9 @@ export function AppProvider({ children }) {
                 const ref = doc(db, "menu_products", p.id);
                 batch.set(ref, {
                     ...p,
+                    deleted: false,
                     updated_at: new Date().toISOString()
-                });
+                }, { merge: true });
             });
             await batch.commit();
             showToast("Varsayılan menü veritabanına aktarıldı!", "success");
@@ -339,7 +355,7 @@ export function AppProvider({ children }) {
             limit(300)
         );
         const unsubExp = onSnapshot(qExp, (snap) => {
-            const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const list = snap.docs.map(d => ({ ...d.data(), id: d.id, docId: d.id }));
             setExpenses(list);
             try { localStorage.setItem('adisyon_expenses_backup', JSON.stringify(list)); } catch (e) {}
         }, (err) => {
@@ -359,8 +375,10 @@ export function AppProvider({ children }) {
         const day = String(now.getDate()).padStart(2, '0');
         const defaultLocalDate = `${year}-${month}-${day}`;
 
+        const expenseDocRef = doc(collection(db, "expenses"));
         const newExpense = {
-            id: 'exp_' + Date.now(),
+            id: expenseDocRef.id,
+            docId: expenseDocRef.id,
             title: (data.title || '').trim(),
             amount: Number(data.amount) || 0,
             category: data.category || 'diger',
@@ -372,8 +390,7 @@ export function AppProvider({ children }) {
         };
 
         try {
-            const ref = await addDoc(collection(db, "expenses"), newExpense);
-            newExpense.id = ref.id;
+            await setDoc(expenseDocRef, newExpense);
         } catch (err) {
             console.warn("Firestore expense add error, saving locally:", err);
             setExpenses(prev => {
@@ -388,12 +405,20 @@ export function AppProvider({ children }) {
 
     const deleteExpense = async (id) => {
         try {
+            // 1. Doğrudan Firestore document ID ile sil
             await deleteDoc(doc(db, "expenses", id));
+
+            // 2. Eğer id eski verilerden kalan bir 'exp_...' alanıysa sorguyla bul ve sil
+            const q = query(collection(db, "expenses"), where("id", "==", id));
+            const snap = await getDocs(q);
+            for (const d of snap.docs) {
+                await deleteDoc(d.ref);
+            }
         } catch (err) {
             console.warn("Firestore delete error, removing locally:", err);
         }
         setExpenses(prev => {
-            const next = prev.filter(e => e.id !== id);
+            const next = prev.filter(e => e.id !== id && e.docId !== id);
             try { localStorage.setItem('adisyon_expenses_backup', JSON.stringify(next)); } catch (e) {}
             return next;
         });
@@ -413,12 +438,17 @@ export function AppProvider({ children }) {
 
         try {
             await setDoc(doc(db, "expenses", id), payload, { merge: true });
+            const q = query(collection(db, "expenses"), where("id", "==", id));
+            const snap = await getDocs(q);
+            for (const d of snap.docs) {
+                await setDoc(d.ref, payload, { merge: true });
+            }
         } catch (err) {
             console.warn("Firestore expense update error, updating locally:", err);
         }
 
         setExpenses(prev => {
-            const next = prev.map(e => e.id === id ? { ...e, ...payload } : e);
+            const next = prev.map(e => (e.id === id || e.docId === id) ? { ...e, ...payload } : e);
             try { localStorage.setItem('adisyon_expenses_backup', JSON.stringify(next)); } catch (e) {}
             return next;
         });
