@@ -7,8 +7,11 @@ import {
     Receipt, 
     Award, 
     Calendar, 
+    CalendarDays,
     Clock, 
-    Sparkles 
+    Sparkles,
+    Banknote,
+    CreditCard
 } from 'lucide-react';
 import { formatMoney } from '../data/menu';
 
