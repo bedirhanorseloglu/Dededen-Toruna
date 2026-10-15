@@ -313,8 +313,9 @@ function renderCustomerTicket({ tableNo, items, total, title }) {
 const isTabletOrMobile = () => {
     if (typeof navigator === 'undefined') return false;
     const ua = navigator.userAgent || '';
-    const isTouch = (typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 0);
-    return /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua) || (ua.includes('Macintosh') && isTouch);
+    const isTouch = (typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 0) || (typeof window !== 'undefined' && 'ontouchstart' in window);
+    const isMobileUA = /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua) || (ua.includes('Macintosh') && isTouch);
+    return isMobileUA || isTouch;
 };
 
 /* ------------------------------------------------------------------ */
@@ -324,34 +325,27 @@ const isTabletOrMobile = () => {
 function dispatchImage(dataUrl, title, settings) {
     const isMobile = isTabletOrMobile();
 
-    // 1. Tablet / Mobil Cihazlar:
+    // 1. Tablet veya Telefon (veya Ayarlarda RawBT seçiliyse):
+    // Android Chrome'da iframe bazen güvenlik sebebiyle rawbt'yi sessizce engelleyebildiği için
+    // en kararlı ve %100 garantili olan doğrudan anchor / link click tetikleyicisini kullanıyoruz.
     if (isMobile || settings?.mode === 'rawbt' || settings?.mode === 'thermal') {
         try {
-            // Gizli iframe ile tetikle: Tablet Adisyon ekranında kalsın, RawBT arka planda bassın
-            const oldRawbtFrame = document.getElementById('rawbt-silent-trigger-iframe');
-            if (oldRawbtFrame) oldRawbtFrame.remove();
-
-            const triggerFrame = document.createElement('iframe');
-            triggerFrame.id = 'rawbt-silent-trigger-iframe';
-            triggerFrame.style.position = 'fixed';
-            triggerFrame.style.top = '-9999px';
-            triggerFrame.style.left = '-9999px';
-            triggerFrame.style.width = '1px';
-            triggerFrame.style.height = '1px';
-            triggerFrame.style.border = 'none';
-            triggerFrame.style.opacity = '0';
-            triggerFrame.style.pointerEvents = 'none';
-            document.body.appendChild(triggerFrame);
-
-            triggerFrame.src = 'rawbt:' + dataUrl;
-
+            const rawbtUrl = 'rawbt:' + dataUrl;
+            
+            // Gizli anchor oluşturup doğrudan tıkla (Chrome User-Gesture mekanizması bunu asla engellemez)
+            const link = document.createElement('a');
+            link.href = rawbtUrl;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            
             setTimeout(() => {
-                try { triggerFrame.remove(); } catch(e){}
-            }, 3500);
+                try { link.remove(); } catch(e){}
+            }, 1000);
 
             return true;
         } catch (e) {
-            console.warn("Silent RawBT launch failed, fallback to href:", e);
+            console.warn("Anchor RawBT launch failed, fallback to location href:", e);
             window.location.href = 'rawbt:' + dataUrl;
             return true;
         }
