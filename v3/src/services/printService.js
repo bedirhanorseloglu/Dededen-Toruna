@@ -77,8 +77,22 @@ function renderToDataUrl(layoutFn) {
     return canvas.toDataURL('image/png');
 }
 
-function drawLogo(ctx, draw, y, maxH = 150) {
-    if (!logoImg || !logoImg.complete || !logoImg.naturalWidth) return y;
+function drawLogo(ctx, draw, y, maxH = 140) {
+    if (!logoImg || !logoImg.complete || !logoImg.naturalWidth) {
+        if (draw) {
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = `800 24px ${FONT}`;
+            const boxW = 280, boxH = 46;
+            roundRect(ctx, (PAPER_WIDTH - boxW) / 2, y, boxW, boxH, 23);
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+            ctx.fillText('DEDEDEN TORUNA', PAPER_WIDTH / 2, y + boxH / 2);
+            ctx.restore();
+        }
+        return y + 54;
+    }
     const ratio = logoImg.naturalWidth / logoImg.naturalHeight;
     let h = maxH;
     let w = h * ratio;
