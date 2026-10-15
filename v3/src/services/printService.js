@@ -192,7 +192,7 @@ function renderKitchenTicket({ tableNo, items, isExtra }) {
         const totalQty = items.reduce((s, i) => s + (Number(i.quantity) || 1), 0);
         y = centerText(ctx, draw, `${items.length} kalem • ${totalQty} adet`, y, `600 22px ${FONT}`, 22) + 10;
         y = centerText(ctx, draw, 'Dededen Toruna', y, `500 20px ${FONT}`, 20);
-        return y + 160; // kesici payı (bıçağın yazının altını kesmemesi için güvenli mesafe)
+        return y + 110; // kesici payı
     });
 }
 
@@ -297,8 +297,8 @@ const isTabletOrMobile = () => {
 function dispatchImage(dataUrl, title, settings) {
     const isMobile = isTabletOrMobile();
 
-    // 1. Tablet / Mobil Cihazlar (Android/iOS): Doğrudan RawBT protokolüne fırlat
-    if (isMobile) {
+    // 1. Tablet / Mobil Cihazlar VEYA Direkt Baskı (RawBT) seçiliyse doğrudan RawBT'ye fırlat
+    if (isMobile || settings?.mode === 'rawbt' || settings?.mode === 'thermal') {
         try {
             window.location.href = 'rawbt:' + dataUrl;
             return true;
