@@ -5,7 +5,7 @@
 import { formatMoney, isInstantDeliveryCategory } from '../data/menu.js';
 
 const PAPER_WIDTH = 576;
-const PAD = 28;
+const PAD = 10;
 const FONT = "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 
 // Logoyu önceden yükle (tıklama anında senkron çizebilmek için)
@@ -192,7 +192,7 @@ function renderKitchenTicket({ tableNo, items, isExtra }) {
         const totalQty = items.reduce((s, i) => s + (Number(i.quantity) || 1), 0);
         y = centerText(ctx, draw, `${items.length} kalem • ${totalQty} adet`, y, `600 22px ${FONT}`, 22) + 10;
         y = centerText(ctx, draw, 'Dededen Toruna', y, `500 20px ${FONT}`, 20);
-        return y + 60; // kesici payı
+        return y + 160; // kesici payı (bıçağın yazının altını kesmemesi için güvenli mesafe)
     });
 }
 
@@ -279,7 +279,7 @@ function renderCustomerTicket({ tableNo, items, total, title }) {
         y = centerText(ctx, draw, 'Bizi tercih ettiğiniz için teşekkür ederiz', y, `600 22px ${FONT}`, 22) + 8;
         y = centerText(ctx, draw, 'Afiyet olsun!', y, `800 24px ${FONT}`, 24) + 14;
         y = centerText(ctx, draw, 'Bu belge mali değer taşımaz', y, `400 17px ${FONT}`, 17);
-        return y + 60;
+        return y + 160; // kesici payı
     });
 }
 
@@ -526,7 +526,7 @@ export function renderZReportTicket(zData) {
 
         y = centerText(ctx, draw, '*** GÜN SONU KAPANIK RAPORUDUR ***', y, `800 22px ${FONT}`, 22) + 8;
         y = centerText(ctx, draw, 'Mali değeri yoktur - İşletme İçi Z-Raporu', y, `400 17px ${FONT}`, 17);
-        return y + 60;
+        return y + 160; // kesici payı
     });
 }
 
