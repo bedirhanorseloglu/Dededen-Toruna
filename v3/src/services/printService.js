@@ -130,12 +130,6 @@ function renderKitchenTicket({ tableNo, items, isExtra }) {
     const { date, time } = nowStrings();
 
     return renderToDataUrl((ctx, draw) => {
-        // En üstte tam genişlik sabitleyici (RawBT'nin sağ boşluğu kırpmasını önler)
-        if (draw) {
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, PAPER_WIDTH, 1);
-        }
-
         let y = 4;
         y = drawLogo(ctx, draw, y, 110) + 8;
 
@@ -199,12 +193,14 @@ function renderKitchenTicket({ tableNo, items, isExtra }) {
         y = centerText(ctx, draw, `${items.length} kalem • ${totalQty} adet`, y, `600 22px ${FONT}`, 22) + 8;
         y = centerText(ctx, draw, 'Dededen Toruna', y, `500 20px ${FONT}`, 20);
 
-        // Bıçağın yazıyı kesmemesi ve kağıdın 3 cm ileri sürülmesi için alt besleme payı
-        y += 150;
+        // Bıçağın yazıyı kesmemesi ve kağıdın ileri sürülmesi için alt besleme payı
+        y += 130;
         if (draw) {
-            // RawBT'nin genişliği ve alt boşluğu kırpmasını engelleyen tam genişlik sınır çizgisi
+            // RawBT'nin alt boşluğu kırpmasını önleyen minik köşe işaretleyicisi
+            ctx.fillStyle = '#222';
+            ctx.fillRect(PAD, y, 6, 2);
+            ctx.fillRect(PAPER_WIDTH - PAD - 6, y, 6, 2);
             ctx.fillStyle = '#000';
-            ctx.fillRect(0, y, PAPER_WIDTH, 1);
         }
         return y + 10;
     });
@@ -215,12 +211,6 @@ function renderCustomerTicket({ tableNo, items, total, title }) {
     const priceColW = 150;
 
     return renderToDataUrl((ctx, draw) => {
-        // En üstte tam genişlik sabitleyici (RawBT'nin sağ boşluğu kırpmasını engeller)
-        if (draw) {
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, PAPER_WIDTH, 1);
-        }
-
         let y = 6;
         y = drawLogo(ctx, draw, y, 130) + 8;
         y = centerText(ctx, draw, 'DEDEDEN TORUNA', y, `900 36px ${FONT}`, 36) + 6;
@@ -301,10 +291,12 @@ function renderCustomerTicket({ tableNo, items, total, title }) {
         y = centerText(ctx, draw, 'Bu belge mali değer taşımaz', y, `400 17px ${FONT}`, 17);
 
         // Bıçağın alttaki yazıyı kesmemesi ve kağıdın ileri sürülmesi için alt besleme payı
-        y += 150;
+        y += 130;
         if (draw) {
+            ctx.fillStyle = '#222';
+            ctx.fillRect(PAD, y, 6, 2);
+            ctx.fillRect(PAPER_WIDTH - PAD - 6, y, 6, 2);
             ctx.fillStyle = '#000';
-            ctx.fillRect(0, y, PAPER_WIDTH, 1);
         }
         return y + 10;
     });
@@ -313,9 +305,8 @@ function renderCustomerTicket({ tableNo, items, total, title }) {
 const isTabletOrMobile = () => {
     if (typeof navigator === 'undefined') return false;
     const ua = navigator.userAgent || '';
-    const isTouch = (typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 0) || (typeof window !== 'undefined' && 'ontouchstart' in window);
-    const isMobileUA = /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua) || (ua.includes('Macintosh') && isTouch);
-    return isMobileUA || isTouch;
+    const isTouch = (typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 0);
+    return /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua) || (ua.includes('Macintosh') && isTouch);
 };
 
 /* ------------------------------------------------------------------ */
@@ -325,8 +316,7 @@ const isTabletOrMobile = () => {
 function dispatchImage(dataUrl, title, settings) {
     const isMobile = isTabletOrMobile();
 
-    // 1. Tablet veya Telefon (Android / iOS):
-    // Android'de RawBT uygulamasını kesin olarak tetikleyen resmi yöntem window.location.href'tir.
+    // 1. Tablet / Mobil Cihazlar VEYA Direkt Baskı (RawBT) seçiliyse doğrudan RawBT'ye fırlat
     if (isMobile || settings?.mode === 'rawbt' || settings?.mode === 'thermal') {
         try {
             window.location.href = 'rawbt:' + dataUrl;
@@ -451,14 +441,8 @@ export function renderZReportTicket(zData) {
     } = zData || {};
 
     return renderToDataUrl((ctx, draw) => {
-        // En üstte tam genişlik sabitleyici (RawBT'nin sağ boşluğu kırpmasını engeller)
-        if (draw) {
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, PAPER_WIDTH, 1);
-        }
-
-        let y = 6;
-        y = drawLogo(ctx, draw, y, 130) + 8;
+        let y = 20;
+        y = drawLogo(ctx, draw, y, 140) + 10;
         y = centerText(ctx, draw, 'DEDEDEN TORUNA', y, `900 36px ${FONT}`, 36) + 6;
         y = centerText(ctx, draw, 'Hamsiköy Sütlacı & Cafe', y, `500 22px ${FONT}`, 22) + 16;
 
@@ -561,13 +545,7 @@ export function renderZReportTicket(zData) {
 
         y = centerText(ctx, draw, '*** GÜN SONU KAPANIK RAPORUDUR ***', y, `800 22px ${FONT}`, 22) + 8;
         y = centerText(ctx, draw, 'Mali değeri yoktur - İşletme İçi Z-Raporu', y, `400 17px ${FONT}`, 17);
-
-        y += 150;
-        if (draw) {
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, y, PAPER_WIDTH, 1);
-        }
-        return y + 10;
+        return y + 160; // kesici payı
     });
 }
 
