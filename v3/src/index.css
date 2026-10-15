@@ -95,7 +95,7 @@ body {
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border-bottom: 1px solid var(--border-subtle);
-    padding: 12px 24px;
+    padding: max(10px, env(safe-area-inset-top, 10px)) max(18px, env(safe-area-inset-right, 18px)) 10px max(18px, env(safe-area-inset-left, 18px));
     position: sticky;
     top: 0;
     z-index: 100;
@@ -2325,10 +2325,27 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
     }
 }
 
-@media (max-width: 440px) {
+@media (max-width: 540px) {
     .modern-category-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 5px;
+        display: grid;
+        grid-auto-flow: column;
+        grid-template-rows: repeat(2, 34px);
+        grid-template-columns: none;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        gap: 6px;
+        padding-bottom: 3px;
+        scrollbar-width: none;
+    }
+    .modern-category-grid::-webkit-scrollbar {
+        display: none;
+    }
+    .modern-cat-pill {
+        height: 34px;
+        padding: 0 12px;
+        font-size: 11.5px;
+        flex-shrink: 0;
+        white-space: nowrap;
     }
 }
 
@@ -3542,3 +3559,641 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
 }
+
+/* ==========================================================================
+   13. SAMSUNG GALAXY S26 & SAMSUNG TAB A11 ULTRA-RESPONSİVE SİSTEMİ
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   A) SAMSUNG GALAXY S26 & MODERN AKILLI TELEFONLAR (360px - 440px Genişlik)
+   - Dinamik Viewport (100dvh)
+   - Ön Kamera Deliği (Punch Hole) & Android Alt Gesture Barı Koruması
+   - 2 Sütun Ergonomik Masa ve Ürün Izgaraları
+   - Tek Başparmakla Rahat Sipariş ve Ödeme Alma
+   -------------------------------------------------------------------------- */
+@media screen and (max-width: 540px) {
+    /* Safe Area & Ana Kapsayıcı */
+    body {
+        overscroll-behavior-y: none;
+    }
+
+    .app-header {
+        padding: max(10px, env(safe-area-inset-top, 10px)) max(12px, env(safe-area-inset-right, 12px)) 10px max(12px, env(safe-area-inset-left, 12px)) !important;
+        min-height: 54px;
+    }
+
+    .brand-section {
+        gap: 8px !important;
+    }
+
+    .brand-logo-img {
+        width: 34px !important;
+        height: 34px !important;
+    }
+
+    .brand-text h1 {
+        font-size: 14px !important;
+        letter-spacing: -0.2px;
+    }
+
+    .brand-subtitle {
+        display: none !important;
+    }
+
+    .user-badge {
+        padding: 5px 8px !important;
+        font-size: 11px !important;
+        gap: 4px !important;
+    }
+
+    .user-name-text {
+        max-width: 72px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 11.5px !important;
+    }
+
+    .user-role-tag {
+        font-size: 9.5px !important;
+        padding: 2px 5px !important;
+    }
+
+    /* GARSON / MASA SEÇİM EKRANI (S26: 2 Sütun Ferah Masalar) */
+    .waiter-page-container {
+        padding: 10px 10px max(24px, env(safe-area-inset-bottom, 24px)) 10px !important;
+    }
+
+    .waiter-controls-row {
+        flex-direction: column;
+        gap: 8px !important;
+        margin-bottom: 12px !important;
+    }
+
+    .modern-segmented-control {
+        width: 100% !important;
+    }
+
+    .segmented-btn {
+        flex: 1;
+        justify-content: center;
+        padding: 8px 6px !important;
+        font-size: 12px !important;
+    }
+
+    .modern-search-box {
+        max-width: 100% !important;
+        width: 100% !important;
+        height: 40px !important;
+    }
+
+    .modern-search-input {
+        font-size: 13px !important;
+    }
+
+    .tables-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8px !important;
+        padding: 0 !important;
+    }
+
+    .modern-table-card,
+    .table-card {
+        padding: 10px !important;
+        min-height: 116px !important;
+        border-radius: 14px !important;
+    }
+
+    .table-badge .table-title,
+    .table-card .table-no {
+        font-size: 14.5px !important;
+        font-weight: 800 !important;
+    }
+
+    .table-amount,
+    .table-card .table-total {
+        font-size: 15px !important;
+        font-weight: 800 !important;
+    }
+
+    .table-card-footer {
+        margin-top: 6px !important;
+        padding-top: 6px !important;
+    }
+
+    .table-card-btn {
+        padding: 7px 4px !important;
+        font-size: 11.5px !important;
+        min-height: 34px !important;
+        border-radius: 8px !important;
+    }
+
+    /* MASA SİPARİŞ DETAY EKRANI (S26: Tam Ekran Menü + Yüzen Sepet) */
+    .order-screen-layout {
+        grid-template-columns: 1fr !important;
+        height: calc(100vh - 58px) !important;
+        height: calc(100dvh - 58px) !important;
+        max-height: calc(100dvh - 58px) !important;
+    }
+
+    .category-bar-modern {
+        padding: 8px 10px 6px 10px !important;
+        gap: 6px !important;
+        background: rgba(18, 14, 13, 0.95) !important;
+    }
+
+    .menu-search-wrapper {
+        height: 38px !important;
+        padding: 0 10px !important;
+        border-radius: 10px !important;
+    }
+
+    .menu-search-input {
+        font-size: 12.5px !important;
+    }
+
+    .menu-products-scroll {
+        padding: 10px 10px 115px 10px !important;
+    }
+
+    .products-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8px !important;
+    }
+
+    .product-item-card {
+        padding: 10px 10px !important;
+        min-height: 94px !important;
+        border-radius: 12px !important;
+    }
+
+    .product-name {
+        font-size: 12.5px !important;
+        line-height: 1.25 !important;
+        margin-bottom: 4px !important;
+    }
+
+    .product-price {
+        font-size: 13.5px !important;
+        font-weight: 800 !important;
+    }
+
+    /* YÜZEN SEPET BARI (S26 Android Gesture Barı ile Çakışmaz) */
+    .mobile-cart-bar {
+        bottom: max(12px, env(safe-area-inset-bottom, 12px)) !important;
+        left: 10px !important;
+        right: 10px !important;
+        padding: 10px 14px !important;
+        border-radius: 18px !important;
+    }
+
+    .mobile-cart-badge {
+        min-width: 28px !important;
+        height: 28px !important;
+        font-size: 12px !important;
+    }
+
+    .mobile-cart-title {
+        font-size: 10.5px !important;
+    }
+
+    .mobile-cart-total {
+        font-size: 15.5px !important;
+    }
+
+    .mobile-cart-btn {
+        padding: 8px 14px !important;
+        font-size: 12px !important;
+        border-radius: 12px !important;
+    }
+
+    /* ALTTAN AÇILAN CANLI ADİSYON ÇEKMECESİ (SLIDE-UP SHEET) */
+    .receipt-side.mobile-open {
+        height: 88vh !important;
+        height: 88dvh !important;
+        max-height: 88dvh !important;
+        border-radius: 26px 26px 0 0 !important;
+        padding-bottom: max(16px, env(safe-area-inset-bottom, 16px)) !important;
+    }
+
+    .receipt-header {
+        padding: 12px 14px !important;
+        border-radius: 26px 26px 0 0 !important;
+    }
+
+    .drawer-drag-pill {
+        width: 40px !important;
+        height: 4px !important;
+        margin: 6px auto 8px auto !important;
+    }
+
+    .receipt-items-list {
+        padding: 10px 12px !important;
+    }
+
+    .receipt-item-row {
+        padding: 8px 10px !important;
+        margin-bottom: 5px !important;
+    }
+
+    .receipt-footer {
+        padding: 12px 14px !important;
+        background: var(--bg-surface-elevated) !important;
+    }
+
+    .total-summary span:last-child {
+        font-size: 20px !important;
+    }
+
+    .checkout-actions-3col {
+        grid-template-columns: 1fr 1fr 1fr !important;
+        gap: 6px !important;
+        margin-top: 8px !important;
+    }
+
+    .btn-checkout-action {
+        padding: 10px 3px !important;
+        font-size: 11px !important;
+        border-radius: 10px !important;
+        min-height: 44px !important;
+        gap: 3px !important;
+    }
+
+    .btn-checkout-action svg {
+        width: 16px !important;
+        height: 16px !important;
+    }
+
+    /* GİRİŞ EKRANI (S26: Tek Ekranda Kaydırmasız Numpad) */
+    .login-screen {
+        padding: 12px !important;
+    }
+
+    .login-card {
+        padding: 20px 16px !important;
+        max-width: 360px !important;
+        border-radius: 22px !important;
+    }
+
+    .login-card img {
+        width: 68px !important;
+        height: 68px !important;
+    }
+
+    .login-card h1 {
+        font-size: 20px !important;
+    }
+
+    .role-selector {
+        margin: 12px 0 !important;
+        gap: 8px !important;
+    }
+
+    .role-btn {
+        padding: 8px 4px !important;
+        font-size: 11.5px !important;
+        gap: 4px !important;
+    }
+
+    .role-btn span:first-child {
+        font-size: 20px !important;
+    }
+
+    .pin-display {
+        margin: 12px 0 !important;
+        gap: 10px !important;
+    }
+
+    .pin-dot {
+        width: 12px !important;
+        height: 12px !important;
+    }
+
+    .numpad {
+        gap: 7px !important;
+    }
+
+    .num-btn {
+        height: 50px !important;
+        font-size: 20px !important;
+        border-radius: 12px !important;
+    }
+
+    /* YÖNETİCİ EKRANI (S26: 3x2 Izgara Sekmeler + Gün Sonu Z-Raporu) */
+    .admin-page-container {
+        padding: 10px 10px max(24px, env(safe-area-inset-bottom, 24px)) 10px !important;
+    }
+
+    .admin-nav-tabs {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 5px !important;
+        padding: 4px !important;
+    }
+
+    .admin-nav-btn {
+        min-height: 44px !important;
+        padding: 6px 2px !important;
+        font-size: 10.5px !important;
+    }
+
+    .admin-nav-btn .tab-icon {
+        font-size: 15px !important;
+    }
+
+    .btn-daily-closing {
+        min-height: 42px !important;
+        font-size: 12px !important;
+        padding: 8px 12px !important;
+    }
+
+    /* MODALLAR (S26: %94 Genişlik & İç Kaydırma) */
+    .modal-responsive-card {
+        width: 94vw !important;
+        max-width: 94vw !important;
+        max-height: 88dvh !important;
+        padding: 16px 12px !important;
+        border-radius: 18px !important;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   B) SAMSUNG GALAXY TAB A11 — YATAY POS MODU (Landscape: 1024px - 1340px)
+   - Kasa / Banko Standında Sabit Çalışma
+   - Sol Geniş Menü + Sağ 375px Canlı Adisyon Bölünmüş Ekranı (Split View)
+   - 17 Masa Tek Ekrana Kaydırmasız Sığar (5 Sütun)
+   - 6 Sekmeli Yönetici Menüsü Tek Satırda Tam Oturur
+   -------------------------------------------------------------------------- */
+@media screen and (min-width: 1024px) and (max-width: 1340px) {
+    /* Genel Yerleşim */
+    .admin-page-container,
+    .waiter-page-container {
+        padding: 16px 20px;
+        max-width: 100%;
+    }
+
+    .app-header {
+        padding: 10px 20px;
+        min-height: 60px;
+    }
+
+    /* SİPARİŞ ALMA EKRANI (BÖLÜNMÜŞ POS EKRANI) */
+    .order-screen-layout {
+        display: grid !important;
+        grid-template-columns: 1fr 375px !important;
+        height: calc(100vh - 66px) !important;
+        height: calc(100dvh - 66px) !important;
+        max-height: calc(100dvh - 66px) !important;
+        overflow: hidden !important;
+    }
+
+    .menu-side {
+        border-right: 1px solid var(--border-subtle) !important;
+        height: 100% !important;
+    }
+
+    .category-bar-modern {
+        padding: 10px 16px 8px 16px !important;
+        gap: 8px !important;
+    }
+
+    .modern-category-grid {
+        display: grid !important;
+        grid-template-columns: repeat(6, 1fr) !important;
+        gap: 6px !important;
+    }
+
+    .modern-cat-pill {
+        height: 38px !important;
+        padding: 0 8px !important;
+        font-size: 11.5px !important;
+    }
+
+    .menu-products-scroll {
+        padding: 14px 16px 40px 16px !important;
+    }
+
+    .products-grid {
+        grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)) !important;
+        gap: 12px !important;
+    }
+
+    .product-item-card {
+        padding: 14px 12px !important;
+        min-height: 106px !important;
+    }
+
+    .product-name {
+        font-size: 13.5px !important;
+    }
+
+    .product-price {
+        font-size: 15px !important;
+    }
+
+    /* SAĞ CANLI ADİSYON BÖLÜMÜ (TABLETTE HER ZAMAN AÇIK & SABİT) */
+    .receipt-side {
+        display: flex !important;
+        position: relative !important;
+        width: 375px !important;
+        height: 100% !important;
+        max-height: 100% !important;
+        transform: none !important;
+        border-left: 1px solid var(--border-subtle) !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        z-index: 10 !important;
+    }
+
+    .mobile-cart-bar {
+        display: none !important;
+    }
+
+    .receipt-backdrop {
+        display: none !important;
+    }
+
+    .drawer-drag-pill,
+    .btn-close-receipt-mobile {
+        display: none !important;
+    }
+
+    .receipt-footer {
+        padding: 14px 16px !important;
+    }
+
+    .checkout-actions-3col {
+        grid-template-columns: 1fr 1fr 1fr !important;
+        gap: 8px !important;
+    }
+
+    .btn-checkout-action {
+        padding: 12px 6px !important;
+        font-size: 12.5px !important;
+        min-height: 48px !important;
+    }
+
+    /* 17 MASA IZGARASI (Tab A11 Yatayda 5 Sütun — Tek Bakışta 17 Masa) */
+    .tables-grid {
+        grid-template-columns: repeat(5, 1fr) !important;
+        gap: 12px !important;
+    }
+
+    .modern-table-card,
+    .table-card {
+        padding: 12px 14px !important;
+        min-height: 128px !important;
+        border-radius: 16px !important;
+    }
+
+    .table-badge .table-title,
+    .table-card .table-no {
+        font-size: 16px !important;
+    }
+
+    .table-amount,
+    .table-card .table-total {
+        font-size: 17px !important;
+    }
+
+    /* YÖNETİCİ SEKMELERİ (Tab A11 Yatayda Tek Satır Taşmasız) */
+    .admin-nav-header {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 10px !important;
+    }
+
+    .admin-nav-tabs {
+        display: flex !important;
+        flex-direction: row !important;
+        gap: 5px !important;
+        padding: 5px !important;
+    }
+
+    .admin-nav-btn {
+        flex: 1 1 0 !important;
+        padding: 9px 8px !important;
+        font-size: 12px !important;
+        flex-direction: row !important;
+        gap: 6px !important;
+    }
+
+    .tab-label-full {
+        display: none !important;
+    }
+
+    .tab-label-short {
+        display: inline !important;
+        font-size: 12px !important;
+    }
+
+    .admin-receipt-drawer {
+        width: 420px !important;
+        top: 0 !important;
+        bottom: 0 !important;
+        right: 0 !important;
+        left: auto !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        border-radius: 0 !important;
+        border-left: 1px solid rgba(247, 103, 7, 0.4) !important;
+        border-top: none !important;
+    }
+
+    .admin-drawer-drag-pill {
+        display: none !important;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   C) SAMSUNG GALAXY TAB A11 — DİKEY MOD (Portrait: 768px - 850px Genişlik)
+   - Garson El Terminali Olarak Dikey Tutulduğunda
+   - 2 Sütun POS Düzeni Korunur (Menü + Sağ Adisyon)
+   - Masalar 3 Sütun Dengeli Dağılır
+   -------------------------------------------------------------------------- */
+@media screen and (min-width: 768px) and (max-width: 850px) {
+    .waiter-page-container,
+    .admin-page-container {
+        padding: 14px 16px;
+    }
+
+    .tables-grid {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 12px !important;
+    }
+
+    .modern-table-card,
+    .table-card {
+        padding: 12px !important;
+        min-height: 124px !important;
+    }
+
+    /* Sipariş ekranında dikey tablet için bölünmüş ekran POS rahatlığı */
+    .order-screen-layout {
+        grid-template-columns: 1fr 325px !important;
+        height: calc(100vh - 64px) !important;
+        height: calc(100dvh - 64px) !important;
+        max-height: calc(100dvh - 64px) !important;
+    }
+
+    .receipt-side {
+        display: flex !important;
+        position: relative !important;
+        width: 325px !important;
+        height: 100% !important;
+        transform: none !important;
+        border-left: 1px solid var(--border-subtle) !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .mobile-cart-bar {
+        display: none !important;
+    }
+
+    .receipt-backdrop {
+        display: none !important;
+    }
+
+    .drawer-drag-pill,
+    .btn-close-receipt-mobile {
+        display: none !important;
+    }
+
+    .modern-category-grid {
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 5px !important;
+    }
+
+    .modern-cat-pill {
+        height: 36px !important;
+        padding: 0 6px !important;
+        font-size: 11px !important;
+    }
+
+    .products-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px !important;
+    }
+
+    .admin-nav-tabs {
+        display: grid !important;
+        grid-template-columns: repeat(6, 1fr) !important;
+        gap: 4px !important;
+        padding: 4px !important;
+    }
+
+    .admin-nav-btn {
+        padding: 8px 2px !important;
+        font-size: 10.5px !important;
+        flex-direction: column !important;
+        gap: 3px !important;
+    }
+
+    .admin-kpi-grid {
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 10px !important;
+    }
+}
+

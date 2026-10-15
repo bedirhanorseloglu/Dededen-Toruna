@@ -130,6 +130,12 @@ function renderKitchenTicket({ tableNo, items, isExtra }) {
     const { date, time } = nowStrings();
 
     return renderToDataUrl((ctx, draw) => {
+        // En üstte tam genişlik sabitleyici (RawBT'nin sağ boşluğu kırpmasını önler)
+        if (draw) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, PAPER_WIDTH, 1);
+        }
+
         let y = 4;
         y = drawLogo(ctx, draw, y, 110) + 8;
 
@@ -193,14 +199,12 @@ function renderKitchenTicket({ tableNo, items, isExtra }) {
         y = centerText(ctx, draw, `${items.length} kalem • ${totalQty} adet`, y, `600 22px ${FONT}`, 22) + 8;
         y = centerText(ctx, draw, 'Dededen Toruna', y, `500 20px ${FONT}`, 20);
 
-        // Bıçağın yazıyı kesmemesi ve kağıdın ileri sürülmesi için alt besleme payı
-        y += 130;
+        // Bıçağın yazıyı kesmemesi ve kağıdın 3 cm ileri sürülmesi için alt besleme payı
+        y += 150;
         if (draw) {
-            // RawBT'nin alt boşluğu kırpmasını önleyen minik köşe işaretleyicisi
-            ctx.fillStyle = '#222';
-            ctx.fillRect(PAD, y, 6, 2);
-            ctx.fillRect(PAPER_WIDTH - PAD - 6, y, 6, 2);
+            // RawBT'nin genişliği ve alt boşluğu kırpmasını engelleyen tam genişlik sınır çizgisi
             ctx.fillStyle = '#000';
+            ctx.fillRect(0, y, PAPER_WIDTH, 1);
         }
         return y + 10;
     });
@@ -211,6 +215,12 @@ function renderCustomerTicket({ tableNo, items, total, title }) {
     const priceColW = 150;
 
     return renderToDataUrl((ctx, draw) => {
+        // En üstte tam genişlik sabitleyici (RawBT'nin sağ boşluğu kırpmasını engeller)
+        if (draw) {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, PAPER_WIDTH, 1);
+        }
+
         let y = 6;
         y = drawLogo(ctx, draw, y, 130) + 8;
         y = centerText(ctx, draw, 'DEDEDEN TORUNA', y, `900 36px ${FONT}`, 36) + 6;
@@ -291,12 +301,10 @@ function renderCustomerTicket({ tableNo, items, total, title }) {
         y = centerText(ctx, draw, 'Bu belge mali değer taşımaz', y, `400 17px ${FONT}`, 17);
 
         // Bıçağın alttaki yazıyı kesmemesi ve kağıdın ileri sürülmesi için alt besleme payı
-        y += 130;
+        y += 150;
         if (draw) {
-            ctx.fillStyle = '#222';
-            ctx.fillRect(PAD, y, 6, 2);
-            ctx.fillRect(PAPER_WIDTH - PAD - 6, y, 6, 2);
             ctx.fillStyle = '#000';
+            ctx.fillRect(0, y, PAPER_WIDTH, 1);
         }
         return y + 10;
     });
@@ -316,13 +324,36 @@ const isTabletOrMobile = () => {
 function dispatchImage(dataUrl, title, settings) {
     const isMobile = isTabletOrMobile();
 
-    // 1. Tablet / Mobil Cihazlar VEYA Direkt Baskı (RawBT) seçiliyse doğrudan RawBT'ye fırlat
+    // 1. Tablet / Mobil Cihazlar:
     if (isMobile || settings?.mode === 'rawbt' || settings?.mode === 'thermal') {
         try {
-            window.location.href = 'rawbt:' + dataUrl;
+            // Gizli iframe ile tetikle: Tablet Adisyon ekranında kalsın, RawBT arka planda bassın
+            const oldRawbtFrame = document.getElementById('rawbt-silent-trigger-iframe');
+            if (oldRawbtFrame) oldRawbtFrame.remove();
+
+            const triggerFrame = document.createElement('iframe');
+            triggerFrame.id = 'rawbt-silent-trigger-iframe';
+            triggerFrame.style.position = 'fixed';
+            triggerFrame.style.top = '-9999px';
+            triggerFrame.style.left = '-9999px';
+            triggerFrame.style.width = '1px';
+            triggerFrame.style.height = '1px';
+            triggerFrame.style.border = 'none';
+            triggerFrame.style.opacity = '0';
+            triggerFrame.style.pointerEvents = 'none';
+            document.body.appendChild(triggerFrame);
+
+            triggerFrame.src = 'rawbt:' + dataUrl;
+
+            setTimeout(() => {
+                try { triggerFrame.remove(); } catch (e) { }
+            }, 3500);
+
             return true;
         } catch (e) {
-            console.warn("Direct RawBT launch failed, fallback to silent iframe:", e);
+            console.warn("Silent RawBT launch failed, fallback to href:", e);
+            window.location.href = 'rawbt:' + dataUrl;
+            return true;
         }
     }
 
@@ -484,7 +515,7 @@ export function renderZReportTicket(zData) {
         printRow('Toplam Brüt Ciro:', formatMoney(totalRevenue), true, 26);
         printRow('💵 Nakit Tahsilat:', formatMoney(cashTotal), false, 23);
         printRow('💳 Kredi Kartı Tahsilat:', formatMoney(cardTotal), false, 23);
-        
+
         y += 6;
         if (draw) dashedLine(ctx, y);
         y += 18;
