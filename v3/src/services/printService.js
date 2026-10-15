@@ -62,7 +62,8 @@ function dashedLine(ctx, y) {
  */
 function renderToDataUrl(layoutFn) {
     const measure = document.createElement('canvas').getContext('2d');
-    const height = Math.ceil(layoutFn(measure, false));
+    const measuredH = layoutFn(measure, false);
+    const height = Math.max(200, Math.ceil(isNaN(measuredH) ? 400 : Number(measuredH)));
 
     const canvas = document.createElement('canvas');
     canvas.width = PAPER_WIDTH;
@@ -130,12 +131,6 @@ function renderKitchenTicket({ tableNo, items, isExtra }) {
     const { date, time } = nowStrings();
 
     return renderToDataUrl((ctx, draw) => {
-        // En üstte tam genişlik sabitleyici (RawBT'nin sağ boşluğu kırpmasını önler)
-        if (draw) {
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, PAPER_WIDTH, 1);
-        }
-
         let y = 4;
         y = drawLogo(ctx, draw, y, 110) + 8;
 
@@ -199,12 +194,13 @@ function renderKitchenTicket({ tableNo, items, isExtra }) {
         y = centerText(ctx, draw, `${items.length} kalem • ${totalQty} adet`, y, `600 22px ${FONT}`, 22) + 8;
         y = centerText(ctx, draw, 'Dededen Toruna', y, `500 20px ${FONT}`, 20);
 
-        // Bıçağın yazıyı kesmemesi ve kağıdın 3 cm ileri sürülmesi için alt besleme payı
-        y += 150;
+        // Bıçağın yazıyı kesmemesi ve kağıdın ileri sürülmesi için alt besleme payı
+        y += 140;
         if (draw) {
-            // RawBT'nin genişliği ve alt boşluğu kırpmasını engelleyen tam genişlik sınır çizgisi
+            ctx.fillStyle = '#222';
+            ctx.fillRect(PAD, y, 6, 2);
+            ctx.fillRect(PAPER_WIDTH - PAD - 6, y, 6, 2);
             ctx.fillStyle = '#000';
-            ctx.fillRect(0, y, PAPER_WIDTH, 1);
         }
         return y + 10;
     });
@@ -215,12 +211,6 @@ function renderCustomerTicket({ tableNo, items, total, title }) {
     const priceColW = 150;
 
     return renderToDataUrl((ctx, draw) => {
-        // En üstte tam genişlik sabitleyici (RawBT'nin sağ boşluğu kırpmasını engeller)
-        if (draw) {
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, PAPER_WIDTH, 1);
-        }
-
         let y = 6;
         y = drawLogo(ctx, draw, y, 130) + 8;
         y = centerText(ctx, draw, 'DEDEDEN TORUNA', y, `900 36px ${FONT}`, 36) + 6;
@@ -301,10 +291,12 @@ function renderCustomerTicket({ tableNo, items, total, title }) {
         y = centerText(ctx, draw, 'Bu belge mali değer taşımaz', y, `400 17px ${FONT}`, 17);
 
         // Bıçağın alttaki yazıyı kesmemesi ve kağıdın ileri sürülmesi için alt besleme payı
-        y += 150;
+        y += 140;
         if (draw) {
+            ctx.fillStyle = '#222';
+            ctx.fillRect(PAD, y, 6, 2);
+            ctx.fillRect(PAPER_WIDTH - PAD - 6, y, 6, 2);
             ctx.fillStyle = '#000';
-            ctx.fillRect(0, y, PAPER_WIDTH, 1);
         }
         return y + 10;
     });
@@ -318,43 +310,81 @@ const isTabletOrMobile = () => {
 };
 
 /* ------------------------------------------------------------------ */
-/* Gönderim                                                            */
+/* Gönderim & Dağıtım (Dispatch)                                       */
 /* ------------------------------------------------------------------ */
+
+/**
+ * 1. Kanal: RawBT Yerel WebSocket Servisini Dene (ws://127.0.0.1:40213)
+ * Eğer RawBT'de Web Sunucusu açıksa ekrandan HİÇ AYRILMADAN tamamen sessiz basar.
+ * Başarısız olursa veya 180ms içinde yanıt gelmezse doğrudan intent çağırmaya düşer.
+ */
+function tryRawbtWebSocketPrint(dataUrl, onFallback) {
+    let completed = false;
+    let ws = null;
+
+    const timer = setTimeout(() => {
+        if (!completed) {
+            completed = true;
+            try { if (ws) ws.close(); } catch (e) { }
+            onFallback();
+        }
+    }, 180);
+
+    try {
+        ws = new WebSocket('ws://127.0.0.1:40213/');
+        ws.onopen = () => {
+            if (!completed) {
+                completed = true;
+                clearTimeout(timer);
+                try {
+                    ws.send(JSON.stringify({
+                        type: 'image',
+                        data: dataUrl
+                    }));
+                } catch (e) {
+                    ws.send(dataUrl);
+                }
+                setTimeout(() => {
+                    try { ws.close(); } catch (e) { }
+                }, 800);
+            }
+        };
+        ws.onerror = () => {
+            if (!completed) {
+                completed = true;
+                clearTimeout(timer);
+                onFallback();
+            }
+        };
+    } catch (e) {
+        if (!completed) {
+            completed = true;
+            clearTimeout(timer);
+            onFallback();
+        }
+    }
+}
+
+/**
+ * 2. Kanal: Doğrudan RawBT Şeması Çağrısı (Fallback)
+ */
+function directRawbtLaunch(dataUrl) {
+    try {
+        window.location.href = 'rawbt:' + dataUrl;
+    } catch (e) {
+        console.error("Direct RawBT launch failed:", e);
+    }
+}
 
 function dispatchImage(dataUrl, title, settings) {
     const isMobile = isTabletOrMobile();
 
-    // 1. Tablet / Mobil Cihazlar:
+    // 1. Tablet ve Telefonlar (Android / iOS):
     if (isMobile || settings?.mode === 'rawbt' || settings?.mode === 'thermal') {
-        try {
-            // Gizli iframe ile tetikle: Tablet Adisyon ekranında kalsın, RawBT arka planda bassın
-            const oldRawbtFrame = document.getElementById('rawbt-silent-trigger-iframe');
-            if (oldRawbtFrame) oldRawbtFrame.remove();
-
-            const triggerFrame = document.createElement('iframe');
-            triggerFrame.id = 'rawbt-silent-trigger-iframe';
-            triggerFrame.style.position = 'fixed';
-            triggerFrame.style.top = '-9999px';
-            triggerFrame.style.left = '-9999px';
-            triggerFrame.style.width = '1px';
-            triggerFrame.style.height = '1px';
-            triggerFrame.style.border = 'none';
-            triggerFrame.style.opacity = '0';
-            triggerFrame.style.pointerEvents = 'none';
-            document.body.appendChild(triggerFrame);
-
-            triggerFrame.src = 'rawbt:' + dataUrl;
-
-            setTimeout(() => {
-                try { triggerFrame.remove(); } catch (e) { }
-            }, 3500);
-
-            return true;
-        } catch (e) {
-            console.warn("Silent RawBT launch failed, fallback to href:", e);
-            window.location.href = 'rawbt:' + dataUrl;
-            return true;
-        }
+        tryRawbtWebSocketPrint(dataUrl, () => {
+            directRawbtLaunch(dataUrl);
+        });
+        return true;
     }
 
     // 2. Bilgisayar / Masaüstü: Arka plan gizli iframe üzerinden Windows yazdırma penceresine gönder
