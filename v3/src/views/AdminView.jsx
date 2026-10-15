@@ -124,8 +124,8 @@ export default function AdminView() {
             table_no: 1,
             waiter_name: currentUser?.name || 'Yönetici (Deneme)',
             items: [
-                { name: 'Hamsiköy Sütlacı (Fırın)', quantity: 2, price: 150, status: 'cooking', notes: 'Bol fındıklı test' },
-                { name: 'Rize Demleme Çay', quantity: 3, price: 25, status: 'cooking' }
+                { name: 'Köfte Porsiyon', quantity: 2, price: 500, status: 'cooking', notes: 'Bol acılı test' },
+                { name: 'Kaşarlı Gözleme', quantity: 1, price: 200, status: 'cooking' }
             ]
         };
         printKitchenOrderTicket(testOrder, {
