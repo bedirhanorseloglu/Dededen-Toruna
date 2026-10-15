@@ -297,10 +297,9 @@ const isTabletOrMobile = () => {
 function dispatchImage(dataUrl, title, settings) {
     const isMobile = isTabletOrMobile();
 
-    // 1. Tablet / Mobil Cihazlar: Doğrudan termal yazıcıya (RawBT) fırlat. KESİNLİKLE YENİ SEKME VEYA ÖNİZLEME AÇMAZ!
-    if (isMobile || settings?.mode === 'rawbt' || settings?.mode === 'thermal') {
+    // 1. Tablet / Mobil Cihazlar (Android/iOS): Doğrudan RawBT protokolüne fırlat
+    if (isMobile) {
         try {
-            // Android tabletlerde doğrudan RawBT protokolüne yönlendirerek sıfır önizleme ile yazdırır
             window.location.href = 'rawbt:' + dataUrl;
             return true;
         } catch (e) {
@@ -308,7 +307,7 @@ function dispatchImage(dataUrl, title, settings) {
         }
     }
 
-    // 2. Bilgisayar / Masaüstü: Arka plan gizli iframe üzerinden doğrudan yazdırır
+    // 2. Bilgisayar / Masaüstü: Arka plan gizli iframe üzerinden Windows yazdırma penceresine gönder
     printViaSilentIframe(dataUrl);
     return false;
 }
