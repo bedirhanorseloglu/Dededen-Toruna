@@ -130,10 +130,10 @@ function renderKitchenTicket({ tableNo, items, isExtra }) {
     const { date, time } = nowStrings();
 
     return renderToDataUrl((ctx, draw) => {
-        let y = 20;
-        y = drawLogo(ctx, draw, y, 120) + 14;
+        let y = 4;
+        y = drawLogo(ctx, draw, y, 110) + 8;
 
-        y = centerText(ctx, draw, isExtra ? 'İ L A V E   S İ P A R İ Ş' : 'M U T F A K   S İ P A R İ Ş İ', y, `700 22px ${FONT}`, 22) + 14;
+        y = centerText(ctx, draw, isExtra ? 'İ L A V E   S İ P A R İ Ş' : 'M U T F A K   S İ P A R İ Ş İ', y, `700 22px ${FONT}`, 22) + 12;
 
         // Ters renkli masa bandı
         const bandH = 100;
@@ -190,9 +190,19 @@ function renderKitchenTicket({ tableNo, items, isExtra }) {
         if (draw) dashedLine(ctx, y);
         y += 20;
         const totalQty = items.reduce((s, i) => s + (Number(i.quantity) || 1), 0);
-        y = centerText(ctx, draw, `${items.length} kalem • ${totalQty} adet`, y, `600 22px ${FONT}`, 22) + 10;
+        y = centerText(ctx, draw, `${items.length} kalem • ${totalQty} adet`, y, `600 22px ${FONT}`, 22) + 8;
         y = centerText(ctx, draw, 'Dededen Toruna', y, `500 20px ${FONT}`, 20);
-        return y + 110; // kesici payı
+
+        // Bıçağın yazıyı kesmemesi ve kağıdın ileri sürülmesi için alt besleme payı
+        y += 130;
+        if (draw) {
+            // RawBT'nin alt boşluğu kırpmasını önleyen minik köşe işaretleyicisi
+            ctx.fillStyle = '#222';
+            ctx.fillRect(PAD, y, 6, 2);
+            ctx.fillRect(PAPER_WIDTH - PAD - 6, y, 6, 2);
+            ctx.fillStyle = '#000';
+        }
+        return y + 10;
     });
 }
 
@@ -201,10 +211,10 @@ function renderCustomerTicket({ tableNo, items, total, title }) {
     const priceColW = 150;
 
     return renderToDataUrl((ctx, draw) => {
-        let y = 20;
-        y = drawLogo(ctx, draw, y, 150) + 12;
+        let y = 6;
+        y = drawLogo(ctx, draw, y, 130) + 8;
         y = centerText(ctx, draw, 'DEDEDEN TORUNA', y, `900 36px ${FONT}`, 36) + 6;
-        y = centerText(ctx, draw, 'Hamsiköy Sütlacı & Cafe', y, `500 22px ${FONT}`, 22) + 20;
+        y = centerText(ctx, draw, 'Hamsiköy Sütlacı & Cafe', y, `500 22px ${FONT}`, 22) + 16;
 
         // Masa rozeti (çerçeveli)
         const badgeW = 260, badgeH = 64;
@@ -277,9 +287,18 @@ function renderCustomerTicket({ tableNo, items, total, title }) {
         y += totalH + 26;
 
         y = centerText(ctx, draw, 'Bizi tercih ettiğiniz için teşekkür ederiz', y, `600 22px ${FONT}`, 22) + 8;
-        y = centerText(ctx, draw, 'Afiyet olsun!', y, `800 24px ${FONT}`, 24) + 14;
+        y = centerText(ctx, draw, 'Afiyet olsun!', y, `800 24px ${FONT}`, 24) + 12;
         y = centerText(ctx, draw, 'Bu belge mali değer taşımaz', y, `400 17px ${FONT}`, 17);
-        return y + 160; // kesici payı
+
+        // Bıçağın alttaki yazıyı kesmemesi ve kağıdın ileri sürülmesi için alt besleme payı
+        y += 130;
+        if (draw) {
+            ctx.fillStyle = '#222';
+            ctx.fillRect(PAD, y, 6, 2);
+            ctx.fillRect(PAPER_WIDTH - PAD - 6, y, 6, 2);
+            ctx.fillStyle = '#000';
+        }
+        return y + 10;
     });
 }
 
