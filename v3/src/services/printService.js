@@ -325,29 +325,14 @@ const isTabletOrMobile = () => {
 function dispatchImage(dataUrl, title, settings) {
     const isMobile = isTabletOrMobile();
 
-    // 1. Tablet veya Telefon (veya Ayarlarda RawBT seçiliyse):
-    // Android Chrome'da iframe bazen güvenlik sebebiyle rawbt'yi sessizce engelleyebildiği için
-    // en kararlı ve %100 garantili olan doğrudan anchor / link click tetikleyicisini kullanıyoruz.
+    // 1. Tablet veya Telefon (Android / iOS):
+    // Android'de RawBT uygulamasını kesin olarak tetikleyen resmi yöntem window.location.href'tir.
     if (isMobile || settings?.mode === 'rawbt' || settings?.mode === 'thermal') {
         try {
-            const rawbtUrl = 'rawbt:' + dataUrl;
-            
-            // Gizli anchor oluşturup doğrudan tıkla (Chrome User-Gesture mekanizması bunu asla engellemez)
-            const link = document.createElement('a');
-            link.href = rawbtUrl;
-            link.style.display = 'none';
-            document.body.appendChild(link);
-            link.click();
-            
-            setTimeout(() => {
-                try { link.remove(); } catch(e){}
-            }, 1000);
-
-            return true;
-        } catch (e) {
-            console.warn("Anchor RawBT launch failed, fallback to location href:", e);
             window.location.href = 'rawbt:' + dataUrl;
             return true;
+        } catch (e) {
+            console.warn("Direct RawBT launch failed, fallback to silent iframe:", e);
         }
     }
 
