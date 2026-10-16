@@ -21,10 +21,12 @@ import {
     Banknote,
     CreditCard,
     Receipt,
-    Tag
+    Tag,
+    Zap
 } from 'lucide-react';
 import TableCardGrid from '../components/TableCardGrid';
 import DiscountModal from '../components/DiscountModal';
+import QuickAmountModal from '../components/QuickAmountModal';
 
 export default function WaiterView() {
     const { tables, activeOrders, navigateTo, currentUser, showToast, closeTableOrder, printerSettings } = useApp();
@@ -50,7 +52,8 @@ export default function WaiterView() {
     // İndirim Modalı (Çekmece için)
     const [showDrawerDiscountModal, setShowDrawerDiscountModal] = useState(false);
 
-
+    // ⚡ Hızlı Tutar ile Kapat Modalı (Kurtarıcı Emniyet Sübabı)
+    const [showQuickAmountModal, setShowQuickAmountModal] = useState(false);
 
     // ESC Tuşu ile çekmeceyi ve modalları kapatma
     useEffect(() => {
@@ -61,6 +64,7 @@ export default function WaiterView() {
                 setShowSplitModal(false);
                 setNoteModalItemIdx(null);
                 setShowDrawerDiscountModal(false);
+                setShowQuickAmountModal(false);
             }
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -261,6 +265,69 @@ export default function WaiterView() {
         } catch (e) {
             console.error("Fast checkout error:", e);
             showToast("Ödeme kaydedilirken hata oluştu.", "danger");
+        }
+    };
+
+    // ⚡ Hızlı Tutar ile Kapat (Serbest Hesap / Kurtarıcı Emniyet Sübabı)
+    const handleQuickAmountCheckout = async ({ amount, paymentMethod, note, shouldPrint }) => {
+        if (!selectedTableForReceipt) return;
+        const tNo = selectedTableForReceipt;
+        const numAmount = Number(amount);
+        if (isNaN(numAmount) || numAmount <= 0) return;
+
+        const currentOrder = activeOrders[String(tNo)] || null;
+        const orderDocId = currentOrder?.id || currentOrder?.firestore_id || null;
+
+        const orderToClose = {
+            ...(currentOrder || {}),
+            table_no: Number(tNo),
+            waiter_id: currentOrder?.waiter_id || currentUser?.id || 'w-1',
+            waiter_name: currentOrder?.waiter_name || currentUser?.name || 'Kasa / Garson',
+            items: (currentOrder?.items && currentOrder.items.length > 0)
+                ? currentOrder.items
+                : [
+                    {
+                        name: note || 'Hızlı Hesap (Öğle Yoğunluğu)',
+                        price: numAmount,
+                        quantity: 1,
+                        status: 'delivered'
+                    }
+                ],
+            items_count: currentOrder?.items_count || 1,
+            subtotal: numAmount,
+            discount: 0,
+            discount_reason: '',
+            total: numAmount,
+            note: note || 'Hızlı Hesap',
+            payment_method: paymentMethod, // 'cash' | 'card'
+            is_quick_amount: true,
+            closed_at: new Date().toISOString()
+        };
+
+        // 1. Çekmeceyi ve modalı ANINDA kapat
+        setShowQuickAmountModal(false);
+        setSelectedTableForReceipt(null);
+
+        // 2. Fiş yazdırma
+        if (shouldPrint) {
+            try {
+                printCustomerReceipt(orderToClose, "Hızlı Hesap Fişi", printerSettings);
+            } catch (err) {
+                console.error("Quick amount print error:", err);
+            }
+        }
+
+        // 3. Bildirim ve ses
+        playChimeSound();
+        showToast(`Masa ${tNo} hızlı tutarla (${formatMoney(numAmount)}) başarıyla kapatıldı!`, "success");
+
+        // 4. Firestore kaydı ve masayı temizleme
+        try {
+            await recordCompletedOrder(orderToClose, paymentMethod);
+            await closeTableOrder(tNo, orderDocId);
+        } catch (e) {
+            console.error("Quick amount checkout error:", e);
+            showToast("Hızlı hesap kapatılırken hata oluştu.", "danger");
         }
     };
 
@@ -525,9 +592,19 @@ export default function WaiterView() {
                                     <div style={{ fontSize: '40px', marginBottom: '10px' }}>🍽️</div>
                                     <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-secondary)' }}>Adisyon Henüz Boş</div>
                                     <div style={{ fontSize: '12px', marginTop: '4px', marginBottom: '16px' }}>Bu masada henüz aktif sipariş bulunmuyor.</div>
+
+                                    {/* ⚡ KURTARICI EMNİYET SÜBABI: BOŞ MASADAN ANINDA HIZLI ÖDEME AL */}
+                                    <button
+                                        onClick={() => setShowQuickAmountModal(true)}
+                                        className="btn-quick-amount-drawer hero"
+                                        style={{ marginBottom: '12px', width: '100%', maxWidth: '320px' }}
+                                    >
+                                        <Zap size={18} /> Hızlı Ödeme Al
+                                    </button>
+
                                     <button 
-                                        className="btn-primary" 
-                                        style={{ padding: '8px 18px', fontSize: '12px' }}
+                                        className="btn-outline" 
+                                        style={{ padding: '10px 18px', fontSize: '13px', width: '100%', maxWidth: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                                         onClick={() => {
                                             const tNo = selectedTableForReceipt;
                                             setSelectedTableForReceipt(null);
@@ -818,8 +895,8 @@ export default function WaiterView() {
                             )}
                         </div>
 
-                        {/* Footer & Checkout Buttons */}
-                        {receiptOrder && (
+                        {/* Footer & Checkout Buttons (Yalnızca adisyonda ürün varsa gösterilir) */}
+                        {receiptOrder && receiptOrder.items && receiptOrder.items.length > 0 && (
                             <div className="receipt-footer">
                                 {Number(receiptOrder.discount) > 0 ? (
                                     <div style={{
@@ -877,34 +954,8 @@ export default function WaiterView() {
                                     </div>
                                 )}
 
-                                {/* 🏷️ İndirim / İkram Belirle Butonu */}
-                                <button
-                                    onClick={() => setShowDrawerDiscountModal(true)}
-                                    disabled={!receiptOrder.items || receiptOrder.items.length === 0}
-                                    style={{
-                                        width: '100%',
-                                        minHeight: '48px',
-                                        padding: '12px 14px',
-                                        marginBottom: '10px',
-                                        background: Number(receiptOrder.discount) > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.08)',
-                                        border: `1px dashed ${Number(receiptOrder.discount) > 0 ? '#10b981' : 'rgba(245, 158, 11, 0.4)'}`,
-                                        borderRadius: 'var(--radius-md)',
-                                        color: Number(receiptOrder.discount) > 0 ? '#10b981' : 'var(--brand-gold)',
-                                        fontSize: '14px',
-                                        fontWeight: 700,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '8px',
-                                        cursor: (!receiptOrder.items || receiptOrder.items.length === 0) ? 'not-allowed' : 'pointer'
-                                    }}
-                                >
-                                    <Tag size={16} />
-                                    {Number(receiptOrder.discount) > 0 ? `İndirimi Düzenle (${formatMoney(receiptOrder.discount)} indirimli)` : 'İndirim / İkram Belirle'}
-                                </button>
-
-                                {/* Sipariş Ekle & Mutfağa Fiş Yazdır Butonları */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '10px' }}>
+                                {/* Satır 1: Masaya Git & Mutfağa Fiş Gönder (2 Kolon) */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                                     <button
                                         onClick={() => {
                                             const tNo = selectedTableForReceipt;
@@ -913,40 +964,64 @@ export default function WaiterView() {
                                         }}
                                         className="btn-outline"
                                         style={{
-                                            width: '100%',
-                                            minHeight: '48px',
-                                            padding: '12px 14px',
-                                            fontSize: '14px',
+                                            minHeight: '44px',
+                                            padding: '8px 10px',
+                                            fontSize: '13px',
                                             fontWeight: 800,
                                             borderRadius: 'var(--radius-md)',
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            gap: '8px',
+                                            gap: '6px',
                                             color: 'var(--brand-gold)',
-                                            borderColor: 'var(--brand-gold)'
+                                            borderColor: 'rgba(245, 158, 11, 0.4)'
                                         }}
                                     >
-                                        ➕ Masaya Git & Sipariş Ekle ↗
+                                        ➕ Sipariş Ekle ↗
                                     </button>
 
                                     <button
                                         onClick={handlePrintDrawerKitchenTicket}
                                         className="btn-primary"
                                         style={{
-                                            width: '100%',
-                                            minHeight: '48px',
-                                            padding: '12px 14px',
-                                            fontSize: '14px',
+                                            minHeight: '44px',
+                                            padding: '8px 10px',
+                                            fontSize: '13px',
                                             fontWeight: 800,
                                             borderRadius: 'var(--radius-md)',
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            gap: '8px'
+                                            gap: '6px'
                                         }}
                                     >
-                                        <Printer size={17} /> Mutfağa Fiş Gönder
+                                        <Printer size={16} /> Mutfak Fişi
+                                    </button>
+                                </div>
+
+                                {/* Satır 2: İndirim (Ürün varsa Hızlı Ödeme Al gerekmez, sadece indirim gösterilir) */}
+                                <div style={{ marginBottom: '10px' }}>
+                                    <button
+                                        onClick={() => setShowDrawerDiscountModal(true)}
+                                        style={{
+                                            width: '100%',
+                                            minHeight: '44px',
+                                            padding: '8px 12px',
+                                            background: Number(receiptOrder.discount) > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.08)',
+                                            border: `1px dashed ${Number(receiptOrder.discount) > 0 ? '#10b981' : 'rgba(245, 158, 11, 0.4)'}`,
+                                            borderRadius: 'var(--radius-md)',
+                                            color: Number(receiptOrder.discount) > 0 ? '#10b981' : 'var(--brand-gold)',
+                                            fontSize: '13px',
+                                            fontWeight: 800,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '6px',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        <Tag size={15} />
+                                        {Number(receiptOrder.discount) > 0 ? `İndirim (${formatMoney(receiptOrder.discount)})` : 'İndirim / İkram'}
                                     </button>
                                 </div>
 
@@ -1270,6 +1345,19 @@ export default function WaiterView() {
                     items={receiptOrder.items || []}
                     onApply={handleApplyDrawerDiscount}
                     onRemove={handleRemoveDrawerDiscount}
+                />
+            )}
+
+            {/* MODAL: ⚡ HIZLI TUTAR İLE KAPATMA (KURTARICI EMNİYET SÜBABI) */}
+            {selectedTableForReceipt && (
+                <QuickAmountModal
+                    isOpen={showQuickAmountModal}
+                    onClose={() => setShowQuickAmountModal(false)}
+                    tableNo={selectedTableForReceipt}
+                    existingOrder={receiptOrder}
+                    currentUser={currentUser}
+                    onConfirm={handleQuickAmountCheckout}
+                    printerSettings={printerSettings}
                 />
             )}
         </div>

@@ -41,10 +41,12 @@ import {
     MessageSquare,
     CheckCircle2,
     Clock,
-    Tag
+    Tag,
+    Zap
 } from 'lucide-react';
 import TableCardGrid from '../components/TableCardGrid';
 import DiscountModal from '../components/DiscountModal';
+import QuickAmountModal from '../components/QuickAmountModal';
 import AdminAnalyticsDashboard from '../components/AdminAnalyticsDashboard';
 import AdminStaffManagement from '../components/AdminStaffManagement';
 import AdminPrinterSettings from '../components/AdminPrinterSettings';
@@ -176,6 +178,9 @@ export default function AdminView() {
 
     // İndirim Modalı (Çekmece için)
     const [showDrawerDiscountModal, setShowDrawerDiscountModal] = useState(false);
+
+    // ⚡ Hızlı Tutar ile Kapat Modalı (Kurtarıcı Emniyet Sübabı)
+    const [showQuickAmountModal, setShowQuickAmountModal] = useState(false);
 
     // Real-Time (Canlı) Kapanan Sipariş Dinleyicisi (Farklı cihazlardan kapanan hesaplar anında yansır)
     useEffect(() => {
@@ -518,6 +523,7 @@ export default function AdminView() {
         const handleKeyDown = (e) => {
             if (e.key === 'Escape' && selectedDrawerTable !== null) {
                 setSelectedDrawerTable(null);
+                setShowQuickAmountModal(false);
             }
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -633,6 +639,69 @@ export default function AdminView() {
         const tNo = selectedDrawerTable;
         setSelectedDrawerTable(null);
         await handleAdminDirectCheckout(tNo, method);
+    };
+
+    // ⚡ Hızlı Tutar ile Kapat (Kurtarıcı Emniyet Sübabı - Admin/Kasa)
+    const handleQuickAmountCheckout = async ({ amount, paymentMethod, note, shouldPrint }) => {
+        if (!selectedDrawerTable) return;
+        const tNo = selectedDrawerTable;
+        const numAmount = Number(amount);
+        if (isNaN(numAmount) || numAmount <= 0) return;
+
+        const currentOrder = activeOrders[String(tNo)] || null;
+        const orderDocId = currentOrder?.id || currentOrder?.firestore_id || null;
+
+        const orderToClose = {
+            ...(currentOrder || {}),
+            table_no: Number(tNo),
+            waiter_id: currentOrder?.waiter_id || currentUser?.id || 'mgr-1',
+            waiter_name: currentOrder?.waiter_name || currentUser?.name || 'Kasa / Yönetici',
+            items: (currentOrder?.items && currentOrder.items.length > 0)
+                ? currentOrder.items
+                : [
+                    {
+                        name: note || 'Hızlı Hesap (Öğle Yoğunluğu)',
+                        price: numAmount,
+                        quantity: 1,
+                        status: 'delivered'
+                    }
+                ],
+            items_count: currentOrder?.items_count || 1,
+            subtotal: numAmount,
+            discount: 0,
+            discount_reason: '',
+            total: numAmount,
+            note: note || 'Hızlı Hesap',
+            payment_method: paymentMethod, // 'cash' | 'card'
+            is_quick_amount: true,
+            closed_at: new Date().toISOString()
+        };
+
+        // 1. Çekmeceyi ve modalı ANINDA kapat
+        setShowQuickAmountModal(false);
+        setSelectedDrawerTable(null);
+
+        // 2. Fiş yazdırma
+        if (shouldPrint) {
+            try {
+                printCustomerReceipt(orderToClose, "Hızlı Hesap Fişi", printerSettings);
+            } catch (err) {
+                console.error("Quick amount print error:", err);
+            }
+        }
+
+        // 3. Bildirim ve ses
+        playChimeSound();
+        showToast(`Masa ${tNo} hızlı tutarla (${formatMoney(numAmount)}) kasadan kapatıldı!`, "success");
+
+        // 4. Firestore kaydı ve masayı temizleme
+        try {
+            await recordCompletedOrder(orderToClose, paymentMethod);
+            await closeTableOrder(tNo, orderDocId);
+        } catch (e) {
+            console.error("Admin quick amount error:", e);
+            showToast("Hızlı hesap kapatılırken hata oluştu.", "danger");
+        }
     };
 
     // Çekmeceden müşteri fişi yazdır (masa açık kalır)
@@ -1407,9 +1476,19 @@ export default function AdminView() {
                                     <div style={{ fontSize: '40px', marginBottom: '10px' }}>🍽️</div>
                                     <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-secondary)' }}>Adisyon Henüz Boş</div>
                                     <div style={{ fontSize: '12px', marginTop: '4px', marginBottom: '16px' }}>Bu masada henüz aktif sipariş bulunmuyor.</div>
+
+                                    {/* ⚡ KURTARICI EMNİYET SÜBABI: BOŞ MASADAN ANINDA HIZLI ÖDEME AL */}
                                     <button
-                                        className="btn-primary"
-                                        style={{ padding: '8px 18px', fontSize: '12px' }}
+                                        onClick={() => setShowQuickAmountModal(true)}
+                                        className="btn-quick-amount-drawer hero"
+                                        style={{ marginBottom: '12px', width: '100%', maxWidth: '320px' }}
+                                    >
+                                        <Zap size={18} /> Hızlı Ödeme Al
+                                    </button>
+
+                                    <button
+                                        className="btn-outline"
+                                        style={{ padding: '10px 18px', fontSize: '13px', width: '100%', maxWidth: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                                         onClick={() => navigateTo('table', selectedDrawerTable)}
                                     >
                                         Masaya Git ve Sipariş Aç ↗
@@ -1694,8 +1773,8 @@ export default function AdminView() {
                             )}
                         </div>
 
-                        {/* Footer & Checkout Buttons (Garson Ekranı ile Birebir Aynı) */}
-                        {drawerOrder && (
+                        {/* Footer & Checkout Buttons (Yalnızca adisyonda ürün varsa gösterilir) */}
+                        {drawerOrder && drawerOrder.items && drawerOrder.items.length > 0 && (
                             <div className="receipt-footer">
                                 {Number(drawerOrder.discount) > 0 ? (
                                     <div style={{
@@ -1753,34 +1832,8 @@ export default function AdminView() {
                                     </div>
                                 )}
 
-                                {/* 🏷️ İndirim / İkram Belirle Butonu */}
-                                <button
-                                    onClick={() => setShowDrawerDiscountModal(true)}
-                                    disabled={!drawerOrder.items || drawerOrder.items.length === 0}
-                                    style={{
-                                        width: '100%',
-                                        minHeight: '48px',
-                                        padding: '12px 14px',
-                                        marginBottom: '10px',
-                                        background: Number(drawerOrder.discount) > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.08)',
-                                        border: `1px dashed ${Number(drawerOrder.discount) > 0 ? '#10b981' : 'rgba(245, 158, 11, 0.4)'}`,
-                                        borderRadius: 'var(--radius-md)',
-                                        color: Number(drawerOrder.discount) > 0 ? '#10b981' : 'var(--brand-gold)',
-                                        fontSize: '14px',
-                                        fontWeight: 700,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '8px',
-                                        cursor: (!drawerOrder.items || drawerOrder.items.length === 0) ? 'not-allowed' : 'pointer'
-                                    }}
-                                >
-                                    <Tag size={16} />
-                                    {Number(drawerOrder.discount) > 0 ? `İndirimi Düzenle (${formatMoney(drawerOrder.discount)} indirimli)` : 'İndirim / İkram Belirle'}
-                                </button>
-
-                                {/* Sipariş Ekle & Mutfağa Fiş Yazdır Butonları */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '10px' }}>
+                                {/* Satır 1: Masaya Git & Mutfağa Fiş Gönder (2 Kolon) */}
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                                     <button
                                         onClick={() => {
                                             const tNo = selectedDrawerTable;
@@ -1789,40 +1842,64 @@ export default function AdminView() {
                                         }}
                                         className="btn-outline"
                                         style={{
-                                            width: '100%',
-                                            minHeight: '48px',
-                                            padding: '12px 14px',
-                                            fontSize: '14px',
+                                            minHeight: '44px',
+                                            padding: '8px 10px',
+                                            fontSize: '13px',
                                             fontWeight: 800,
                                             borderRadius: 'var(--radius-md)',
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            gap: '8px',
+                                            gap: '6px',
                                             color: 'var(--brand-gold)',
-                                            borderColor: 'var(--brand-gold)'
+                                            borderColor: 'rgba(245, 158, 11, 0.4)'
                                         }}
                                     >
-                                        ➕ Masaya Git & Sipariş Ekle ↗
+                                        ➕ Sipariş Ekle ↗
                                     </button>
 
                                     <button
                                         onClick={handlePrintDrawerKitchenTicket}
                                         className="btn-primary"
                                         style={{
-                                            width: '100%',
-                                            minHeight: '48px',
-                                            padding: '12px 14px',
-                                            fontSize: '14px',
+                                            minHeight: '44px',
+                                            padding: '8px 10px',
+                                            fontSize: '13px',
                                             fontWeight: 800,
                                             borderRadius: 'var(--radius-md)',
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            gap: '8px'
+                                            gap: '6px'
                                         }}
                                     >
-                                        <Printer size={17} /> Mutfağa Fiş Gönder
+                                        <Printer size={16} /> Mutfak Fişi
+                                    </button>
+                                </div>
+
+                                {/* Satır 2: İndirim (Ürün varsa Hızlı Ödeme Al gerekmez, sadece indirim gösterilir) */}
+                                <div style={{ marginBottom: '10px' }}>
+                                    <button
+                                        onClick={() => setShowDrawerDiscountModal(true)}
+                                        style={{
+                                            width: '100%',
+                                            minHeight: '44px',
+                                            padding: '8px 12px',
+                                            background: Number(drawerOrder.discount) > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.08)',
+                                            border: `1px dashed ${Number(drawerOrder.discount) > 0 ? '#10b981' : 'rgba(245, 158, 11, 0.4)'}`,
+                                            borderRadius: 'var(--radius-md)',
+                                            color: Number(drawerOrder.discount) > 0 ? '#10b981' : 'var(--brand-gold)',
+                                            fontSize: '13px',
+                                            fontWeight: 800,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '6px',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        <Tag size={15} />
+                                        {Number(drawerOrder.discount) > 0 ? `İndirim (${formatMoney(drawerOrder.discount)})` : 'İndirim / İkram'}
                                     </button>
                                 </div>
 
@@ -2136,6 +2213,19 @@ export default function AdminView() {
                     items={drawerOrder.items || []}
                     onApply={handleApplyDrawerDiscount}
                     onRemove={handleRemoveDrawerDiscount}
+                />
+            )}
+
+            {/* MODAL: ⚡ HIZLI TUTAR İLE KAPATMA (KURTARICI EMNİYET SÜBABI) */}
+            {selectedDrawerTable && (
+                <QuickAmountModal
+                    isOpen={showQuickAmountModal}
+                    onClose={() => setShowQuickAmountModal(false)}
+                    tableNo={selectedDrawerTable}
+                    existingOrder={drawerOrder}
+                    currentUser={currentUser}
+                    onConfirm={handleQuickAmountCheckout}
+                    printerSettings={printerSettings}
                 />
             )}
         </div>

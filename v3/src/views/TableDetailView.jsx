@@ -41,9 +41,11 @@ import {
     Search, 
     X,
     Receipt,
-    Tag
+    Tag,
+    Zap
 } from 'lucide-react';
 import DiscountModal from '../components/DiscountModal';
+import QuickAmountModal from '../components/QuickAmountModal';
 
 export default function TableDetailView() {
     const { 
@@ -79,6 +81,7 @@ export default function TableDetailView() {
     const [splitSelections, setSplitSelections] = useState({});
     const [splitPayMethod, setSplitPayMethod] = useState('cash');
     const [showDiscountModal, setShowDiscountModal] = useState(false);
+    const [showQuickAmountModal, setShowQuickAmountModal] = useState(false);
     const [discount, setDiscount] = useState(0);
     const [discountReason, setDiscountReason] = useState('');
 
@@ -325,6 +328,65 @@ export default function TableDetailView() {
             await closeTableOrder(tableNo, orderDocId);
         } catch (e) {
             console.error("Checkout error:", e);
+            showToast("Ödeme kaydedilirken hata oluştu.", "danger");
+        }
+    };
+
+    // ⚡ Hızlı Tutar ile Kapat (Serbest Hesap / Kurtarıcı Emniyet Sübabı)
+    const handleQuickAmountCheckout = async ({ amount, paymentMethod, note, shouldPrint }) => {
+        const numAmount = Number(amount);
+        if (isNaN(numAmount) || numAmount <= 0) return;
+
+        const orderDocId = existingOrder?.id;
+        const targetView = currentUser?.role === 'admin' ? 'admin' : 'waiter';
+
+        const orderToClose = {
+            ...(existingOrder || {}),
+            table_no: tableNo,
+            waiter_id: existingOrder?.waiter_id || (currentUser?.role === 'admin' ? (currentUser?.id || 'mgr-1') : (currentUser?.id || 'wtr-1')),
+            waiter_name: existingOrder?.waiter_name || (currentUser?.role === 'admin' ? (currentUser?.name || 'Kasa / Yönetici') : (currentUser?.name || 'Garson')),
+            items: cartItems.length > 0 ? cartItems : [
+                {
+                    name: note || 'Hızlı Hesap (Öğle Yoğunluğu)',
+                    price: numAmount,
+                    quantity: 1,
+                    status: 'delivered'
+                }
+            ],
+            items_count: cartItems.length > 0 ? totalItemCount : 1,
+            subtotal: numAmount,
+            discount: 0,
+            discount_reason: '',
+            total: numAmount,
+            note: note || 'Hızlı Hesap',
+            payment_method: paymentMethod, // 'cash' | 'card'
+            is_quick_amount: true,
+            closed_at: new Date().toISOString()
+        };
+
+        // 1. Modalı kapat ve anında masalar ekranına dön
+        setShowQuickAmountModal(false);
+        navigateTo(targetView);
+
+        // 2. Fiş yazdırma
+        if (shouldPrint) {
+            try {
+                printCustomerReceipt(orderToClose, "Hızlı Hesap Fişi", printerSettings);
+            } catch (err) {
+                console.error("Print receipt error:", err);
+            }
+        }
+
+        // 3. Bildirim ve ses
+        playChimeSound();
+        showToast(`Masa ${tableNo} hızlı tutarla (${formatMoney(numAmount)}) kapatıldı!`, 'success');
+
+        // 4. Firestore kaydı ve masayı temizleme
+        try {
+            await recordCompletedOrder(orderToClose, paymentMethod);
+            await closeTableOrder(tableNo, orderDocId);
+        } catch (e) {
+            console.error("Quick amount checkout error:", e);
             showToast("Ödeme kaydedilirken hata oluştu.", "danger");
         }
     };
@@ -1047,53 +1109,72 @@ export default function TableDetailView() {
                         </div>
                     )}
 
-                    {/* 🏷️ İndirim / İkram Belirle Butonu */}
-                    <button
-                        onClick={() => setShowDiscountModal(true)}
-                        disabled={cartItems.length === 0}
-                        style={{
-                            width: '100%',
-                            minHeight: '48px',
-                            padding: '12px 14px',
-                            marginBottom: '10px',
-                            background: finalDiscount > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.08)',
-                            border: `1px dashed ${finalDiscount > 0 ? '#10b981' : 'rgba(245, 158, 11, 0.4)'}`,
-                            borderRadius: 'var(--radius-md)',
-                            color: finalDiscount > 0 ? '#10b981' : 'var(--brand-gold)',
-                            fontSize: '14px',
-                            fontWeight: 700,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '8px',
-                            cursor: cartItems.length === 0 ? 'not-allowed' : 'pointer'
-                        }}
-                    >
-                        <Tag size={16} />
-                        {finalDiscount > 0 ? `İndirimi Düzenle (${formatMoney(finalDiscount)} indirimli)` : 'İndirim / İkram Belirle'}
-                    </button>
+                    {/* Hızlı Aksiyon Butonları (Ürün varsa İndirim, Masa boşsa Hızlı Ödeme Al) */}
+                    <div style={{ marginBottom: '8px' }}>
+                        {cartItems.length > 0 ? (
+                            <button
+                                onClick={() => setShowDiscountModal(true)}
+                                style={{
+                                    width: '100%',
+                                    minHeight: '44px',
+                                    padding: '8px 12px',
+                                    background: finalDiscount > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.08)',
+                                    border: `1px dashed ${finalDiscount > 0 ? '#10b981' : 'rgba(245, 158, 11, 0.4)'}`,
+                                    borderRadius: 'var(--radius-md)',
+                                    color: finalDiscount > 0 ? '#10b981' : 'var(--brand-gold)',
+                                    fontSize: '13px',
+                                    fontWeight: 800,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <Tag size={15} />
+                                {finalDiscount > 0 ? `İndirim (${formatMoney(finalDiscount)})` : 'İndirim / İkram'}
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => setShowQuickAmountModal(true)}
+                                className="btn-quick-amount-drawer hero"
+                                style={{ 
+                                    width: '100%',
+                                    minHeight: '46px', 
+                                    padding: '10px 14px', 
+                                    fontSize: '13.5px', 
+                                    margin: 0 
+                                }}
+                                title="Masayı serbest tutar girerek hızlıca kapat"
+                            >
+                                <Zap size={16} /> Hızlı Ödeme Al
+                            </button>
+                        )}
+                    </div>
 
                     {/* Mutfağa Fiş Yazdır (Tatlı ve İçecekler Hariç!) */}
-                    <motion.button
-                        onClick={handlePrintKitchenTicket}
-                        className="btn-primary"
-                        whileTap={{ scale: 0.97 }}
-                        style={{
-                            width: '100%',
-                            minHeight: '48px',
-                            padding: '12px 14px',
-                            fontSize: '14px',
-                            fontWeight: 800,
-                            borderRadius: 'var(--radius-md)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '8px',
-                            marginBottom: '10px'
-                        }}
-                    >
-                        <Printer size={17} /> Mutfağa Fiş Gönder
-                    </motion.button>
+                    {cartItems.length > 0 && (
+                        <motion.button
+                            onClick={handlePrintKitchenTicket}
+                            className="btn-primary"
+                            whileTap={{ scale: 0.97 }}
+                            style={{
+                                width: '100%',
+                                minHeight: '44px',
+                                padding: '10px 14px',
+                                fontSize: '13.5px',
+                                fontWeight: 800,
+                                borderRadius: 'var(--radius-md)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                marginBottom: '10px'
+                            }}
+                        >
+                            <Printer size={16} /> Mutfağa Fiş Gönder
+                        </motion.button>
+                    )}
 
                     {/* 3 Checkout Buttons Group (Nakit, Kart, Masa Hesap Fişi) */}
                     <div className="checkout-actions-3col">
@@ -1370,6 +1451,17 @@ export default function TableDetailView() {
                 items={cartItems}
                 onApply={handleApplyDiscount}
                 onRemove={handleRemoveDiscount}
+            />
+
+            {/* MODAL 5: ⚡ HIZLI TUTAR İLE KAPATMA (KURTARICI EMNİYET SÜBABI) */}
+            <QuickAmountModal
+                isOpen={showQuickAmountModal}
+                onClose={() => setShowQuickAmountModal(false)}
+                tableNo={tableNo}
+                existingOrder={existingOrder}
+                currentUser={currentUser}
+                onConfirm={handleQuickAmountCheckout}
+                printerSettings={printerSettings}
             />
         </div>
     );
