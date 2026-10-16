@@ -2467,12 +2467,13 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
 .checkout-actions-3col {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    gap: 8px;
+    gap: 10px;
     margin-top: 10px;
 }
 
 .btn-checkout-action {
     padding: 12px 6px;
+    min-height: 52px;
     border-radius: var(--radius-md);
     border: none;
     font-size: 13px;
@@ -2481,7 +2482,8 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    justify-content: center;
+    gap: 5px;
     transition: var(--transition);
 }
 
@@ -3262,12 +3264,165 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
 /* 9. ALT HESAP BUTONLARI (KÜÇÜK EKRAN KORUMASI) */
 @media (max-width: 400px) {
     .checkout-actions-3col {
-        gap: 5px !important;
+        gap: 6px !important;
     }
     .btn-checkout-action {
         padding: 10px 4px !important;
-        font-size: 11px !important;
+        font-size: 11.5px !important;
+        min-height: 48px !important;
         border-radius: var(--radius-sm) !important;
+    }
+}
+
+/* 9.5 İNDİRİM & İKRAM MODALI RESPONSİVE DÜZENİ */
+.discount-modal-overlay {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2100;
+    padding: 16px;
+}
+
+.discount-modal-card {
+    width: 95vw !important;
+    max-width: 460px !important;
+    max-height: 92dvh !important;
+    max-height: 92vh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box !important;
+    background: linear-gradient(180deg, #1e1715 0%, #15100e 100%) !important;
+    border: 1px solid rgba(245, 158, 11, 0.35) !important;
+    border-radius: 20px !important;
+    padding: 22px !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 30px rgba(245, 158, 11, 0.1) !important;
+}
+
+.discount-inputs-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.discount-chips-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.discount-chip-btn {
+    padding: 7px 12px !important;
+    min-height: 38px !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    border-radius: 8px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    touch-action: manipulation;
+}
+
+.discount-modal-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-top: 18px;
+    flex-wrap: wrap;
+}
+
+.discount-modal-actions .btn-cancel {
+    flex: 1 1 auto;
+    min-height: 46px;
+    padding: 12px 16px;
+    font-size: 13.5px;
+    font-weight: 800;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.discount-modal-actions .btn-confirm {
+    flex: 1.6 1 auto;
+    min-height: 46px;
+    padding: 12px 18px;
+    font-size: 14px;
+    font-weight: 800;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.discount-modal-actions .btn-remove {
+    flex: 1 1 100%;
+    min-height: 42px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 800;
+    border-radius: 10px;
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    background: rgba(239, 68, 68, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 2px;
+}
+
+@media (max-width: 480px) {
+    .discount-modal-overlay {
+        padding: 8px !important;
+    }
+    
+    .discount-modal-card {
+        padding: 16px 14px !important;
+        border-radius: 16px !important;
+        max-height: 94dvh !important;
+        width: 96vw !important;
+    }
+
+    .discount-inputs-grid {
+        gap: 8px !important;
+        margin-bottom: 12px !important;
+    }
+
+    .discount-chips-container {
+        gap: 6px !important;
+    }
+
+    .discount-chip-btn {
+        padding: 6px 10px !important;
+        min-height: 36px !important;
+        font-size: 11.5px !important;
+        flex: 1 1 calc(33.33% - 6px) !important;
+        min-width: 72px !important;
+    }
+
+    .discount-modal-actions .btn-cancel,
+    .discount-modal-actions .btn-confirm {
+        min-height: 44px !important;
+        font-size: 13px !important;
+    }
+}
+
+@media (max-height: 650px) {
+    .discount-modal-card {
+        padding: 12px 12px !important;
+    }
+    .discount-inputs-grid {
+        margin-bottom: 8px !important;
+    }
+    .discount-modal-actions {
+        margin-top: 10px !important;
     }
 }
 
@@ -3807,21 +3962,21 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
 
     .checkout-actions-3col {
         grid-template-columns: 1fr 1fr 1fr !important;
-        gap: 6px !important;
-        margin-top: 8px !important;
+        gap: 8px !important;
+        margin-top: 10px !important;
     }
 
     .btn-checkout-action {
-        padding: 10px 3px !important;
-        font-size: 11px !important;
-        border-radius: 10px !important;
-        min-height: 44px !important;
-        gap: 3px !important;
+        padding: 11px 4px !important;
+        font-size: 12px !important;
+        border-radius: 12px !important;
+        min-height: 50px !important;
+        gap: 4px !important;
     }
 
     .btn-checkout-action svg {
-        width: 16px !important;
-        height: 16px !important;
+        width: 18px !important;
+        height: 18px !important;
     }
 
     /* GİRİŞ EKRANI (S26: Tek Ekranda Kaydırmasız Numpad) */
@@ -4023,13 +4178,13 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
 
     .checkout-actions-3col {
         grid-template-columns: 1fr 1fr 1fr !important;
-        gap: 8px !important;
+        gap: 10px !important;
     }
 
     .btn-checkout-action {
         padding: 12px 6px !important;
-        font-size: 12.5px !important;
-        min-height: 48px !important;
+        font-size: 13px !important;
+        min-height: 52px !important;
     }
 
     /* 17 MASA IZGARASI (Tab A11 Yatayda 5 Sütun — Tek Bakışta 17 Masa) */

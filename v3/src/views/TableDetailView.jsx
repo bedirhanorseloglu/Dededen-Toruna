@@ -40,8 +40,10 @@ import {
     Clock, 
     Search, 
     X,
-    Receipt
+    Receipt,
+    Tag
 } from 'lucide-react';
+import DiscountModal from '../components/DiscountModal';
 
 export default function TableDetailView() {
     const { 
@@ -76,30 +78,45 @@ export default function TableDetailView() {
     const [showSplitModal, setShowSplitModal] = useState(false);
     const [splitSelections, setSplitSelections] = useState({});
     const [splitPayMethod, setSplitPayMethod] = useState('cash');
+    const [showDiscountModal, setShowDiscountModal] = useState(false);
+    const [discount, setDiscount] = useState(0);
+    const [discountReason, setDiscountReason] = useState('');
 
     // Sync remote order with local cart (Farklı cihazlardan gelen güncellemeleri anında canlı yakalar)
     useEffect(() => {
         if (existingOrder && existingOrder.items) {
             setCartItems(existingOrder.items);
+            setDiscount(Number(existingOrder.discount) || 0);
+            setDiscountReason(existingOrder.discount_reason || '');
         } else {
             setCartItems([]);
+            setDiscount(0);
+            setDiscountReason('');
         }
     }, [existingOrder]);
-
-
 
     const orderSubtotal = useMemo(() => {
         return cartItems.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity || 1)), 0);
     }, [cartItems]);
+
+    const finalDiscount = useMemo(() => {
+        return Math.min(orderSubtotal, Math.max(0, Number(discount) || 0));
+    }, [orderSubtotal, discount]);
+
+    const finalTotal = useMemo(() => {
+        return Math.max(0, orderSubtotal - finalDiscount);
+    }, [orderSubtotal, finalDiscount]);
 
     const totalItemCount = useMemo(() => {
         return cartItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
     }, [cartItems]);
 
     // Save to Firestore
-    const persistOrder = async (items) => {
+    const persistOrder = async (items, customDiscount = discount, customReason = discountReason) => {
         const orderRef = doc(db, "orders", `table_${tableNo}`);
-        const total = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity || 1)), 0);
+        const subtotal = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity || 1)), 0);
+        const dAmount = Math.min(subtotal, Math.max(0, Number(customDiscount) || 0));
+        const total = Math.max(0, subtotal - dAmount);
 
         if (items.length === 0) {
             await closeTableOrder(tableNo, existingOrder?.id);
@@ -113,7 +130,9 @@ export default function TableDetailView() {
             waiter_name: existingOrder?.waiter_name || (currentUser?.role === 'admin' ? (currentUser?.name || 'Yönetici (Patron)') : (currentUser?.name || 'Garson')),
             items: items,
             items_count: items.reduce((s, i) => s + (Number(i.quantity) || 1), 0),
-            subtotal: total,
+            subtotal: subtotal,
+            discount: dAmount,
+            discount_reason: customReason || '',
             total: total,
             status: "open",
             updated_at: new Date().toISOString()
@@ -235,6 +254,21 @@ export default function TableDetailView() {
         }
     };
 
+    // İndirim Uygula / Kaldır Handlers
+    const handleApplyDiscount = async (discAmount, reason) => {
+        setDiscount(discAmount);
+        setDiscountReason(reason);
+        await persistOrder(cartItems, discAmount, reason);
+        showToast(`Masa ${tableNo} için ${formatMoney(discAmount)} indirim uygulandı.`, 'success');
+    };
+
+    const handleRemoveDiscount = async () => {
+        setDiscount(0);
+        setDiscountReason('');
+        await persistOrder(cartItems, 0, '');
+        showToast(`İndirim kaldırıldı.`, 'info');
+    };
+
     // Fiş Yazdır (Masa Açık Kalır)
     const handlePrintCustomerBill = () => {
         if (cartItems.length === 0) {
@@ -247,7 +281,9 @@ export default function TableDetailView() {
             waiter_name: existingOrder?.waiter_name || currentUser?.name || 'Garson',
             items: cartItems,
             subtotal: orderSubtotal,
-            total: orderSubtotal,
+            discount: finalDiscount,
+            discount_reason: discountReason,
+            total: finalTotal,
             created_at: existingOrder?.created_at || new Date().toISOString()
         };
 
@@ -268,7 +304,9 @@ export default function TableDetailView() {
             waiter_name: existingOrder?.waiter_name || (currentUser?.role === 'admin' ? (currentUser?.name || 'Yönetici (Patron)') : (currentUser?.name || 'Garson')),
             items: cartItems,
             subtotal: orderSubtotal,
-            total: orderSubtotal,
+            discount: finalDiscount,
+            discount_reason: discountReason || (finalDiscount > 0 ? 'İndirim/İkram' : ''),
+            total: finalTotal,
             created_at: existingOrder?.created_at || new Date().toISOString()
         };
 
@@ -396,7 +434,6 @@ export default function TableDetailView() {
                 if (currentUser?.role === 'admin') navigateTo('admin');
                 else navigateTo('waiter');
 
-                await recordCompletedOrder(partialOrderRecord, splitPayMethod);
                 await closeTableOrder(tableNo, existingOrder?.id);
             } else {
                 setShowSplitModal(false);
@@ -405,7 +442,6 @@ export default function TableDetailView() {
                 playChimeSound();
                 showToast(`${formatMoney(payingSubtotal)} parçalı tahsil edildi. Kalanlar masada açık.`, 'success');
 
-                await recordCompletedOrder(partialOrderRecord, splitPayMethod);
                 await persistOrder(remainingItems);
             }
         } catch (e) {
@@ -955,12 +991,87 @@ export default function TableDetailView() {
 
                 {/* Footer & Checkout Buttons */}
                 <div className="receipt-footer">
-                    <div className="total-summary">
-                        <span style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>Genel Tutar</span>
-                        <span style={{ color: 'var(--brand-gold)', fontSize: '24px', fontWeight: 800 }}>
-                            {formatMoney(orderSubtotal)}
-                        </span>
-                    </div>
+                    {finalDiscount > 0 ? (
+                        <div style={{
+                            background: 'rgba(0, 0, 0, 0.4)',
+                            border: '1px solid rgba(16, 185, 129, 0.35)',
+                            borderRadius: '12px',
+                            padding: '10px 12px',
+                            marginBottom: '10px'
+                        }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Ara Toplam</span>
+                                <span style={{ fontSize: '14px', color: 'var(--text-muted)', fontWeight: 700, textDecoration: 'line-through' }}>
+                                    {formatMoney(orderSubtotal)}
+                                </span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                <span style={{ fontSize: '12.5px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700 }}>
+                                    🏷️ İndirim / İkram
+                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ fontSize: '14px', color: '#10b981', fontWeight: 800 }}>
+                                        -{formatMoney(finalDiscount)}
+                                    </span>
+                                    <button
+                                        onClick={handleRemoveDiscount}
+                                        title="İndirimi Kaldır"
+                                        style={{
+                                            background: 'rgba(239, 68, 68, 0.15)',
+                                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                                            color: '#ef4444',
+                                            borderRadius: '4px',
+                                            padding: '1px 5px',
+                                            fontSize: '11px',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            </div>
+                            <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)', margin: '6px 0' }} />
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Ödenecek Tutar</span>
+                                <span style={{ color: 'var(--brand-gold)', fontSize: '24px', fontWeight: 900 }}>
+                                    {formatMoney(finalTotal)}
+                                </span>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="total-summary">
+                            <span style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>Genel Tutar</span>
+                            <span style={{ color: 'var(--brand-gold)', fontSize: '24px', fontWeight: 800 }}>
+                                {formatMoney(orderSubtotal)}
+                            </span>
+                        </div>
+                    )}
+
+                    {/* 🏷️ İndirim / İkram Belirle Butonu */}
+                    <button
+                        onClick={() => setShowDiscountModal(true)}
+                        disabled={cartItems.length === 0}
+                        style={{
+                            width: '100%',
+                            minHeight: '48px',
+                            padding: '12px 14px',
+                            marginBottom: '10px',
+                            background: finalDiscount > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.08)',
+                            border: `1px dashed ${finalDiscount > 0 ? '#10b981' : 'rgba(245, 158, 11, 0.4)'}`,
+                            borderRadius: 'var(--radius-md)',
+                            color: finalDiscount > 0 ? '#10b981' : 'var(--brand-gold)',
+                            fontSize: '14px',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            cursor: cartItems.length === 0 ? 'not-allowed' : 'pointer'
+                        }}
+                    >
+                        <Tag size={16} />
+                        {finalDiscount > 0 ? `İndirimi Düzenle (${formatMoney(finalDiscount)} indirimli)` : 'İndirim / İkram Belirle'}
+                    </button>
 
                     {/* Mutfağa Fiş Yazdır (Tatlı ve İçecekler Hariç!) */}
                     <motion.button
@@ -969,18 +1080,19 @@ export default function TableDetailView() {
                         whileTap={{ scale: 0.97 }}
                         style={{
                             width: '100%',
-                            padding: '12px',
+                            minHeight: '48px',
+                            padding: '12px 14px',
                             fontSize: '14px',
                             fontWeight: 800,
                             borderRadius: 'var(--radius-md)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: '6px',
-                            marginBottom: '6px'
+                            gap: '8px',
+                            marginBottom: '10px'
                         }}
                     >
-                        <Printer size={16} /> Mutfağa Fiş Gönder
+                        <Printer size={17} /> Mutfağa Fiş Gönder
                     </motion.button>
 
                     {/* 3 Checkout Buttons Group (Nakit, Kart, Masa Hesap Fişi) */}
@@ -1247,6 +1359,18 @@ export default function TableDetailView() {
                     </div>
                 </div>
             )}
+
+            {/* MODAL 4: DISCOUNT MODAL */}
+            <DiscountModal
+                isOpen={showDiscountModal}
+                onClose={() => setShowDiscountModal(false)}
+                tableNo={tableNo}
+                subtotal={orderSubtotal}
+                currentDiscount={discount}
+                items={cartItems}
+                onApply={handleApplyDiscount}
+                onRemove={handleRemoveDiscount}
+            />
         </div>
     );
 }

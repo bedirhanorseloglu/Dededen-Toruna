@@ -40,9 +40,11 @@ import {
     Minus,
     MessageSquare,
     CheckCircle2,
-    Clock
+    Clock,
+    Tag
 } from 'lucide-react';
 import TableCardGrid from '../components/TableCardGrid';
+import DiscountModal from '../components/DiscountModal';
 import AdminAnalyticsDashboard from '../components/AdminAnalyticsDashboard';
 import AdminStaffManagement from '../components/AdminStaffManagement';
 import AdminPrinterSettings from '../components/AdminPrinterSettings';
@@ -171,6 +173,9 @@ export default function AdminView() {
     // Sipariş Notu Düzenleme Modalı
     const [noteModalItemIdx, setNoteModalItemIdx] = useState(null);
     const [itemNoteInput, setItemNoteInput] = useState('');
+
+    // İndirim Modalı (Çekmece için)
+    const [showDrawerDiscountModal, setShowDrawerDiscountModal] = useState(false);
 
     // Real-Time (Canlı) Kapanan Sipariş Dinleyicisi (Farklı cihazlardan kapanan hesaplar anında yansır)
     useEffect(() => {
@@ -440,15 +445,23 @@ export default function AdminView() {
         const order = activeOrders[String(tableNo)];
         if (!order) return;
 
+        const subtotal = Number(order.subtotal || order.total || 0);
+        const discount = Number(order.discount || 0);
+        const total = Number(order.total !== undefined ? order.total : Math.max(0, subtotal - discount));
+
         const orderToClose = {
             ...order,
+            subtotal,
+            discount,
+            discount_reason: order.discount_reason || (discount > 0 ? 'İndirim/İkram' : ''),
+            total,
             waiter_id: order.waiter_id || currentUser?.id || 'mgr-1',
             waiter_name: order.waiter_name || currentUser?.name || 'Yönetici (Patron)'
         };
 
         // 1. Bildirim ve sesi ANINDA ver (0 ms gecikme, tam eş zamanlı)
         playChimeSound();
-        showToast(`Masa ${tableNo} hesabı (${formatMoney(order.total)}) kasadan kapatıldı!`, "success");
+        showToast(`Masa ${tableNo} hesabı (${formatMoney(orderToClose.total)}) kasadan kapatıldı!`, "success");
 
         try {
             await recordCompletedOrder(orderToClose, method);
@@ -456,6 +469,44 @@ export default function AdminView() {
         } catch (e) {
             console.error("Admin checkout error:", e);
             showToast("Tahsilat sırasında hata oluştu.", "danger");
+        }
+    };
+
+    // Çekmeceden İndirim Uygula / Kaldır Handlers
+    const handleApplyDrawerDiscount = async (discAmount, reason) => {
+        if (!selectedDrawerTable || !drawerOrder) return;
+        const subtotal = Number(drawerOrder.subtotal || drawerOrder.total || 0);
+        const finalD = Math.min(subtotal, Math.max(0, discAmount));
+        const finalT = Math.max(0, subtotal - finalD);
+
+        try {
+            await updateDoc(doc(db, "orders", `table_${selectedDrawerTable}`), {
+                discount: finalD,
+                discount_reason: reason || '',
+                total: finalT,
+                updated_at: new Date().toISOString()
+            });
+            showToast(`Masa ${selectedDrawerTable} için ${formatMoney(finalD)} indirim uygulandı.`, 'success');
+        } catch (e) {
+            console.error("Discount apply error:", e);
+            showToast("İndirim kaydedilirken hata oluştu.", "danger");
+        }
+    };
+
+    const handleRemoveDrawerDiscount = async () => {
+        if (!selectedDrawerTable || !drawerOrder) return;
+        const subtotal = Number(drawerOrder.subtotal || drawerOrder.total || 0);
+
+        try {
+            await updateDoc(doc(db, "orders", `table_${selectedDrawerTable}`), {
+                discount: 0,
+                discount_reason: '',
+                total: subtotal,
+                updated_at: new Date().toISOString()
+            });
+            showToast(`İndirim kaldırıldı.`, 'info');
+        } catch (e) {
+            console.error("Discount remove error:", e);
         }
     };
 
@@ -587,7 +638,15 @@ export default function AdminView() {
     // Çekmeceden müşteri fişi yazdır (masa açık kalır)
     const handlePrintDrawerCustomerBill = () => {
         if (!drawerOrder) return;
-        printCustomerReceipt(drawerOrder, "Masa Adisyon Fişi", printerSettings);
+        const subtotal = Number(drawerOrder.subtotal || drawerOrder.total || 0);
+        const discount = Number(drawerOrder.discount || 0);
+        printCustomerReceipt({
+            ...drawerOrder,
+            subtotal,
+            discount,
+            discount_reason: drawerOrder.discount_reason || '',
+            total: Number(drawerOrder.total !== undefined ? drawerOrder.total : Math.max(0, subtotal - discount))
+        }, "Masa Adisyon Fişi", printerSettings);
         showToast(`Masa ${selectedDrawerTable} adisyon fişi yazdırılıyor.`, "info");
     };
 
@@ -1638,15 +1697,90 @@ export default function AdminView() {
                         {/* Footer & Checkout Buttons (Garson Ekranı ile Birebir Aynı) */}
                         {drawerOrder && (
                             <div className="receipt-footer">
-                                <div className="total-summary">
-                                    <span style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>Genel Tutar</span>
-                                    <span style={{ color: 'var(--brand-gold)', fontSize: '24px', fontWeight: 800 }}>
-                                        {formatMoney(drawerOrder.total)}
-                                    </span>
-                                </div>
+                                {Number(drawerOrder.discount) > 0 ? (
+                                    <div style={{
+                                        background: 'rgba(0, 0, 0, 0.4)',
+                                        border: '1px solid rgba(16, 185, 129, 0.35)',
+                                        borderRadius: '12px',
+                                        padding: '10px 12px',
+                                        marginBottom: '10px'
+                                    }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Ara Toplam</span>
+                                            <span style={{ fontSize: '14px', color: 'var(--text-muted)', fontWeight: 700, textDecoration: 'line-through' }}>
+                                                {formatMoney(drawerOrder.subtotal || drawerOrder.total)}
+                                            </span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                            <span style={{ fontSize: '12.5px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700 }}>
+                                                🏷️ İndirim / İkram
+                                            </span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <span style={{ fontSize: '14px', color: '#10b981', fontWeight: 800 }}>
+                                                    -{formatMoney(drawerOrder.discount)}
+                                                </span>
+                                                <button
+                                                    onClick={handleRemoveDrawerDiscount}
+                                                    title="İndirimi Kaldır"
+                                                    style={{
+                                                        background: 'rgba(239, 68, 68, 0.15)',
+                                                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                                                        color: '#ef4444',
+                                                        borderRadius: '4px',
+                                                        padding: '1px 5px',
+                                                        fontSize: '11px',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)', margin: '6px 0' }} />
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Ödenecek Tutar</span>
+                                            <span style={{ color: 'var(--brand-gold)', fontSize: '24px', fontWeight: 900 }}>
+                                                {formatMoney(drawerOrder.total)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="total-summary">
+                                        <span style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>Genel Tutar</span>
+                                        <span style={{ color: 'var(--brand-gold)', fontSize: '24px', fontWeight: 800 }}>
+                                            {formatMoney(drawerOrder.total)}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {/* 🏷️ İndirim / İkram Belirle Butonu */}
+                                <button
+                                    onClick={() => setShowDrawerDiscountModal(true)}
+                                    disabled={!drawerOrder.items || drawerOrder.items.length === 0}
+                                    style={{
+                                        width: '100%',
+                                        minHeight: '48px',
+                                        padding: '12px 14px',
+                                        marginBottom: '10px',
+                                        background: Number(drawerOrder.discount) > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.08)',
+                                        border: `1px dashed ${Number(drawerOrder.discount) > 0 ? '#10b981' : 'rgba(245, 158, 11, 0.4)'}`,
+                                        borderRadius: 'var(--radius-md)',
+                                        color: Number(drawerOrder.discount) > 0 ? '#10b981' : 'var(--brand-gold)',
+                                        fontSize: '14px',
+                                        fontWeight: 700,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        cursor: (!drawerOrder.items || drawerOrder.items.length === 0) ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    <Tag size={16} />
+                                    {Number(drawerOrder.discount) > 0 ? `İndirimi Düzenle (${formatMoney(drawerOrder.discount)} indirimli)` : 'İndirim / İkram Belirle'}
+                                </button>
 
                                 {/* Sipariş Ekle & Mutfağa Fiş Yazdır Butonları */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '10px' }}>
                                     <button
                                         onClick={() => {
                                             const tNo = selectedDrawerTable;
@@ -1656,14 +1790,15 @@ export default function AdminView() {
                                         className="btn-outline"
                                         style={{
                                             width: '100%',
-                                            padding: '10px',
-                                            fontSize: '13px',
+                                            minHeight: '48px',
+                                            padding: '12px 14px',
+                                            fontSize: '14px',
                                             fontWeight: 800,
                                             borderRadius: 'var(--radius-md)',
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            gap: '6px',
+                                            gap: '8px',
                                             color: 'var(--brand-gold)',
                                             borderColor: 'var(--brand-gold)'
                                         }}
@@ -1676,17 +1811,18 @@ export default function AdminView() {
                                         className="btn-primary"
                                         style={{
                                             width: '100%',
-                                            padding: '11px',
-                                            fontSize: '13px',
+                                            minHeight: '48px',
+                                            padding: '12px 14px',
+                                            fontSize: '14px',
                                             fontWeight: 800,
                                             borderRadius: 'var(--radius-md)',
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            gap: '6px'
+                                            gap: '8px'
                                         }}
                                     >
-                                        <Printer size={15} /> Mutfağa Fiş Gönder
+                                        <Printer size={17} /> Mutfağa Fiş Gönder
                                     </button>
                                 </div>
 
@@ -1988,6 +2124,20 @@ export default function AdminView() {
                 printerSettings={printerSettings}
                 showToast={showToast}
             />
+
+            {/* MODAL: DISCOUNT MODAL (ADMIN DRAWER) */}
+            {selectedDrawerTable && drawerOrder && (
+                <DiscountModal
+                    isOpen={showDrawerDiscountModal}
+                    onClose={() => setShowDrawerDiscountModal(false)}
+                    tableNo={selectedDrawerTable}
+                    subtotal={Number(drawerOrder.subtotal || drawerOrder.total || 0)}
+                    currentDiscount={Number(drawerOrder.discount || 0)}
+                    items={drawerOrder.items || []}
+                    onApply={handleApplyDrawerDiscount}
+                    onRemove={handleRemoveDrawerDiscount}
+                />
+            )}
         </div>
     );
 }

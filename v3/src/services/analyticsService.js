@@ -68,6 +68,10 @@ export async function recordCompletedOrder(order, paymentMethod = 'cash') {
             cleanWaiterName = isManager ? 'Yönetici (Patron)' : 'Garson';
         }
 
+        const discountAmount = Number(order.discount || 0);
+        const subtotalAmount = Number(order.subtotal || order.total || 0);
+        const totalAmount = Number(order.total !== undefined ? order.total : Math.max(0, subtotalAmount - discountAmount));
+
         const record = {
             table_no: Number(order.table_no),
             waiter_id: cleanWaiterId,
@@ -76,8 +80,10 @@ export async function recordCompletedOrder(order, paymentMethod = 'cash') {
             payment_collected_at: nowIso,
             items: order.items || [],
             items_count: itemsCount,
-            subtotal: Number(order.subtotal || order.total || 0),
-            total: Number(order.total || 0),
+            subtotal: subtotalAmount,
+            discount: discountAmount,
+            discount_reason: order.discount_reason || '',
+            total: totalAmount,
             payment_method: paymentMethod, // 'cash' | 'card'
             status: 'closed',
             created_at: nowIso
@@ -85,6 +91,17 @@ export async function recordCompletedOrder(order, paymentMethod = 'cash') {
 
         const docRef = await addDoc(collection(db, "completed_orders"), record);
         record.id = docRef.id;
+
+        if (discountAmount > 0) {
+            logStaffActivity(
+                cleanWaiterId,
+                cleanWaiterName,
+                isManager ? 'admin' : 'waiter',
+                'discount_applied',
+                order.table_no,
+                { discount: discountAmount, reason: order.discount_reason || 'İndirim/İkram', total: totalAmount }
+            );
+        }
 
         // Yerel önbelleğe anında ekle (Admin paneli Firestore'u gereksiz okumasın)
         try {

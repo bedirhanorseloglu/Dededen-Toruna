@@ -220,9 +220,11 @@ function renderKitchenTicket({ tableNo, items, isExtra }) {
     });
 }
 
-function renderCustomerTicket({ tableNo, items, total, title }) {
+function renderCustomerTicket({ tableNo, items, total, subtotal, discount, discountReason, title }) {
     const { date, time } = nowStrings();
     const priceColW = 150;
+    const finalSubtotal = Number(subtotal || total || 0);
+    const finalDiscount = Number(discount || 0);
 
     return renderToDataUrl((ctx, draw) => {
         let y = 6;
@@ -281,6 +283,31 @@ function renderCustomerTicket({ tableNo, items, total, title }) {
         y += 4;
         if (draw) dashedLine(ctx, y);
         y += 18;
+
+        // İndirim varsa Ara Toplam ve İndirim satırlarını yazdır
+        if (finalDiscount > 0) {
+            ctx.font = `600 22px ${FONT}`;
+            if (draw) {
+                ctx.textBaseline = 'top';
+                ctx.fillText('Ara Toplam', PAD, y);
+                ctx.textAlign = 'right';
+                ctx.fillText(formatMoney(finalSubtotal), PAPER_WIDTH - PAD, y);
+                ctx.textAlign = 'left';
+            }
+            y += 30;
+
+            ctx.font = `700 22px ${FONT}`;
+            const discText = discountReason ? `İndirim (${discountReason})` : 'İndirim / İkram';
+            if (draw) {
+                ctx.fillText(`- ${discText}`, PAD, y);
+                ctx.textAlign = 'right';
+                ctx.fillText(`-${formatMoney(finalDiscount)}`, PAPER_WIDTH - PAD, y);
+                ctx.textAlign = 'left';
+            }
+            y += 32;
+            if (draw) dashedLine(ctx, y);
+            y += 16;
+        }
 
         // Ters renkli toplam bandı
         const totalH = 80;
@@ -484,10 +511,20 @@ export function printCustomerReceipt(order, customTitle = 'Masa Adisyon Fişi', 
     if (!order || !order.items || order.items.length === 0) return false;
 
     const tableNo = order.table_no || order.table_id || '1';
-    const total = order.total || order.subtotal ||
-        order.items.reduce((s, i) => s + (Number(i.price) * (Number(i.quantity) || 1)), 0);
+    const subtotal = Number(order.subtotal) || order.items.reduce((s, i) => s + (Number(i.price) * (Number(i.quantity) || 1)), 0);
+    const discount = Number(order.discount || 0);
+    const discountReason = order.discount_reason || '';
+    const total = Number(order.total !== undefined ? order.total : Math.max(0, subtotal - discount));
 
-    const dataUrl = renderCustomerTicket({ tableNo, items: order.items, total, title: customTitle });
+    const dataUrl = renderCustomerTicket({
+        tableNo,
+        items: order.items,
+        subtotal,
+        discount,
+        discountReason,
+        total,
+        title: customTitle
+    });
     dispatchImage(dataUrl, `Adisyon - Masa ${tableNo}`, settings);
     return true;
 }
@@ -502,6 +539,7 @@ export function renderZReportTicket(zData) {
         reportTime = time,
         reportNo = `Z-${Date.now().toString().slice(-6)}`,
         totalRevenue = 0,
+        discountTotal = 0,
         cashTotal = 0,
         cardTotal = 0,
         expensesTotal = 0,
@@ -557,6 +595,9 @@ export function renderZReportTicket(zData) {
         };
 
         printRow('Toplam Brüt Ciro:', formatMoney(totalRevenue), true, 26);
+        if (discountTotal > 0) {
+            printRow('🎁 Toplam İndirim/İkram:', `-${formatMoney(discountTotal)}`, false, 21);
+        }
         printRow('💵 Nakit Tahsilat:', formatMoney(cashTotal), false, 23);
         printRow('💳 Kredi Kartı Tahsilat:', formatMoney(cardTotal), false, 23);
 

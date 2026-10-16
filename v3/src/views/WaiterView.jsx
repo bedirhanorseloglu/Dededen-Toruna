@@ -20,9 +20,11 @@ import {
     MessageSquare,
     Banknote,
     CreditCard,
-    Receipt
+    Receipt,
+    Tag
 } from 'lucide-react';
 import TableCardGrid from '../components/TableCardGrid';
+import DiscountModal from '../components/DiscountModal';
 
 export default function WaiterView() {
     const { tables, activeOrders, navigateTo, currentUser, showToast, closeTableOrder, printerSettings } = useApp();
@@ -45,6 +47,9 @@ export default function WaiterView() {
     const [noteModalItemIdx, setNoteModalItemIdx] = useState(null);
     const [itemNoteInput, setItemNoteInput] = useState('');
 
+    // İndirim Modalı (Çekmece için)
+    const [showDrawerDiscountModal, setShowDrawerDiscountModal] = useState(false);
+
 
 
     // ESC Tuşu ile çekmeceyi ve modalları kapatma
@@ -55,6 +60,7 @@ export default function WaiterView() {
                 setShowMoveModal(false);
                 setShowSplitModal(false);
                 setNoteModalItemIdx(null);
+                setShowDrawerDiscountModal(false);
             }
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -189,11 +195,57 @@ export default function WaiterView() {
         setItemNoteInput('');
     };
 
+    // Çekmeceden İndirim Uygula / Kaldır Handlers
+    const handleApplyDrawerDiscount = async (discAmount, reason) => {
+        if (!selectedTableForReceipt || !receiptOrder) return;
+        const subtotal = Number(receiptOrder.subtotal || receiptOrder.total || 0);
+        const finalD = Math.min(subtotal, Math.max(0, discAmount));
+        const finalT = Math.max(0, subtotal - finalD);
+
+        try {
+            await updateDoc(doc(db, "orders", `table_${selectedTableForReceipt}`), {
+                discount: finalD,
+                discount_reason: reason || '',
+                total: finalT,
+                updated_at: new Date().toISOString()
+            });
+            showToast(`Masa ${selectedTableForReceipt} için ${formatMoney(finalD)} indirim uygulandı.`, 'success');
+        } catch (e) {
+            console.error("Discount apply error:", e);
+            showToast("İndirim kaydedilirken hata oluştu.", "danger");
+        }
+    };
+
+    const handleRemoveDrawerDiscount = async () => {
+        if (!selectedTableForReceipt || !receiptOrder) return;
+        const subtotal = Number(receiptOrder.subtotal || receiptOrder.total || 0);
+
+        try {
+            await updateDoc(doc(db, "orders", `table_${selectedTableForReceipt}`), {
+                discount: 0,
+                discount_reason: '',
+                total: subtotal,
+                updated_at: new Date().toISOString()
+            });
+            showToast(`İndirim kaldırıldı.`, 'info');
+        } catch (e) {
+            console.error("Discount remove error:", e);
+        }
+    };
+
     // Çekmeceden direkt kasa tahsilatı ve kapatma
     const handleFastCheckout = async (method) => {
         if (!selectedTableForReceipt || !receiptOrder) return;
         const tNo = selectedTableForReceipt;
-        const orderToClose = receiptOrder;
+        const subtotal = Number(receiptOrder.subtotal || receiptOrder.total || 0);
+        const discount = Number(receiptOrder.discount || 0);
+        const orderToClose = {
+            ...receiptOrder,
+            subtotal: subtotal,
+            discount: discount,
+            discount_reason: receiptOrder.discount_reason || (discount > 0 ? 'İndirim/İkram' : ''),
+            total: Number(receiptOrder.total !== undefined ? receiptOrder.total : Math.max(0, subtotal - discount))
+        };
         const orderDocId = orderToClose.id || orderToClose.firestore_id;
 
         // 1. Çekmeceyi ANINDA kapat (Kullanıcı sıfırlanma/bekleme görmez, anında pürüzsüz kapanır)
@@ -215,7 +267,15 @@ export default function WaiterView() {
     // Çekmeceden müşteri fişi yazdır (masa açık kalır)
     const handlePrintDrawerCustomerBill = () => {
         if (!receiptOrder) return;
-        printCustomerReceipt(receiptOrder, "Masa Adisyon Fişi", printerSettings);
+        const subtotal = Number(receiptOrder.subtotal || receiptOrder.total || 0);
+        const discount = Number(receiptOrder.discount || 0);
+        printCustomerReceipt({
+            ...receiptOrder,
+            subtotal,
+            discount,
+            discount_reason: receiptOrder.discount_reason || '',
+            total: Number(receiptOrder.total !== undefined ? receiptOrder.total : Math.max(0, subtotal - discount))
+        }, "Masa Adisyon Fişi", printerSettings);
         showToast(`Masa ${selectedTableForReceipt} adisyon fişi yazdırılıyor.`, "info");
     };
 
@@ -761,15 +821,90 @@ export default function WaiterView() {
                         {/* Footer & Checkout Buttons */}
                         {receiptOrder && (
                             <div className="receipt-footer">
-                                <div className="total-summary">
-                                    <span style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>Genel Tutar</span>
-                                    <span style={{ color: 'var(--brand-gold)', fontSize: '24px', fontWeight: 800 }}>
-                                        {formatMoney(receiptOrder.total)}
-                                    </span>
-                                </div>
+                                {Number(receiptOrder.discount) > 0 ? (
+                                    <div style={{
+                                        background: 'rgba(0, 0, 0, 0.4)',
+                                        border: '1px solid rgba(16, 185, 129, 0.35)',
+                                        borderRadius: '12px',
+                                        padding: '10px 12px',
+                                        marginBottom: '10px'
+                                    }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Ara Toplam</span>
+                                            <span style={{ fontSize: '14px', color: 'var(--text-muted)', fontWeight: 700, textDecoration: 'line-through' }}>
+                                                {formatMoney(receiptOrder.subtotal || receiptOrder.total)}
+                                            </span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                            <span style={{ fontSize: '12.5px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700 }}>
+                                                🏷️ İndirim / İkram
+                                            </span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <span style={{ fontSize: '14px', color: '#10b981', fontWeight: 800 }}>
+                                                    -{formatMoney(receiptOrder.discount)}
+                                                </span>
+                                                <button
+                                                    onClick={handleRemoveDrawerDiscount}
+                                                    title="İndirimi Kaldır"
+                                                    style={{
+                                                        background: 'rgba(239, 68, 68, 0.15)',
+                                                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                                                        color: '#ef4444',
+                                                        borderRadius: '4px',
+                                                        padding: '1px 5px',
+                                                        fontSize: '11px',
+                                                        cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)', margin: '6px 0' }} />
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Ödenecek Tutar</span>
+                                            <span style={{ color: 'var(--brand-gold)', fontSize: '24px', fontWeight: 900 }}>
+                                                {formatMoney(receiptOrder.total)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="total-summary">
+                                        <span style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>Genel Tutar</span>
+                                        <span style={{ color: 'var(--brand-gold)', fontSize: '24px', fontWeight: 800 }}>
+                                            {formatMoney(receiptOrder.total)}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {/* 🏷️ İndirim / İkram Belirle Butonu */}
+                                <button
+                                    onClick={() => setShowDrawerDiscountModal(true)}
+                                    disabled={!receiptOrder.items || receiptOrder.items.length === 0}
+                                    style={{
+                                        width: '100%',
+                                        minHeight: '48px',
+                                        padding: '12px 14px',
+                                        marginBottom: '10px',
+                                        background: Number(receiptOrder.discount) > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.08)',
+                                        border: `1px dashed ${Number(receiptOrder.discount) > 0 ? '#10b981' : 'rgba(245, 158, 11, 0.4)'}`,
+                                        borderRadius: 'var(--radius-md)',
+                                        color: Number(receiptOrder.discount) > 0 ? '#10b981' : 'var(--brand-gold)',
+                                        fontSize: '14px',
+                                        fontWeight: 700,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        cursor: (!receiptOrder.items || receiptOrder.items.length === 0) ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    <Tag size={16} />
+                                    {Number(receiptOrder.discount) > 0 ? `İndirimi Düzenle (${formatMoney(receiptOrder.discount)} indirimli)` : 'İndirim / İkram Belirle'}
+                                </button>
 
                                 {/* Sipariş Ekle & Mutfağa Fiş Yazdır Butonları */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '10px' }}>
                                     <button
                                         onClick={() => {
                                             const tNo = selectedTableForReceipt;
@@ -779,14 +914,15 @@ export default function WaiterView() {
                                         className="btn-outline"
                                         style={{
                                             width: '100%',
-                                            padding: '10px',
-                                            fontSize: '13px',
+                                            minHeight: '48px',
+                                            padding: '12px 14px',
+                                            fontSize: '14px',
                                             fontWeight: 800,
                                             borderRadius: 'var(--radius-md)',
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            gap: '6px',
+                                            gap: '8px',
                                             color: 'var(--brand-gold)',
                                             borderColor: 'var(--brand-gold)'
                                         }}
@@ -799,17 +935,18 @@ export default function WaiterView() {
                                         className="btn-primary"
                                         style={{
                                             width: '100%',
-                                            padding: '11px',
-                                            fontSize: '13px',
+                                            minHeight: '48px',
+                                            padding: '12px 14px',
+                                            fontSize: '14px',
                                             fontWeight: 800,
                                             borderRadius: 'var(--radius-md)',
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            gap: '6px'
+                                            gap: '8px'
                                         }}
                                     >
-                                        <Printer size={15} /> Mutfağa Fiş Gönder
+                                        <Printer size={17} /> Mutfağa Fiş Gönder
                                     </button>
                                 </div>
 
@@ -1120,6 +1257,20 @@ export default function WaiterView() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* MODAL: DISCOUNT MODAL (DRAWER) */}
+            {selectedTableForReceipt && receiptOrder && (
+                <DiscountModal
+                    isOpen={showDrawerDiscountModal}
+                    onClose={() => setShowDrawerDiscountModal(false)}
+                    tableNo={selectedTableForReceipt}
+                    subtotal={Number(receiptOrder.subtotal || receiptOrder.total || 0)}
+                    currentDiscount={Number(receiptOrder.discount || 0)}
+                    items={receiptOrder.items || []}
+                    onApply={handleApplyDrawerDiscount}
+                    onRemove={handleRemoveDrawerDiscount}
+                />
             )}
         </div>
     );

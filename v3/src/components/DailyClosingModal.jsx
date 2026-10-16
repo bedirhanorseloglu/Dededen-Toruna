@@ -199,6 +199,7 @@ export default function DailyClosingModal({
 
     // Finansal Hesaplamalar
     const totalRevenue = useMemo(() => selectedOrders.reduce((s, o) => s + (Number(o.total) || 0), 0), [selectedOrders]);
+    const discountTotal = useMemo(() => selectedOrders.reduce((s, o) => s + (Number(o.discount) || 0), 0), [selectedOrders]);
     const cashTotal = useMemo(() => selectedOrders.filter(o => o.payment_method === 'cash').reduce((s, o) => s + (Number(o.total) || 0), 0), [selectedOrders]);
     const cardTotal = useMemo(() => selectedOrders.filter(o => o.payment_method === 'card').reduce((s, o) => s + (Number(o.total) || 0), 0), [selectedOrders]);
     const orderCount = selectedOrders.length;
@@ -347,6 +348,7 @@ export default function DailyClosingModal({
             savedAt: new Date().toISOString(),
             period: periodTab,
             totalRevenue,
+            discountTotal,
             cashTotal,
             cardTotal,
             expensesTotal,
@@ -435,6 +437,7 @@ export default function DailyClosingModal({
             reportTime: rep.time || '',
             reportNo: rep.reportNo || rep.docId || 'Z-RAPORU',
             totalRevenue: rep.totalRevenue,
+            discountTotal: rep.discountTotal || 0,
             cashTotal: rep.cashTotal,
             cardTotal: rep.cardTotal,
             expensesTotal: rep.expensesTotal,
@@ -455,6 +458,7 @@ export default function DailyClosingModal({
             reportTime: timeFormatted,
             reportNo: `${reportNo}${periodTab !== 'today' ? `-${periodTab.toUpperCase()}` : ''}`,
             totalRevenue,
+            discountTotal,
             cashTotal,
             cardTotal,
             expensesTotal,
@@ -881,6 +885,16 @@ export default function DailyClosingModal({
                                         {formatMoney(cardTotal)}
                                     </span>
                                 </div>
+                                {discountTotal > 0 && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
+                                        <span style={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            🎁 Toplam İndirim / İkram
+                                        </span>
+                                        <span style={{ fontWeight: 800, color: '#f59e0b', fontFamily: 'monospace' }}>
+                                            -{formatMoney(discountTotal)}
+                                        </span>
+                                    </div>
+                                )}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
                                     <span style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                         💸 Toplam Giderler
