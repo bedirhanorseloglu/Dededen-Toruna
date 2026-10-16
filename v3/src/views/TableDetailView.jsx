@@ -1109,8 +1109,32 @@ export default function TableDetailView() {
                         </div>
                     )}
 
+                    {/* Mutfağa Fiş Yazdır (Tatlı ve İçecekler Hariç!) */}
+                    {cartItems.length > 0 && (
+                        <motion.button
+                            onClick={handlePrintKitchenTicket}
+                            className="btn-primary"
+                            whileTap={{ scale: 0.97 }}
+                            style={{
+                                width: '100%',
+                                minHeight: '46px',
+                                padding: '10px 14px',
+                                fontSize: '13.5px',
+                                fontWeight: 800,
+                                borderRadius: 'var(--radius-md)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                marginBottom: '8px'
+                            }}
+                        >
+                            <Printer size={16} /> Mutfağa Fiş Gönder
+                        </motion.button>
+                    )}
+
                     {/* Hızlı Aksiyon Butonları (Ürün varsa İndirim, Masa boşsa Hızlı Ödeme Al) */}
-                    <div style={{ marginBottom: '8px' }}>
+                    <div style={{ marginBottom: '10px' }}>
                         {cartItems.length > 0 ? (
                             <button
                                 onClick={() => setShowDiscountModal(true)}
@@ -1151,30 +1175,6 @@ export default function TableDetailView() {
                             </button>
                         )}
                     </div>
-
-                    {/* Mutfağa Fiş Yazdır (Tatlı ve İçecekler Hariç!) */}
-                    {cartItems.length > 0 && (
-                        <motion.button
-                            onClick={handlePrintKitchenTicket}
-                            className="btn-primary"
-                            whileTap={{ scale: 0.97 }}
-                            style={{
-                                width: '100%',
-                                minHeight: '44px',
-                                padding: '10px 14px',
-                                fontSize: '13.5px',
-                                fontWeight: 800,
-                                borderRadius: 'var(--radius-md)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px',
-                                marginBottom: '10px'
-                            }}
-                        >
-                            <Printer size={16} /> Mutfağa Fiş Gönder
-                        </motion.button>
-                    )}
 
                     {/* 3 Checkout Buttons Group (Nakit, Kart, Masa Hesap Fişi) */}
                     <div className="checkout-actions-3col">

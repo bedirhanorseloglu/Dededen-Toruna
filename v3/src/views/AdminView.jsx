@@ -1832,7 +1832,7 @@ export default function AdminView() {
                                     </div>
                                 )}
 
-                                {/* Satır 1: Masaya Git & Mutfağa Fiş Gönder (2 Kolon) */}
+                                {/* Satır 1: Sipariş Ekle & İndirim (2 Kolon) */}
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
                                     <button
                                         onClick={() => {
@@ -1859,37 +1859,15 @@ export default function AdminView() {
                                     </button>
 
                                     <button
-                                        onClick={handlePrintDrawerKitchenTicket}
-                                        className="btn-primary"
+                                        onClick={() => setShowDrawerDiscountModal(true)}
                                         style={{
                                             minHeight: '44px',
                                             padding: '8px 10px',
-                                            fontSize: '13px',
-                                            fontWeight: 800,
-                                            borderRadius: 'var(--radius-md)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '6px'
-                                        }}
-                                    >
-                                        <Printer size={16} /> Mutfak Fişi
-                                    </button>
-                                </div>
-
-                                {/* Satır 2: İndirim (Ürün varsa Hızlı Ödeme Al gerekmez, sadece indirim gösterilir) */}
-                                <div style={{ marginBottom: '10px' }}>
-                                    <button
-                                        onClick={() => setShowDrawerDiscountModal(true)}
-                                        style={{
-                                            width: '100%',
-                                            minHeight: '44px',
-                                            padding: '8px 12px',
                                             background: Number(drawerOrder.discount) > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.08)',
                                             border: `1px dashed ${Number(drawerOrder.discount) > 0 ? '#10b981' : 'rgba(245, 158, 11, 0.4)'}`,
                                             borderRadius: 'var(--radius-md)',
                                             color: Number(drawerOrder.discount) > 0 ? '#10b981' : 'var(--brand-gold)',
-                                            fontSize: '13px',
+                                            fontSize: '12.5px',
                                             fontWeight: 800,
                                             display: 'flex',
                                             alignItems: 'center',
@@ -1900,6 +1878,28 @@ export default function AdminView() {
                                     >
                                         <Tag size={15} />
                                         {Number(drawerOrder.discount) > 0 ? `İndirim (${formatMoney(drawerOrder.discount)})` : 'İndirim / İkram'}
+                                    </button>
+                                </div>
+
+                                {/* Satır 2: Mutfak Fişi (Tam Genişlik - Sık Kullanılan) */}
+                                <div style={{ marginBottom: '10px' }}>
+                                    <button
+                                        onClick={handlePrintDrawerKitchenTicket}
+                                        className="btn-primary"
+                                        style={{
+                                            width: '100%',
+                                            minHeight: '46px',
+                                            padding: '10px 14px',
+                                            fontSize: '13.5px',
+                                            fontWeight: 800,
+                                            borderRadius: 'var(--radius-md)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '8px'
+                                        }}
+                                    >
+                                        <Printer size={16} /> Mutfak Fişi
                                     </button>
                                 </div>
 
