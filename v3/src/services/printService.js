@@ -355,6 +355,42 @@ const isTabletOrMobile = () => {
 /* ------------------------------------------------------------------ */
 
 /**
+ * ------------------------------------------------------------------
+ * [ÇÖZÜLEN SORUN VE TEKNİK ÇÖZÜMÜ - 17.10.2026]
+ * ------------------------------------------------------------------
+ * SORUN:
+ * Restoranda kasada sabit duran tablette termal ağ yazıcısı (Xprinter XP-Q805K vb.) belirli aralıklarla
+ * kilitleniyor, fiş basmıyor ve yazıcı fişten çekilip / kapatılıp açılmadan (power cycle) düzelmiyordu.
+ * Telefonda sorun yaşanmazken tablette bu durumun yaşanmasının nedenleri:
+ * 
+ * 1. Android Doze Modu (Derin Uyku Modu):
+ *    - Doze modu; Android cihazlarda ekran kapandığında veya cihaz masada bir süre hareketsiz/boşta
+ *      kaldığında pil tüketimini düşürmek için arka plan işlemlerini kısıtlayan agresif bir güç tasarrufu modudur.
+ *    - Bu mod devreye girdiğinde Android; arka plan servislerini uyutur, CPU erişimini kısıtlar ve
+ *      yerel ağ soketlerini (RawBT'nin yerel ws://127.0.0.1:40213 WebSocket sunucusunu) dondurur.
+ *    - Sipariş onaylandığında tablet uyanmaya çalışırken RawBT'nin socket yanıtı gecikiyordu.
+ * 
+ * 2. Yarış Durumu (Race Condition) & Çift İstek Çakışması:
+ *    - Eski kodda 180ms gibi aşırı dar bir zaman aşımı vardı.
+ *    - Doze modundaki tablet 180ms içinde soketi açamayınca kod acele edip acil durum intent'ini (rawbt:) tetikliyordu.
+ *    - Tam o sırada gecikmeli uyanan 1. yol (WebSocket) da devreye girince RawBT yazıcıya aynı anda iki istek gönderiyordu.
+ * 
+ * 3. Xprinter Port 9100 Tekil Soket Kilitlenmesi:
+ *    - Xprinter gibi mikrokontrolcü tabanlı termal yazıcılar Port 9100'de aynı anda yalnızca TEK bir TCP soketini işleyebilir.
+ *    - Üst üste binen çift istek, yazıcının minik ağ çipini donduruyor (TCP collision) ve yazıcı aç-kapa yapılana kadar
+ *      tüm cihazlardan gelen fiş isteklerini reddediyordu.
+ * 
+ * ÇÖZÜM:
+ * 1. Kod Tarafı (Yazılımsal):
+ *    - Zaman aşımı süresi 180ms'den 1500ms'ye çıkarıldı. Tabletin Doze'dan çıkışı ve RawBT'nin uyanması için güvenli pay sağlandı.
+ *    - Soket temizleme kilidi güçlendirildi; zaman aşımı durumunda eski WebSocket dinleyicileri (onopen, onerror)
+ *      tamamen sıfırlanıp kapatılarak yazıcının IP portuna çifte istek hücumu kesin olarak engellendi.
+ * 
+ * 2. Cihaz Tarafı (Donanımsal / İşletim Sistemi):
+ *    - Tabletin Ayarlar -> Uygulamalar -> RawBT -> Pil bölümünden "Kısıtlanmamış / Optimizasyonsuz" işaretlendi.
+ *    - Bu işlem sayesinde Android'in RawBT servisini Doze moduna alması, arka planda uyutması veya soketlerini dondurması
+ *      tamamen ve kalıcı olarak engellendi.
+ * ------------------------------------------------------------------
  * 1. Kanal: RawBT Yerel WebSocket Servisini Dene (ws://127.0.0.1:40213)
  * Eğer RawBT'de Web Sunucusu açıksa ekrandan HİÇ AYRILMADAN tamamen sessiz basar.
  * Tabletin uyanması ve socket bağlantısını kurması için 1500ms güvenli bekleme payı verilir.
