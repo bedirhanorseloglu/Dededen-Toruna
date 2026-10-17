@@ -317,7 +317,7 @@ export default function AdminExpenses({
                         amount: numAmount,
                         category: formCategory,
                         payment_method: formPaymentMethod,
-                        date: formDate || new Date().toISOString().slice(0, 10),
+                        date: formDate || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`,
                         notes: formNotes.trim()
                     });
                     showToast?.('Gider kaydı başarıyla güncellendi.', 'success');
@@ -369,124 +369,75 @@ export default function AdminExpenses({
             {/* 1. ÜST FİNANSAL ÖZET ŞERİDİ (DÖNEM FİLTRESİNE GÖRE ANLIK GÜNCELLENİR) */}
             <div className="admin-expenses-kpi-grid">
                 {/* 1. KART: DÖNEM CİROSU (GÜNCEL BRÜT SATIŞ HASILATI) */}
-                <div style={{
-                    background: 'rgba(56, 189, 248, 0.05)',
-                    border: '1px solid rgba(56, 189, 248, 0.22)',
-                    borderRadius: '16px',
-                    padding: '16px 20px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
-                }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <div className="admin-expenses-kpi-card ciro">
+                    <div className="admin-expenses-kpi-header">
+                        <span className="admin-expenses-kpi-title">
                             {periodLabel} Ciro
                         </span>
-                        <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(56, 189, 248, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#38bdf8' }}>
+                        <div className="admin-expenses-kpi-icon ciro">
                             <ArrowUpRight size={15} />
                         </div>
                     </div>
-                    <div style={{ fontSize: '22px', fontWeight: 900, color: 'white', margin: '8px 0 3px 0', fontFamily: 'monospace' }}>
+                    <div className="admin-expenses-kpi-value" title={formatMoney(periodRevenue)}>
                         {formatMoney(periodRevenue)}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div className="admin-expenses-kpi-subtext" title="Dönem brüt satış hasılatı">
                         Dönem brüt satış hasılatı
                     </div>
                 </div>
 
                 {/* 2. KART: TOPLAM GİDER */}
-                <div style={{
-                    background: 'rgba(239, 68, 68, 0.05)',
-                    border: '1px solid rgba(239, 68, 68, 0.22)',
-                    borderRadius: '16px',
-                    padding: '16px 20px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
-                }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <div className="admin-expenses-kpi-card gider">
+                    <div className="admin-expenses-kpi-header">
+                        <span className="admin-expenses-kpi-title">
                             {periodLabel} Toplam Gider
                         </span>
-                        <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f87171' }}>
+                        <div className="admin-expenses-kpi-icon gider">
                             <ArrowDownRight size={15} />
                         </div>
                     </div>
-                    <div style={{ fontSize: '22px', fontWeight: 900, color: '#f87171', margin: '8px 0 3px 0', fontFamily: 'monospace' }}>
+                    <div className="admin-expenses-kpi-value gider" title={`-${formatMoney(totalExpenses)}`}>
                         -{formatMoney(totalExpenses)}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        Nakit: {formatMoney(cashExpenses)} • Kart: {formatMoney(cardExpenses)}
+                    <div className="admin-expenses-kpi-subtext kpi-breakdown">
+                        <span>Nakit: {formatMoney(cashExpenses)}</span>
+                        <span className="kpi-bullet">•</span>
+                        <span>Kart: {formatMoney(cardExpenses)}</span>
                     </div>
                 </div>
 
                 {/* 3. KART: ADİSYON İNDİRİM & İKRAM */}
-                <div style={{
-                    background: 'rgba(244, 63, 94, 0.05)',
-                    border: '1px solid rgba(244, 63, 94, 0.22)',
-                    borderRadius: '16px',
-                    padding: '16px 20px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
-                }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <div className="admin-expenses-kpi-card indirim">
+                    <div className="admin-expenses-kpi-header">
+                        <span className="admin-expenses-kpi-title">
                             {periodLabel} İndirim & İkram
                         </span>
-                        <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(244, 63, 94, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f43f5e' }}>
+                        <div className="admin-expenses-kpi-icon indirim">
                             <Tag size={15} />
                         </div>
                     </div>
-                    <div style={{ fontSize: '22px', fontWeight: 900, color: '#f43f5e', margin: '8px 0 3px 0', fontFamily: 'monospace' }}>
+                    <div className="admin-expenses-kpi-value indirim" title={`-${formatMoney(periodDiscounts)}`}>
                         -{formatMoney(periodDiscounts)}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div className="admin-expenses-kpi-subtext">
                         {periodDiscountCount > 0 ? `${periodDiscountCount} adisyonda uygulandı` : 'İndirim uygulanmadı'}
                     </div>
                 </div>
 
                 {/* 4. KART: NET İŞLETME KÂRI */}
-                <div style={{
-                    background: netProfit >= 0 ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)',
-                    border: `1px solid ${netProfit >= 0 ? 'rgba(16, 185, 129, 0.22)' : 'rgba(239, 68, 68, 0.22)'}`,
-                    borderRadius: '16px',
-                    padding: '16px 20px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
-                }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <div className={`admin-expenses-kpi-card ${netProfit >= 0 ? 'kar-positive' : 'kar-negative'}`}>
+                    <div className="admin-expenses-kpi-header">
+                        <span className="admin-expenses-kpi-title">
                             {periodLabel} Net Kâr
                         </span>
-                        <div style={{
-                            width: '28px',
-                            height: '28px',
-                            borderRadius: '8px',
-                            background: netProfit >= 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: netProfit >= 0 ? '#10b981' : '#f87171'
-                        }}>
+                        <div className={`admin-expenses-kpi-icon ${netProfit >= 0 ? 'kar-positive' : 'kar-negative'}`}>
                             {netProfit >= 0 ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
                         </div>
                     </div>
-                    <div style={{
-                        fontSize: '22px',
-                        fontWeight: 900,
-                        color: netProfit >= 0 ? '#10b981' : '#f87171',
-                        margin: '8px 0 3px 0',
-                        fontFamily: 'monospace'
-                    }}>
+                    <div className={`admin-expenses-kpi-value ${netProfit >= 0 ? 'kar-positive' : 'kar-negative'}`} title={formatMoney(netProfit)}>
                         {formatMoney(netProfit)}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div className="admin-expenses-kpi-subtext" title="Ciro eksi dönem giderleri">
                         Ciro eksi dönem giderleri
                     </div>
                 </div>

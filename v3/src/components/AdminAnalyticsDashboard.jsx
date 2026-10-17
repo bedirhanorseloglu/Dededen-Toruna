@@ -493,15 +493,19 @@ export default function AdminAnalyticsDashboard({
     // Döneme Göre Filtrelenmiş Giderler ve Net Kâr
     const filteredExpenses = useMemo(() => {
         const now = new Date();
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        const todayStr = `${y}-${m}-${d}`;
+
         const startOfWeek = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000)).getTime();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
         return (expenses || []).filter(e => {
             const expTime = new Date(e.date || e.created_at || 0).getTime();
             if (currentPeriod === 'today') {
-                const todayStr = now.toISOString().slice(0, 10);
-                return (e.date && e.date === todayStr) || expTime >= startOfToday;
+                const eDate = e.date || (e.created_at ? e.created_at.slice(0, 10) : '');
+                return eDate === todayStr;
             }
             if (currentPeriod === 'week') return expTime >= startOfWeek;
             if (currentPeriod === 'month') return expTime >= startOfMonth;
@@ -600,7 +604,7 @@ export default function AdminAnalyticsDashboard({
             if (!o.created_at && !o.closed_at) return;
             const d = new Date(o.created_at || o.closed_at);
             if (isNaN(d.getTime())) return;
-            const sortKey = d.toISOString().slice(0, 10);
+            const sortKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             const dateDisplay = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
             if (!map[sortKey]) {
                 map[sortKey] = {

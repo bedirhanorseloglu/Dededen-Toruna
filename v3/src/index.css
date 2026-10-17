@@ -2869,6 +2869,150 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 12px;
+    width: 100%;
+}
+
+.admin-expenses-kpi-card {
+    border-radius: 16px;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    min-height: 116px;
+    box-sizing: border-box;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-expenses-kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+.admin-expenses-kpi-card.ciro {
+    background: rgba(56, 189, 248, 0.05);
+    border: 1px solid rgba(56, 189, 248, 0.22);
+}
+
+.admin-expenses-kpi-card.gider {
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.22);
+}
+
+.admin-expenses-kpi-card.indirim {
+    background: rgba(244, 63, 94, 0.05);
+    border: 1px solid rgba(244, 63, 94, 0.22);
+}
+
+.admin-expenses-kpi-card.kar-positive {
+    background: rgba(16, 185, 129, 0.05);
+    border: 1px solid rgba(16, 185, 129, 0.22);
+}
+
+.admin-expenses-kpi-card.kar-negative {
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.22);
+}
+
+.admin-expenses-kpi-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.admin-expenses-kpi-title {
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1.3;
+    flex: 1;
+    word-break: break-word;
+}
+
+.admin-expenses-kpi-icon {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.admin-expenses-kpi-icon.ciro {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+}
+
+.admin-expenses-kpi-icon.gider {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+}
+
+.admin-expenses-kpi-icon.indirim {
+    background: rgba(244, 63, 94, 0.15);
+    color: #f43f5e;
+}
+
+.admin-expenses-kpi-icon.kar-positive {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+}
+
+.admin-expenses-kpi-icon.kar-negative {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+}
+
+.admin-expenses-kpi-value {
+    font-size: 22px;
+    font-weight: 900;
+    color: white;
+    margin: 8px 0 3px 0;
+    font-family: var(--font-mono, monospace);
+    letter-spacing: -0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.admin-expenses-kpi-value.gider {
+    color: #f87171;
+}
+
+.admin-expenses-kpi-value.indirim {
+    color: #f43f5e;
+}
+
+.admin-expenses-kpi-value.kar-positive {
+    color: #10b981;
+}
+
+.admin-expenses-kpi-value.kar-negative {
+    color: #f87171;
+}
+
+.admin-expenses-kpi-subtext {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.admin-expenses-kpi-subtext.kpi-breakdown {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.admin-expenses-kpi-subtext.kpi-breakdown .kpi-bullet {
+    opacity: 0.6;
 }
 
 @media (max-width: 960px) {
@@ -2876,12 +3020,84 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
         grid-template-columns: repeat(2, 1fr) !important;
         gap: 10px !important;
     }
+    .admin-expenses-kpi-card {
+        padding: 14px 16px;
+        min-height: 108px;
+    }
+    .admin-expenses-kpi-value {
+        font-size: 20px;
+    }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 640px) {
+    .admin-expenses-container {
+        gap: 14px;
+    }
     .admin-expenses-kpi-grid {
         grid-template-columns: repeat(2, 1fr) !important;
         gap: 8px !important;
+    }
+    .admin-expenses-kpi-card {
+        padding: 12px 10px !important;
+        border-radius: 14px !important;
+        min-height: 100px !important;
+    }
+    .admin-expenses-kpi-header {
+        gap: 4px !important;
+    }
+    .admin-expenses-kpi-title {
+        font-size: 10px !important;
+        letter-spacing: 0.2px !important;
+        line-height: 1.25 !important;
+    }
+    .admin-expenses-kpi-icon {
+        width: 24px !important;
+        height: 24px !important;
+        min-width: 24px !important;
+        border-radius: 6px !important;
+    }
+    .admin-expenses-kpi-icon svg {
+        width: 13px !important;
+        height: 13px !important;
+    }
+    .admin-expenses-kpi-value {
+        font-size: clamp(15px, 4.3vw, 19px) !important;
+        margin: 5px 0 2px 0 !important;
+    }
+    .admin-expenses-kpi-subtext {
+        font-size: 10px !important;
+        white-space: normal !important;
+        word-break: break-word !important;
+        line-height: 1.25 !important;
+    }
+    .admin-expenses-kpi-subtext.kpi-breakdown {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 1px !important;
+    }
+    .admin-expenses-kpi-subtext.kpi-breakdown .kpi-bullet {
+        display: none !important;
+    }
+}
+
+@media (max-width: 360px) {
+    .admin-expenses-kpi-grid {
+        grid-template-columns: 1fr !important;
+        gap: 8px !important;
+    }
+    .admin-expenses-kpi-card {
+        padding: 12px 14px !important;
+    }
+    .admin-expenses-kpi-value {
+        font-size: 20px !important;
+    }
+    .admin-expenses-kpi-subtext.kpi-breakdown {
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 4px !important;
+    }
+    .admin-expenses-kpi-subtext.kpi-breakdown .kpi-bullet {
+        display: inline !important;
     }
 }
 

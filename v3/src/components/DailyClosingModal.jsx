@@ -165,7 +165,7 @@ export default function DailyClosingModal({
     const [justSavedNotification, setJustSavedNotification] = useState(false);
 
     const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const startOfWeek = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000)).getTime();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
@@ -188,9 +188,8 @@ export default function DailyClosingModal({
     const selectedExpenses = useMemo(() => {
         return (expenses || []).filter(e => {
             if (periodTab === 'today') {
-                if (e.date) return e.date === todayStr;
-                const t = new Date(e.created_at || 0).getTime();
-                return t >= startOfToday;
+                const eDate = e.date || (e.created_at ? e.created_at.slice(0, 10) : '');
+                return eDate === todayStr;
             }
             const t = new Date(e.date || e.created_at || 0).getTime();
             return t >= periodStartTime;
