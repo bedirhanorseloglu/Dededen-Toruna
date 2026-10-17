@@ -154,6 +154,32 @@ export default function AdminExpenses({
         }).reduce((sum, o) => sum + (Number(o.total) || 0), 0);
     }, [completedOrders, currentPeriod, totalRevenue]);
 
+    // Seçilen dönemin adisyon indirimleri toplamı ve adisyon sayısı (Referans KPI kartı için)
+    const { periodDiscounts, periodDiscountCount } = useMemo(() => {
+        if (!completedOrders || completedOrders.length === 0) {
+            return { periodDiscounts: 0, periodDiscountCount: 0 };
+        }
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const startOfWeek = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000)).getTime();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+        const periodOrders = completedOrders.filter(o => {
+            const t = new Date(o.created_at || o.closed_at || 0).getTime();
+            if (currentPeriod === 'today') return t >= startOfToday;
+            if (currentPeriod === 'week') return t >= startOfWeek;
+            if (currentPeriod === 'month') return t >= startOfMonth;
+            return true;
+        });
+
+        const discounted = periodOrders.filter(o => Number(o.discount) > 0);
+        const total = discounted.reduce((sum, o) => sum + (Number(o.discount) || 0), 0);
+        return {
+            periodDiscounts: total,
+            periodDiscountCount: discounted.length
+        };
+    }, [completedOrders, currentPeriod]);
+
     // Kategori bazlı sayaçlar
     const categoryCounts = useMemo(() => {
         const counts = { all: (expenses || []).length };
@@ -393,6 +419,33 @@ export default function AdminExpenses({
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         Nakit: {formatMoney(cashExpenses)} • Kart: {formatMoney(cardExpenses)}
+                    </div>
+                </div>
+
+                {/* 3. KART: ADİSYON İNDİRİM & İKRAM */}
+                <div style={{
+                    background: 'rgba(244, 63, 94, 0.05)',
+                    border: '1px solid rgba(244, 63, 94, 0.22)',
+                    borderRadius: '16px',
+                    padding: '16px 20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            {periodLabel} İndirim & İkram
+                        </span>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(244, 63, 94, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f43f5e' }}>
+                            <Tag size={15} />
+                        </div>
+                    </div>
+                    <div style={{ fontSize: '22px', fontWeight: 900, color: '#f43f5e', margin: '8px 0 3px 0', fontFamily: 'monospace' }}>
+                        -{formatMoney(periodDiscounts)}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {periodDiscountCount > 0 ? `${periodDiscountCount} adisyonda uygulandı` : 'İndirim uygulanmadı'}
                     </div>
                 </div>
 

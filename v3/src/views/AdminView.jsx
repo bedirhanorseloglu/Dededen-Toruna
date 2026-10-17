@@ -54,6 +54,7 @@ import AdminMenuManagement from '../components/AdminMenuManagement';
 import AdminExpenses from '../components/AdminExpenses';
 import DailyClosingModal from '../components/DailyClosingModal';
 import ModernDatePicker from '../components/ModernDatePicker';
+import { checkAndExecuteDailyClosing } from '../services/autoClosingService';
 
 export default function AdminView() {
     const {
@@ -237,6 +238,15 @@ export default function AdminView() {
 
         return () => unsubscribe();
     }, []);
+
+    // 23:59 Otomatik Gün Sonu Özeti Kaydedici (Eğer alınmamışsa otomatik arşivle)
+    useEffect(() => {
+        checkAndExecuteDailyClosing({ completedOrders, expenses, showToast });
+        const intervalId = setInterval(() => {
+            checkAndExecuteDailyClosing({ completedOrders, expenses, showToast });
+        }, 30000);
+        return () => clearInterval(intervalId);
+    }, [completedOrders, expenses, showToast]);
 
     // Listen to Waiters, Kitchen Staff, and Managers from Firestore
     useEffect(() => {

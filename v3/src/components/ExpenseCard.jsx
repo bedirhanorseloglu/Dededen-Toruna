@@ -23,7 +23,7 @@ export default function ExpenseCard({
             whileHover={{ y: -3 }}
             className="admin-expense-grid-card"
             style={{ '--card-accent': catColor }}
-            onClick={() => onEdit?.(exp)}
+            onClick={() => !exp.isOrderDiscount && onEdit?.(exp)}
         >
             {/* Kart Üst Bölüm: Kategori İkonu + Rozetler + Sağda Aksiyonlar */}
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
@@ -70,55 +70,72 @@ export default function ExpenseCard({
                     </div>
                 </div>
 
-                {/* Aksiyon Butonları (Düzenle & Sil) */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onEdit?.(exp);
-                        }}
-                        style={{
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            border: '1px solid rgba(255, 255, 255, 0.1)',
-                            borderRadius: '8px',
-                            width: '30px',
-                            height: '30px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--text-secondary)',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease'
-                        }}
-                        title="Düzenle"
-                    >
-                        <Pencil size={13} />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onDelete?.(exp);
-                        }}
-                        style={{
-                            background: 'rgba(239, 68, 68, 0.1)',
-                            border: '1px solid rgba(239, 68, 68, 0.25)',
-                            borderRadius: '8px',
-                            width: '30px',
-                            height: '30px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#f87171',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease'
-                        }}
-                        title="Sil"
-                    >
-                        <Trash2 size={13} />
-                    </button>
-                </div>
+                {/* Aksiyon Butonları (Düzenle & Sil veya Adisyon İndirimi Rozeti) */}
+                {exp.isOrderDiscount ? (
+                    <span style={{
+                        background: 'rgba(244, 63, 94, 0.15)',
+                        color: '#f43f5e',
+                        border: '1px solid rgba(244, 63, 94, 0.35)',
+                        padding: '4px 9px',
+                        borderRadius: '8px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                    }}>
+                        🏷️ Adisyon
+                    </span>
+                ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onEdit?.(exp);
+                            }}
+                            style={{
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                borderRadius: '8px',
+                                width: '30px',
+                                height: '30px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'var(--text-secondary)',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                            }}
+                            title="Düzenle"
+                        >
+                            <Pencil size={13} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete?.(exp);
+                            }}
+                            style={{
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                borderRadius: '8px',
+                                width: '30px',
+                                height: '30px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#f87171',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                            }}
+                            title="Sil"
+                        >
+                            <Trash2 size={13} />
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Kart Orta Bölüm: Başlık & Tarih / Not */}
@@ -164,9 +181,14 @@ export default function ExpenseCard({
                 justifyContent: 'space-between'
             }}>
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
-                    Harcama Tutarı
+                    {exp.isOrderDiscount ? 'İndirim Tutarı' : 'Harcama Tutarı'}
                 </span>
-                <span style={{ fontSize: '17px', fontWeight: 900, color: '#f87171', fontFamily: 'monospace' }}>
+                <span style={{ 
+                    fontSize: '17px', 
+                    fontWeight: 900, 
+                    color: exp.isOrderDiscount ? '#f43f5e' : '#f87171', 
+                    fontFamily: 'monospace' 
+                }}>
                     -{formatMoney(exp.amount)}
                 </span>
             </div>
