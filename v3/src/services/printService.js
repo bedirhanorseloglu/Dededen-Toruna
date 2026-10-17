@@ -357,7 +357,8 @@ const isTabletOrMobile = () => {
 /**
  * 1. Kanal: RawBT Yerel WebSocket Servisini Dene (ws://127.0.0.1:40213)
  * Eğer RawBT'de Web Sunucusu açıksa ekrandan HİÇ AYRILMADAN tamamen sessiz basar.
- * Başarısız olursa veya 180ms içinde yanıt gelmezse doğrudan intent çağırmaya düşer.
+ * Tabletin uyanması ve socket bağlantısını kurması için 1500ms güvenli bekleme payı verilir.
+ * Eğer sunucu kapalıysa (bağlantı reddi) zaten anında onerror tetiklenip beklemeden fallback'e geçer.
  */
 function tryRawbtWebSocketPrint(dataUrl, onFallback) {
     let completed = false;
@@ -366,10 +367,16 @@ function tryRawbtWebSocketPrint(dataUrl, onFallback) {
     const timer = setTimeout(() => {
         if (!completed) {
             completed = true;
-            try { if (ws) ws.close(); } catch (e) { }
+            try { 
+                if (ws) {
+                    ws.onopen = null;
+                    ws.onerror = null;
+                    ws.close(); 
+                }
+            } catch (e) { }
             onFallback();
         }
-    }, 180);
+    }, 1500);
 
     try {
         ws = new WebSocket('ws://127.0.0.1:40213/');
@@ -387,13 +394,14 @@ function tryRawbtWebSocketPrint(dataUrl, onFallback) {
                 }
                 setTimeout(() => {
                     try { ws.close(); } catch (e) { }
-                }, 800);
+                }, 1000);
             }
         };
         ws.onerror = () => {
             if (!completed) {
                 completed = true;
                 clearTimeout(timer);
+                try { if (ws) ws.close(); } catch (e) { }
                 onFallback();
             }
         };
