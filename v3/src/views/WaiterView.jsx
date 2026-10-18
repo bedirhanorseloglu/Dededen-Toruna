@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../context/AppContext';
 import { formatMoney } from '../data/menu';
 import { recordCompletedOrder } from '../services/analyticsService';
@@ -10,6 +10,7 @@ import {
     Search, 
     X, 
     CheckCircle2, 
+    Check,
     Clock, 
     Printer,
     MoveHorizontal,
@@ -22,11 +23,17 @@ import {
     CreditCard,
     Receipt,
     Tag,
-    Zap
+    Zap,
+    Flame,
+    ArrowUpRight,
+    Utensils
 } from 'lucide-react';
 import TableCardGrid from '../components/TableCardGrid';
 import DiscountModal from '../components/DiscountModal';
 import QuickAmountModal from '../components/QuickAmountModal';
+import MoveTableModal from '../components/MoveTableModal';
+import SplitPaymentModal from '../components/SplitPaymentModal';
+import LiveOrderDrawer from '../components/LiveOrderDrawer';
 
 export default function WaiterView() {
     const { tables, activeOrders, navigateTo, currentUser, showToast, closeTableOrder, printerSettings } = useApp();
@@ -426,14 +433,18 @@ export default function WaiterView() {
         const payingItems = [];
         const remainingItems = [];
         let payingSubtotal = 0;
+        let totalSubtotal = 0;
 
         currentOrder.items.forEach((item, index) => {
             const payQty = Number(splitSelections[index]) || 0;
             const fullQty = Number(item.quantity) || 1;
+            const price = Number(item.price) || 0;
+
+            totalSubtotal += price * fullQty;
 
             if (payQty > 0) {
                 payingItems.push({ ...item, quantity: payQty });
-                payingSubtotal += Number(item.price) * payQty;
+                payingSubtotal += price * payQty;
             }
 
             const remQty = fullQty - payQty;
@@ -447,13 +458,27 @@ export default function WaiterView() {
             return;
         }
 
+        const currentDiscount = Number(currentOrder.discount) || 0;
+        let payingDiscount = 0;
+        if (currentDiscount > 0 && totalSubtotal > 0 && payingSubtotal > 0) {
+            if (remainingItems.length === 0) {
+                payingDiscount = currentDiscount;
+            } else {
+                payingDiscount = Math.round(currentDiscount * (payingSubtotal / totalSubtotal) * 100) / 100;
+            }
+        }
+        const payingTotal = Math.max(0, payingSubtotal - payingDiscount);
+        const remainingDiscount = Math.max(0, currentDiscount - payingDiscount);
+
         try {
             const partialOrderRecord = {
                 ...currentOrder,
                 items: payingItems,
                 items_count: payingItems.reduce((s, i) => s + (Number(i.quantity) || 1), 0),
                 subtotal: payingSubtotal,
-                total: payingSubtotal,
+                discount: payingDiscount,
+                discount_reason: currentOrder.discount_reason || '',
+                total: payingTotal,
                 is_partial: true,
                 created_at: new Date().toISOString()
             };
@@ -472,14 +497,17 @@ export default function WaiterView() {
                 setShowSplitModal(false);
                 setSplitSelections({});
                 playChimeSound();
-                showToast(`${formatMoney(payingSubtotal)} parçalı tahsil edildi. Kalan tutar masada açık.`, 'success');
+                showToast(`${formatMoney(payingTotal)} parçalı tahsil edildi. Kalan tutar masada açık.`, 'success');
 
                 await recordCompletedOrder(partialOrderRecord, splitPayMethod);
-                const newTotal = remainingItems.reduce((s, i) => s + (Number(i.price) * Number(i.quantity || 1)), 0);
+                const newSubtotal = remainingItems.reduce((s, i) => s + (Number(i.price) * Number(i.quantity || 1)), 0);
+                const finalRemainingDiscount = Math.min(newSubtotal, remainingDiscount);
+                const newTotal = Math.max(0, newSubtotal - finalRemainingDiscount);
                 await updateDoc(doc(db, "orders", `table_${splitTable}`), {
                     items: remainingItems,
                     items_count: remainingItems.reduce((s, i) => s + (Number(i.quantity) || 1), 0),
-                    subtotal: newTotal,
+                    subtotal: newSubtotal,
+                    discount: finalRemainingDiscount,
                     total: newTotal,
                     updated_at: new Date().toISOString()
                 });
@@ -501,787 +529,80 @@ export default function WaiterView() {
             />
 
             {/* ============================================================== */}
-            {/* GARSON CANLI ADİSYON ÇEKMECESİ (YÖNETİCİ PANELİ İLE 1-E-1 AYNI)*/}
+            {/* CANLI ADİSYON ÇEKMECESİ (ORTAK MODÜL - REFERANS 1)            */}
             {/* ============================================================== */}
-            {selectedTableForReceipt !== null && (
-                <>
-                    <div 
-                        className="admin-receipt-backdrop" 
-                        onClick={() => setSelectedTableForReceipt(null)} 
-                    />
-                    <aside className="admin-receipt-drawer">
-                        {/* Mobil için sürükleme/kapatma çizgisi */}
-                        <div className="admin-drawer-drag-pill" onClick={() => setSelectedTableForReceipt(null)} />
-
-                        {/* Drawer Başlığı */}
-                        <div className="receipt-header" style={{ padding: '16px 20px', flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                    <div style={{ fontSize: '11px', color: 'var(--brand-gold)', fontWeight: 700, letterSpacing: '0.5px' }}>
-                                        CANLI ADİSYON
-                                    </div>
-                                    <h2 style={{ fontSize: '20px', fontWeight: 800, letterSpacing: '-0.3px', margin: 0, color: 'white' }}>
-                                        Masa {selectedTableForReceipt}
-                                    </h2>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <button 
-                                        className="btn-outline"
-                                        onClick={() => { setMoveSourceTable(selectedTableForReceipt); setMoveTargetTable(''); setShowMoveModal(true); }}
-                                        style={{ fontSize: '12px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                    >
-                                        <MoveHorizontal size={13} /> Taşı
-                                    </button>
-                                    <button 
-                                        className="btn-outline"
-                                        onClick={() => { setSplitTable(selectedTableForReceipt); setSplitSelections({}); setSplitPayMethod('cash'); setShowSplitModal(true); }}
-                                        style={{ fontSize: '12px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                    >
-                                        <Scissors size={13} /> Böl
-                                    </button>
-                                    <button 
-                                        className="admin-drawer-close-btn"
-                                        onClick={() => setSelectedTableForReceipt(null)}
-                                        title="Adisyonu Kapat (ESC)"
-                                    >
-                                        <X size={16} />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Sorumlu Garson Rozeti */}
-                            <div style={{
-                                padding: '8px 12px',
-                                background: 'var(--bg-surface-elevated)',
-                                border: '1px solid var(--border-card)',
-                                borderRadius: 'var(--radius-sm)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between'
-                            }}>
-                                <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 700 }}>
-                                    👤 Sorumlu Garson:
-                                </div>
-                                <div style={{
-                                    fontSize: '13px',
-                                    fontWeight: 800,
-                                    color: '#ffd43b',
-                                    background: 'rgba(245, 159, 0, 0.12)',
-                                    padding: '3px 10px',
-                                    borderRadius: '4px',
-                                    border: '1px solid rgba(245, 159, 0, 0.3)'
-                                }}>
-                                    {receiptOrder?.waiter_name || currentUser?.name || 'Garson'}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Drawer İçeriği & Ürün Listesi */}
-                        <div className="receipt-items-list" style={{ flex: 1, overflowY: 'auto', padding: '14px 18px' }}>
-                            {(!receiptOrder || !receiptOrder.items || receiptOrder.items.length === 0) ? (
-                                <div style={{
-                                    height: '100%',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: 'var(--text-muted)',
-                                    textAlign: 'center',
-                                    padding: '24px'
-                                }}>
-                                    <div style={{ fontSize: '40px', marginBottom: '10px' }}>🍽️</div>
-                                    <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-secondary)' }}>Adisyon Henüz Boş</div>
-                                    <div style={{ fontSize: '12px', marginTop: '4px', marginBottom: '16px' }}>Bu masada henüz aktif sipariş bulunmuyor.</div>
-
-                                    {/* ⚡ KURTARICI EMNİYET SÜBABI: BOŞ MASADAN ANINDA HIZLI ÖDEME AL */}
-                                    <button
-                                        onClick={() => setShowQuickAmountModal(true)}
-                                        className="btn-quick-amount-drawer hero"
-                                        style={{ marginBottom: '12px', width: '100%', maxWidth: '320px' }}
-                                    >
-                                        <Zap size={18} /> Hızlı Ödeme Al
-                                    </button>
-
-                                    <button 
-                                        className="btn-outline" 
-                                        style={{ padding: '10px 18px', fontSize: '13px', width: '100%', maxWidth: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                                        onClick={() => {
-                                            const tNo = selectedTableForReceipt;
-                                            setSelectedTableForReceipt(null);
-                                            navigateTo('table', tNo);
-                                        }}
-                                    >
-                                        Masaya Git ve Sipariş Aç ↗
-                                    </button>
-                                </div>
-                            ) : (
-                                <>
-                                    {/* Teslim Durumu Özeti & Hızlı Toplu Teslim */}
-                                    <div style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        padding: '8px 12px',
-                                        background: 'rgba(0,0,0,0.35)',
-                                        borderRadius: 'var(--radius-sm)',
-                                        border: '1px solid var(--border-card)',
-                                        marginBottom: '10px',
-                                        gap: '8px',
-                                        flexWrap: 'wrap'
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
-                                            <span style={{ color: 'var(--warning)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <Clock size={13} /> {receiptOrder.items.filter(i => i.status !== 'delivered').length} Hazırlanıyor
-                                            </span>
-                                            <span style={{ color: 'var(--text-muted)' }}>•</span>
-                                            <span style={{ color: 'var(--success)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <CheckCircle2 size={13} /> {receiptOrder.items.filter(i => i.status === 'delivered').length} Teslim
-                                            </span>
-                                        </div>
-                                        {receiptOrder.items.some(i => i.status !== 'delivered') && (
-                                            <button
-                                                onClick={handleDeliverAllDrawerItems}
-                                                className="btn-outline"
-                                                style={{ fontSize: '11px', padding: '3px 8px', color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)', fontWeight: 700 }}
-                                                title="Tüm hazırlananları teslim edildi yap"
-                                            >
-                                                Tümünü Teslim Et ✓
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {/* 1. GRUP: MUTFAKTA HAZIRLANAN / PİŞEN ÜRÜNLER */}
-                                    {receiptOrder.items.some(i => i.status !== 'delivered') && (
-                                        <div style={{ marginBottom: '14px' }}>
-                                            <div style={{
-                                                fontSize: '11px',
-                                                fontWeight: 800,
-                                                color: 'var(--warning)',
-                                                letterSpacing: '0.4px',
-                                                textTransform: 'uppercase',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '5px',
-                                                marginBottom: '6px',
-                                                paddingLeft: '2px'
-                                            }}>
-                                                <Clock size={12} /> 🟡 Hazırlanıyor / Mutfakta ({receiptOrder.items.filter(i => i.status !== 'delivered').length})
-                                            </div>
-                                            {receiptOrder.items.map((item, idx) => {
-                                                if (item.status === 'delivered') return null;
-                                                return (
-                                                    <div 
-                                                        key={idx}
-                                                        className="receipt-item-row pending"
-                                                        style={{
-                                                            display: 'flex',
-                                                            flexDirection: 'column',
-                                                            gap: '6px',
-                                                            padding: '10px 12px',
-                                                            background: 'rgba(245, 158, 11, 0.05)',
-                                                            border: '1px solid rgba(245, 158, 11, 0.3)',
-                                                            borderRadius: 'var(--radius-sm)',
-                                                            marginBottom: '6px'
-                                                        }}
-                                                    >
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                            <div>
-                                                                <div style={{ fontWeight: 800, fontSize: '14px', color: 'white' }}>
-                                                                    {item.name}
-                                                                </div>
-                                                                <div style={{ fontSize: '12px', color: 'var(--brand-gold)', fontWeight: 700, marginTop: '2px' }}>
-                                                                    {formatMoney(Number(item.price) * Number(item.quantity || 1))}
-                                                                    <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: '6px' }}>
-                                                                        ({formatMoney(item.price)} x {item.quantity})
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Teslimat Butonu (Mutfakta / Teslim Edildi) */}
-                                                            <button
-                                                                onClick={() => handleToggleDrawerItemStatus(idx)}
-                                                                className="delivery-status-btn pending"
-                                                                title="Teslim Edildi Olarak İşaretle"
-                                                            >
-                                                                <Clock size={13} /> Hazırlanıyor
-                                                            </button>
-                                                        </div>
-
-                                                        {item.notes && (
-                                                            <div style={{
-                                                                fontSize: '11px',
-                                                                color: 'var(--brand-gold)',
-                                                                background: 'rgba(245, 159, 0, 0.1)',
-                                                                padding: '3px 8px',
-                                                                borderRadius: '4px'
-                                                            }}>
-                                                                📝 {item.notes}
-                                                            </div>
-                                                        )}
-
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
-                                                            <button
-                                                                onClick={() => {
-                                                                    setNoteModalItemIdx(idx);
-                                                                    setItemNoteInput(item.notes || '');
-                                                                }}
-                                                                className="btn-outline"
-                                                                style={{
-                                                                    fontSize: '11px',
-                                                                    padding: '2px 8px',
-                                                                    display: 'flex',
-                                                                    alignItems: 'center',
-                                                                    gap: '4px',
-                                                                    color: item.notes ? 'var(--brand-gold)' : 'var(--text-muted)'
-                                                                }}
-                                                            >
-                                                                <MessageSquare size={12} /> {item.notes ? 'Not Düzenle' : '+ Not'}
-                                                            </button>
-
-                                                            {/* Adet Artır / Azalt / Sil Stepper */}
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                <button
-                                                                    onClick={() => handleUpdateDrawerQuantity(idx, -1)}
-                                                                    className="btn-outline"
-                                                                    style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                                >
-                                                                    <Minus size={13} />
-                                                                </button>
-                                                                <span style={{ fontWeight: 800, fontSize: '13px', color: 'white', minWidth: '18px', textAlign: 'center' }}>
-                                                                    {item.quantity}
-                                                                </span>
-                                                                <button
-                                                                    onClick={() => handleUpdateDrawerQuantity(idx, 1)}
-                                                                    className="btn-outline"
-                                                                    style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                                >
-                                                                    <Plus size={13} />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleUpdateDrawerQuantity(idx, -item.quantity)}
-                                                                    className="btn-outline"
-                                                                    style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.4)' }}
-                                                                >
-                                                                    <Trash2 size={13} />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-
-                                    {/* 2. GRUP: MASAYA TESLİM EDİLEN ÜRÜNLER */}
-                                    {receiptOrder.items.some(i => i.status === 'delivered') && (
-                                        <div>
-                                            <div style={{
-                                                fontSize: '11px',
-                                                fontWeight: 800,
-                                                color: 'var(--success)',
-                                                letterSpacing: '0.4px',
-                                                textTransform: 'uppercase',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '5px',
-                                                marginBottom: '6px',
-                                                paddingLeft: '2px'
-                                            }}>
-                                                <CheckCircle2 size={12} /> 🟢 Teslim Edildi / Masada ({receiptOrder.items.filter(i => i.status === 'delivered').length})
-                                            </div>
-                                            {receiptOrder.items.map((item, idx) => {
-                                                if (item.status !== 'delivered') return null;
-                                                return (
-                                                    <div 
-                                                        key={idx}
-                                                        className="receipt-item-row delivered"
-                                                        style={{
-                                                            display: 'flex',
-                                                            flexDirection: 'column',
-                                                            gap: '6px',
-                                                            padding: '10px 12px',
-                                                            background: 'rgba(16, 185, 129, 0.05)',
-                                                            border: '1px solid rgba(16, 185, 129, 0.25)',
-                                                            borderRadius: 'var(--radius-sm)',
-                                                            marginBottom: '6px'
-                                                        }}
-                                                    >
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                            <div>
-                                                                <div style={{ fontWeight: 800, fontSize: '14px', color: 'white' }}>
-                                                                    {item.name}
-                                                                </div>
-                                                                <div style={{ fontSize: '12px', color: 'var(--brand-gold)', fontWeight: 700, marginTop: '2px' }}>
-                                                                    {formatMoney(Number(item.price) * Number(item.quantity || 1))}
-                                                                    <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: '6px' }}>
-                                                                        ({formatMoney(item.price)} x {item.quantity})
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-
-                                                            <button
-                                                                onClick={() => handleToggleDrawerItemStatus(idx)}
-                                                                className="delivery-status-btn delivered"
-                                                                title="Geri Al (Hazırlanıyor Yap)"
-                                                            >
-                                                                <CheckCircle2 size={13} /> ✓ Teslim
-                                                            </button>
-                                                        </div>
-
-                                                        {item.notes && (
-                                                            <div style={{
-                                                                fontSize: '11px',
-                                                                color: 'var(--brand-gold)',
-                                                                background: 'rgba(245, 159, 0, 0.1)',
-                                                                padding: '3px 8px',
-                                                                borderRadius: '4px'
-                                                            }}>
-                                                                📝 {item.notes}
-                                                            </div>
-                                                        )}
-
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
-                                                            <button
-                                                                onClick={() => {
-                                                                    setNoteModalItemIdx(idx);
-                                                                    setItemNoteInput(item.notes || '');
-                                                                }}
-                                                                className="btn-outline"
-                                                                style={{
-                                                                    fontSize: '11px',
-                                                                    padding: '2px 8px',
-                                                                    display: 'flex',
-                                                                    alignItems: 'center',
-                                                                    gap: '4px',
-                                                                    color: item.notes ? 'var(--brand-gold)' : 'var(--text-muted)'
-                                                                }}
-                                                            >
-                                                                <MessageSquare size={12} /> {item.notes ? 'Not Düzenle' : '+ Not'}
-                                                            </button>
-
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                <button
-                                                                    onClick={() => handleUpdateDrawerQuantity(idx, -1)}
-                                                                    className="btn-outline"
-                                                                    style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                                >
-                                                                    <Minus size={13} />
-                                                                </button>
-                                                                <span style={{ fontWeight: 800, fontSize: '13px', color: 'white', minWidth: '18px', textAlign: 'center' }}>
-                                                                    {item.quantity}
-                                                                </span>
-                                                                <button
-                                                                    onClick={() => handleUpdateDrawerQuantity(idx, 1)}
-                                                                    className="btn-outline"
-                                                                    style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                                >
-                                                                    <Plus size={13} />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleUpdateDrawerQuantity(idx, -item.quantity)}
-                                                                    className="btn-outline"
-                                                                    style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.4)' }}
-                                                                >
-                                                                    <Trash2 size={13} />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
-
-                        {/* Footer & Checkout Buttons (Yalnızca adisyonda ürün varsa gösterilir) */}
-                        {receiptOrder && receiptOrder.items && receiptOrder.items.length > 0 && (
-                            <div className="receipt-footer">
-                                {Number(receiptOrder.discount) > 0 ? (
-                                    <div style={{
-                                        background: 'rgba(0, 0, 0, 0.4)',
-                                        border: '1px solid rgba(16, 185, 129, 0.35)',
-                                        borderRadius: '12px',
-                                        padding: '10px 12px',
-                                        marginBottom: '10px'
-                                    }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Ara Toplam</span>
-                                            <span style={{ fontSize: '14px', color: 'var(--text-muted)', fontWeight: 700, textDecoration: 'line-through' }}>
-                                                {formatMoney(receiptOrder.subtotal || receiptOrder.total)}
-                                            </span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                            <span style={{ fontSize: '12.5px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700 }}>
-                                                🏷️ İndirim / İkram
-                                            </span>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <span style={{ fontSize: '14px', color: '#10b981', fontWeight: 800 }}>
-                                                    -{formatMoney(receiptOrder.discount)}
-                                                </span>
-                                                <button
-                                                    onClick={handleRemoveDrawerDiscount}
-                                                    title="İndirimi Kaldır"
-                                                    style={{
-                                                        background: 'rgba(239, 68, 68, 0.15)',
-                                                        border: '1px solid rgba(239, 68, 68, 0.3)',
-                                                        color: '#ef4444',
-                                                        borderRadius: '4px',
-                                                        padding: '1px 5px',
-                                                        fontSize: '11px',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                >
-                                                    ✕
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)', margin: '6px 0' }} />
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Ödenecek Tutar</span>
-                                            <span style={{ color: 'var(--brand-gold)', fontSize: '24px', fontWeight: 900 }}>
-                                                {formatMoney(receiptOrder.total)}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="total-summary">
-                                        <span style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>Genel Tutar</span>
-                                        <span style={{ color: 'var(--brand-gold)', fontSize: '24px', fontWeight: 800 }}>
-                                            {formatMoney(receiptOrder.total)}
-                                        </span>
-                                    </div>
-                                )}
-
-                                {/* Satır 1: Sipariş Ekle & İndirim (2 Kolon) */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
-                                    <button
-                                        onClick={() => {
-                                            const tNo = selectedTableForReceipt;
-                                            setSelectedTableForReceipt(null);
-                                            navigateTo('table', tNo);
-                                        }}
-                                        className="btn-outline"
-                                        style={{
-                                            minHeight: '44px',
-                                            padding: '8px 10px',
-                                            fontSize: '13px',
-                                            fontWeight: 800,
-                                            borderRadius: 'var(--radius-md)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '6px',
-                                            color: 'var(--brand-gold)',
-                                            borderColor: 'rgba(245, 158, 11, 0.4)'
-                                        }}
-                                    >
-                                        ➕ Sipariş Ekle ↗
-                                    </button>
-
-                                    <button
-                                        onClick={() => setShowDrawerDiscountModal(true)}
-                                        style={{
-                                            minHeight: '44px',
-                                            padding: '8px 10px',
-                                            background: Number(receiptOrder.discount) > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.08)',
-                                            border: `1px dashed ${Number(receiptOrder.discount) > 0 ? '#10b981' : 'rgba(245, 158, 11, 0.4)'}`,
-                                            borderRadius: 'var(--radius-md)',
-                                            color: Number(receiptOrder.discount) > 0 ? '#10b981' : 'var(--brand-gold)',
-                                            fontSize: '12.5px',
-                                            fontWeight: 800,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '6px',
-                                            cursor: 'pointer'
-                                        }}
-                                    >
-                                        <Tag size={15} />
-                                        {Number(receiptOrder.discount) > 0 ? `İndirim (${formatMoney(receiptOrder.discount)})` : 'İndirim / İkram'}
-                                    </button>
-                                </div>
-
-                                {/* Satır 2: Mutfak Fişi (Tam Genişlik - Sık Kullanılan) */}
-                                <div style={{ marginBottom: '10px' }}>
-                                    <button
-                                        onClick={handlePrintDrawerKitchenTicket}
-                                        className="btn-primary"
-                                        style={{
-                                            width: '100%',
-                                            minHeight: '46px',
-                                            padding: '10px 14px',
-                                            fontSize: '13.5px',
-                                            fontWeight: 800,
-                                            borderRadius: 'var(--radius-md)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '8px'
-                                        }}
-                                    >
-                                        <Printer size={16} /> Mutfak Fişi
-                                    </button>
-                                </div>
-
-                                {/* 3 Checkout Butonu (Nakit, Kart, Masa Hesap Fişi) */}
-                                <div className="checkout-actions-3col">
-                                    <button
-                                        onClick={() => handleFastCheckout('cash')}
-                                        disabled={!receiptOrder.items || receiptOrder.items.length === 0}
-                                        className="btn-checkout-action btn-checkout-cash"
-                                    >
-                                        <Banknote size={18} />
-                                        Nakit Kapat
-                                    </button>
-
-                                    <button
-                                        onClick={() => handleFastCheckout('card')}
-                                        disabled={!receiptOrder.items || receiptOrder.items.length === 0}
-                                        className="btn-checkout-action btn-checkout-card"
-                                    >
-                                        <CreditCard size={18} />
-                                        Kart Kapat
-                                    </button>
-
-                                    <button
-                                        onClick={handlePrintDrawerCustomerBill}
-                                        disabled={!receiptOrder.items || receiptOrder.items.length === 0}
-                                        className="btn-checkout-action btn-checkout-print"
-                                        title="Müşteri Hesap Fişini Yazdır (Hesap Açık Kalır)"
-                                    >
-                                        <Receipt size={18} />
-                                        Masa Hesap Fişi
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </aside>
-                </>
-            )}
+            <LiveOrderDrawer
+                isOpen={selectedTableForReceipt !== null}
+                mode="drawer"
+                tableNo={selectedTableForReceipt}
+                order={receiptOrder}
+                currentUser={currentUser}
+                isTableDetail={false}
+                onClose={() => setSelectedTableForReceipt(null)}
+                onMove={() => {
+                    setMoveSourceTable(selectedTableForReceipt);
+                    setMoveTargetTable('');
+                    setShowMoveModal(true);
+                }}
+                onSplit={() => {
+                    setSplitTable(selectedTableForReceipt);
+                    setSplitSelections({});
+                    setSplitPayMethod('cash');
+                    setShowSplitModal(true);
+                }}
+                onToggleItemStatus={handleToggleDrawerItemStatus}
+                onDeliverAll={handleDeliverAllDrawerItems}
+                onUpdateQuantity={handleUpdateDrawerQuantity}
+                onAddNote={(idx) => {
+                    setNoteModalItemIdx(idx);
+                    setItemNoteInput(receiptOrder?.items?.[idx]?.notes || '');
+                }}
+                onNavigateToTable={(tNo) => {
+                    setSelectedTableForReceipt(null);
+                    navigateTo('table', tNo);
+                }}
+                onQuickAmount={() => setShowQuickAmountModal(true)}
+                onOpenDiscount={() => setShowDrawerDiscountModal(true)}
+                onRemoveDiscount={handleRemoveDrawerDiscount}
+                onPrintKitchen={handlePrintDrawerKitchenTicket}
+                onPrintCustomerBill={handlePrintDrawerCustomerBill}
+                onCheckout={handleFastCheckout}
+            />
 
             {/* ============================================================== */}
             {/* MODAL: MASA TAŞI / BİRLEŞTİR                                  */}
             {/* ============================================================== */}
-            {showMoveModal && (
-                <div className="modal-overlay open" style={{ display: 'flex', opacity: 1, zIndex: 1700 }}>
-                    <div className="modal-content open modal-responsive-card" style={{ maxWidth: '440px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                            <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'white', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <MoveHorizontal size={18} className="text-amber-400" />
-                                Masa Taşı / Birleştir
-                            </h3>
-                            <button onClick={() => setShowMoveModal(false)} className="btn-logout" style={{ width: '28px', height: '28px' }}>
-                                <X size={15} />
-                            </button>
-                        </div>
-
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '16px' }}>
-                            Masa <strong>{moveSourceTable}</strong> siparişlerini aktarmak istediğiniz hedef masayı seçin:
-                        </p>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(62px, 1fr))', gap: '8px', marginBottom: '18px' }}>
-                            {tables.map(t => {
-                                const isSelf = t.table_no === Number(moveSourceTable);
-                                const isOccupied = !!activeOrders[String(t.table_no)];
-                                const isSelected = moveTargetTable === String(t.table_no);
-
-                                return (
-                                    <button
-                                        key={t.id}
-                                        disabled={isSelf}
-                                        onClick={() => setMoveTargetTable(String(t.table_no))}
-                                        className="btn-outline"
-                                        style={{
-                                            padding: '10px 0',
-                                            fontWeight: 800,
-                                            fontSize: '13px',
-                                            background: isSelected ? 'var(--brand-primary)' : (isOccupied ? 'rgba(245, 159, 0, 0.15)' : 'var(--bg-surface)'),
-                                            color: isSelf ? 'var(--text-muted)' : (isSelected ? '#fff' : (isOccupied ? 'var(--brand-gold)' : 'var(--text-primary)')),
-                                            borderColor: isSelected ? 'var(--brand-primary)' : 'var(--border-card)',
-                                            cursor: isSelf ? 'not-allowed' : 'pointer'
-                                        }}
-                                    >
-                                        M{t.table_no}
-                                    </button>
-                                );
-                            })}
-                        </div>
-
-                        {moveTargetTable && (
-                            <div style={{
-                                padding: '10px 12px',
-                                borderRadius: 'var(--radius-sm)',
-                                background: activeOrders[moveTargetTable] ? 'rgba(245, 159, 0, 0.12)' : 'rgba(16, 185, 129, 0.12)',
-                                border: activeOrders[moveTargetTable] ? '1px solid rgba(245, 159, 0, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
-                                color: activeOrders[moveTargetTable] ? 'var(--brand-gold)' : 'var(--success)',
-                                fontSize: '12px',
-                                fontWeight: 700,
-                                marginBottom: '16px'
-                            }}>
-                                {activeOrders[moveTargetTable] ? (
-                                    <span>⚠️ Hedef Masa {moveTargetTable} DOLU! Siparişler <strong>BİRLEŞTİRİLECEKTİR</strong>.</span>
-                                ) : (
-                                    <span>✓ Hedef Masa {moveTargetTable} BOŞ. Adisyon doğrudan <strong>TAŞINACAKTIR</strong>.</span>
-                                )}
-                            </div>
-                        )}
-
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <button onClick={() => setShowMoveModal(false)} className="btn-outline" style={{ flex: 1 }}>
-                                Vazgeç
-                            </button>
-                            <button 
-                                onClick={handleMoveOrMergeTable}
-                                disabled={!moveTargetTable}
-                                className="btn-primary" 
-                                style={{ flex: 2, padding: '10px' }}
-                            >
-                                Onayla ve Aktar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <MoveTableModal
+                isOpen={showMoveModal}
+                sourceTable={moveSourceTable}
+                selectedTargetTable={moveTargetTable}
+                onSelectTargetTable={setMoveTargetTable}
+                onConfirm={handleMoveOrMergeTable}
+                onClose={() => {
+                    setShowMoveModal(false);
+                    setMoveTargetTable('');
+                }}
+                tables={tables}
+                activeOrders={activeOrders}
+            />
 
             {/* ============================================================== */}
             {/* MODAL: PARÇALI / KISMİ HESAP BÖL                               */}
             {/* ============================================================== */}
-            {showSplitModal && splitTable && activeOrders[String(splitTable)] && (
-                <div className="modal-overlay open" style={{ display: 'flex', opacity: 1, zIndex: 1700 }}>
-                    <div className="modal-content open modal-responsive-card" style={{ maxWidth: '440px', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                            <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'white', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <Scissors size={18} className="text-emerald-400" />
-                                Masa {splitTable} • Parçalı / Kısmi Ödeme
-                            </h3>
-                            <button onClick={() => setShowSplitModal(false)} className="btn-logout" style={{ width: '28px', height: '28px' }}>
-                                <X size={15} />
-                            </button>
-                        </div>
-
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '12px' }}>
-                            Şu anda ödenecek ürün ve adetleri seçiniz. Kalan ürünler masada açık kalacaktır.
-                        </p>
-
-                        {(() => {
-                            const currentOrd = activeOrders[String(splitTable)];
-                            const items = currentOrd?.items || [];
-                            let payingTotal = 0;
-                            items.forEach((item, idx) => {
-                                const q = Number(splitSelections[idx]) || 0;
-                                payingTotal += Number(item.price) * q;
-                            });
-
-                            return (
-                                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                                    <div style={{ maxHeight: '240px', overflowY: 'auto', marginBottom: '14px', border: '1px solid var(--border-card)', borderRadius: 'var(--radius-sm)', padding: '6px' }}>
-                                        {items.map((item, idx) => {
-                                            const totalQty = Number(item.quantity) || 1;
-                                            const currentSelected = Number(splitSelections[idx]) || 0;
-
-                                            return (
-                                                <div 
-                                                    key={idx}
-                                                    style={{
-                                                        display: 'flex',
-                                                        justifyContent: 'space-between',
-                                                        alignItems: 'center',
-                                                        padding: '8px 10px',
-                                                        borderBottom: idx === items.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.06)',
-                                                        background: currentSelected > 0 ? 'rgba(16, 185, 129, 0.08)' : 'transparent'
-                                                    }}
-                                                >
-                                                    <div>
-                                                        <div style={{ fontWeight: 700, fontSize: '13px', color: 'white' }}>{item.name}</div>
-                                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{formatMoney(item.price)} (Mevcut: {totalQty} Adet)</div>
-                                                    </div>
-
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <button
-                                                            onClick={() => setSplitSelections(prev => ({ ...prev, [idx]: Math.max(0, (Number(prev[idx]) || 0) - 1) }))}
-                                                            className="btn-outline"
-                                                            style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                        >
-                                                            -
-                                                        </button>
-                                                        <span style={{ fontWeight: 800, fontSize: '13px', color: currentSelected > 0 ? 'var(--success)' : 'white', minWidth: '20px', textAlign: 'center' }}>
-                                                            {currentSelected}
-                                                        </span>
-                                                        <button
-                                                            onClick={() => setSplitSelections(prev => ({ ...prev, [idx]: Math.min(totalQty, (Number(prev[idx]) || 0) + 1) }))}
-                                                            className="btn-outline"
-                                                            style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                        >
-                                                            +
-                                                        </button>
-                                                        <button
-                                                            onClick={() => setSplitSelections(prev => ({ ...prev, [idx]: totalQty }))}
-                                                            className="btn-outline"
-                                                            style={{ fontSize: '10px', padding: '2px 5px', color: 'var(--brand-gold)' }}
-                                                            title="Tümünü Seç"
-                                                        >
-                                                            Tümü
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-
-                                    {/* Tahsil Edilecek Tutar */}
-                                    <div style={{
-                                        padding: '10px 14px',
-                                        background: 'var(--bg-surface-elevated)',
-                                        borderRadius: 'var(--radius-sm)',
-                                        border: '1px solid var(--border-card)',
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                        marginBottom: '14px'
-                                    }}>
-                                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Ödenecek Tutar:</span>
-                                        <span style={{ fontSize: '20px', fontWeight: 800, color: '#10b981' }}>{formatMoney(payingTotal)}</span>
-                                    </div>
-
-                                    {/* Ödeme Yöntemi Seçimi */}
-                                    <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
-                                        <button
-                                            onClick={() => setSplitPayMethod('cash')}
-                                            className="btn-outline"
-                                            style={{ flex: 1, padding: '8px', fontWeight: 700, fontSize: '12px', background: splitPayMethod === 'cash' ? '#10b981' : 'transparent', color: splitPayMethod === 'cash' ? '#fff' : 'var(--text-secondary)', borderColor: splitPayMethod === 'cash' ? '#10b981' : 'var(--border-card)' }}
-                                        >
-                                            💵 Nakit
-                                        </button>
-                                        <button
-                                            onClick={() => setSplitPayMethod('card')}
-                                            className="btn-outline"
-                                            style={{ flex: 1, padding: '8px', fontWeight: 700, fontSize: '12px', background: splitPayMethod === 'card' ? 'var(--brand-primary)' : 'transparent', color: splitPayMethod === 'card' ? '#fff' : 'var(--text-secondary)', borderColor: splitPayMethod === 'card' ? 'var(--brand-primary)' : 'var(--border-card)' }}
-                                        >
-                                            💳 Kart
-                                        </button>
-                                    </div>
-
-                                    <div style={{ display: 'flex', gap: '10px' }}>
-                                        <button onClick={() => setShowSplitModal(false)} className="btn-outline" style={{ flex: 1 }}>
-                                            Vazgeç
-                                        </button>
-                                        <button
-                                            onClick={handleSplitPayment}
-                                            disabled={payingTotal <= 0}
-                                            className="btn-primary"
-                                            style={{ flex: 2, padding: '10px', background: splitPayMethod === 'cash' ? '#10b981' : 'var(--brand-primary)' }}
-                                        >
-                                            {formatMoney(payingTotal)} Tahsil Et
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })()}
-                    </div>
-                </div>
-            )}
+            <SplitPaymentModal
+                isOpen={showSplitModal && !!splitTable && !!activeOrders[String(splitTable)]}
+                tableNo={splitTable}
+                order={activeOrders[String(splitTable)]}
+                splitSelections={splitSelections}
+                setSplitSelections={setSplitSelections}
+                splitPayMethod={splitPayMethod}
+                setSplitPayMethod={setSplitPayMethod}
+                onConfirm={handleSplitPayment}
+                onClose={() => {
+                    setShowSplitModal(false);
+                    setSplitSelections({});
+                }}
+            />
 
             {/* ============================================================== */}
             {/* MODAL: SİPARİŞ NOTU DÜZENLEME                                  */}

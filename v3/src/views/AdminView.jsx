@@ -49,9 +49,13 @@ import {
     Tag,
     Zap,
     Smartphone,
-    Sparkles,
     User,
-    Phone
+    Phone,
+    LayoutGrid,
+    Layers,
+    ArrowUpRight,
+    Utensils,
+    Flame
 } from 'lucide-react';
 import TableCardGrid from '../components/TableCardGrid';
 import DiscountModal from '../components/DiscountModal';
@@ -63,6 +67,9 @@ import AdminMenuManagement from '../components/AdminMenuManagement';
 import AdminExpenses from '../components/AdminExpenses';
 import DailyClosingModal from '../components/DailyClosingModal';
 import ModernDatePicker from '../components/ModernDatePicker';
+import MoveTableModal from '../components/MoveTableModal';
+import SplitPaymentModal from '../components/SplitPaymentModal';
+import LiveOrderDrawer from '../components/LiveOrderDrawer';
 import { checkAndExecuteDailyClosing } from '../services/autoClosingService';
 
 export default function AdminView() {
@@ -753,7 +760,8 @@ export default function AdminView() {
     const liveWaiterStats = useMemo(() => {
         const map = {};
         Object.values(activeOrders).forEach(o => {
-            const wName = o.waiter_name || 'Personel';
+            const rawName = o.waiter_name || 'Personel';
+            const wName = rawName.replace(/\s*\(patron\)\s*/gi, '').trim() || 'Yönetici';
             if (!map[wName]) {
                 map[wName] = { name: wName, tableNos: [], totalBalance: 0 };
             }
@@ -834,14 +842,18 @@ export default function AdminView() {
         const payingItems = [];
         const remainingItems = [];
         let payingSubtotal = 0;
+        let totalSubtotal = 0;
 
         currentOrder.items.forEach((item, index) => {
             const payQty = Number(splitSelections[index]) || 0;
             const fullQty = Number(item.quantity) || 1;
+            const price = Number(item.price) || 0;
+
+            totalSubtotal += price * fullQty;
 
             if (payQty > 0) {
                 payingItems.push({ ...item, quantity: payQty });
-                payingSubtotal += Number(item.price) * payQty;
+                payingSubtotal += price * payQty;
             }
 
             const remainQty = fullQty - payQty;
@@ -850,10 +862,22 @@ export default function AdminView() {
             }
         });
 
-        if (payingItems.length === 0) {
+        if (payingItems.length === 0 || payingSubtotal <= 0) {
             showToast('Lütfen ödenecek ürünleri seçiniz.', 'warning');
             return;
         }
+
+        const currentDiscount = Number(currentOrder.discount) || 0;
+        let payingDiscount = 0;
+        if (currentDiscount > 0 && totalSubtotal > 0 && payingSubtotal > 0) {
+            if (remainingItems.length === 0) {
+                payingDiscount = currentDiscount;
+            } else {
+                payingDiscount = Math.round(currentDiscount * (payingSubtotal / totalSubtotal) * 100) / 100;
+            }
+        }
+        const payingTotal = Math.max(0, payingSubtotal - payingDiscount);
+        const remainingDiscount = Math.max(0, currentDiscount - payingDiscount);
 
         try {
             const partialOrderRecord = {
@@ -861,11 +885,15 @@ export default function AdminView() {
                 waiter_id: currentOrder.waiter_id || currentUser?.id || 'mgr-1',
                 waiter_name: currentOrder.waiter_name || currentUser?.name || 'Yönetici',
                 items: payingItems,
+                items_count: payingItems.reduce((s, i) => s + (Number(i.quantity) || 1), 0),
                 subtotal: payingSubtotal,
-                total: payingSubtotal,
+                discount: payingDiscount,
+                discount_reason: currentOrder.discount_reason || '',
+                total: payingTotal,
                 is_partial: true,
                 created_at: new Date().toISOString()
             };
+
             await recordCompletedOrder(partialOrderRecord, splitPayMethod);
 
             if (remainingItems.length === 0) {
@@ -876,20 +904,21 @@ export default function AdminView() {
                 playChimeSound();
                 showToast(`Masa ${splitTable} hesabı tamamen tahsil edilerek kapatıldı!`, 'success');
 
-                await recordCompletedOrder(partialOrderRecord, splitPayMethod);
                 await closeTableOrder(splitTable, currentOrder?.id);
             } else {
                 setShowSplitModal(false);
                 setSplitSelections({});
                 playChimeSound();
-                showToast(`${formatMoney(payingSubtotal)} parçalı tahsil edildi. Kalan tutar masada açık.`, 'success');
+                showToast(`${formatMoney(payingTotal)} parçalı tahsil edildi. Kalan tutar masada açık.`, 'success');
 
-                await recordCompletedOrder(partialOrderRecord, splitPayMethod);
-                const newTotal = remainingItems.reduce((s, i) => s + (Number(i.price) * Number(i.quantity || 1)), 0);
+                const newSubtotal = remainingItems.reduce((s, i) => s + (Number(i.price) * Number(i.quantity || 1)), 0);
+                const finalRemainingDiscount = Math.min(newSubtotal, remainingDiscount);
+                const newTotal = Math.max(0, newSubtotal - finalRemainingDiscount);
                 await updateDoc(doc(db, "orders", `table_${splitTable}`), {
                     items: remainingItems,
                     items_count: remainingItems.reduce((s, i) => s + (Number(i.quantity) || 1), 0),
-                    subtotal: newTotal,
+                    subtotal: newSubtotal,
+                    discount: finalRemainingDiscount,
                     total: newTotal,
                     updated_at: new Date().toISOString()
                 });
@@ -1158,66 +1187,274 @@ export default function AdminView() {
                     {/* 2. SEKME: CANLI MASALAR & KASA (KASADAN ÖDEME ALMA VE YÖNETİM) */}
                     {/* ============================================================== */}
                     {currentActiveTab === 'tables' && (
-                        <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-                                <div>
-                                    <h2 style={{ fontSize: '20px', fontWeight: 800, margin: 0 }}>🪑 Canlı Masa & Kasa Yönetimi</h2>
-                                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>Masaların canlı durumu, ilgilenen garsonlar ve kasadan ödeme alma</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                            {/* TOP HEADER & BENTO STATS WIDGET */}
+                            <div style={{
+                                background: 'rgba(28, 21, 20, 0.75)',
+                                padding: '20px 24px',
+                                borderRadius: '20px',
+                                border: '1px solid rgba(245, 159, 0, 0.16)',
+                                boxShadow: '0 12px 36px rgba(0, 0, 0, 0.45)',
+                                backdropFilter: 'blur(20px)',
+                                WebkitBackdropFilter: 'blur(20px)',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                flexWrap: 'wrap',
+                                gap: '16px'
+                            }}>
+                                {/* Title & Icon */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                                    <div style={{
+                                        width: '46px',
+                                        height: '46px',
+                                        borderRadius: '14px',
+                                        background: 'linear-gradient(135deg, rgba(245, 159, 0, 0.2), rgba(247, 103, 7, 0.1))',
+                                        border: '1px solid rgba(245, 159, 0, 0.35)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'var(--brand-gold, #f59f00)',
+                                        boxShadow: '0 4px 18px rgba(245, 159, 0, 0.2)'
+                                    }}>
+                                        <LayoutGrid size={24} />
+                                    </div>
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <h2 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: '#ffffff', letterSpacing: '-0.4px' }}>
+                                                Canlı Masa & Kasa Yönetimi
+                                            </h2>
+                                        </div>
+                                        <p style={{ fontSize: '13px', color: 'var(--text-secondary, #d1b8af)', margin: '4px 0 0 0' }}>
+                                            Masaların anlık doluluk durumu, ilgilenen garsonlar ve kasadan tek tıkla tahsilat
+                                        </p>
+                                    </div>
                                 </div>
-                                <div style={{ fontSize: '14px', color: 'var(--brand-gold)', fontWeight: 700, background: 'var(--bg-surface)', padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-card)' }}>
-                                    Açık Masalar Toplamı: <strong style={{ color: 'white', fontSize: '16px' }}>{formatMoney(openTotal)}</strong>
+
+                                {/* Quick Bento Stats Capsules */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                    {/* Occupancy Rate Capsule */}
+                                    <div style={{
+                                        background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(30, 41, 59, 0.6) 100%)',
+                                        border: '1px solid rgba(96, 165, 250, 0.28)',
+                                        borderRadius: '14px',
+                                        padding: '8px 14px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                                        backdropFilter: 'blur(12px)'
+                                    }}>
+                                        <div style={{
+                                            width: '32px',
+                                            height: '32px',
+                                            borderRadius: '9px',
+                                            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(37, 99, 235, 0.2) 100%)',
+                                            border: '1px solid rgba(96, 165, 250, 0.4)',
+                                            color: '#93c5fd',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            boxShadow: '0 2px 8px rgba(59, 130, 246, 0.25)'
+                                        }}>
+                                            <Users size={16} />
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: '10.5px', color: '#cbd5e1', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                                Doluluk Oranı
+                                            </div>
+                                            <div style={{ fontSize: '14px', fontWeight: 900, color: '#ffffff', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                                                {openCount} / {tables.length} Masa <span style={{ fontSize: '11.5px', color: '#60a5fa', fontWeight: 800 }}>({Math.round((openCount / (tables.length || 1)) * 100)}%)</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Open Orders Count Capsule */}
+                                    <div style={{
+                                        background: 'linear-gradient(135deg, rgba(245, 159, 0, 0.12) 0%, rgba(45, 28, 22, 0.6) 100%)',
+                                        border: '1px solid rgba(245, 159, 0, 0.3)',
+                                        borderRadius: '14px',
+                                        padding: '8px 14px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                                        backdropFilter: 'blur(12px)'
+                                    }}>
+                                        <div style={{
+                                            width: '32px',
+                                            height: '32px',
+                                            borderRadius: '9px',
+                                            background: 'linear-gradient(135deg, rgba(245, 159, 0, 0.3) 0%, rgba(217, 72, 15, 0.2) 100%)',
+                                            border: '1px solid rgba(245, 159, 0, 0.45)',
+                                            color: '#fbbf24',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            boxShadow: '0 2px 8px rgba(245, 159, 0, 0.25)'
+                                        }}>
+                                            <Receipt size={16} />
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: '10.5px', color: '#fde68a', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                                Açık Adisyon
+                                            </div>
+                                            <div style={{ fontSize: '14px', fontWeight: 900, color: '#ffffff', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                                                {openOrdersList.length} Masa Aktif
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Total Active Balance Capsule */}
+                                    <div style={{
+                                        background: 'linear-gradient(135deg, rgba(245, 159, 0, 0.14), rgba(247, 103, 7, 0.08))',
+                                        border: '1px solid rgba(245, 159, 0, 0.35)',
+                                        borderRadius: '14px',
+                                        padding: '8px 16px',
+                                        boxShadow: '0 4px 18px rgba(245, 159, 0, 0.15)'
+                                    }}>
+                                        <div style={{ fontSize: '10.5px', color: 'var(--brand-gold, #f59f00)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                            Açık Masalar Toplamı
+                                        </div>
+                                        <div style={{ fontSize: '18px', fontWeight: 900, color: '#fffaf5', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                                            {formatMoney(openTotal)}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* CANLI GARSON TAKİP VE FİLTRELEME BARI */}
-                            <div style={{ background: 'var(--bg-surface)', padding: '12px 16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-card)', marginBottom: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                            {/* CANLI GARSON & MASA TAKİP BARI (SLIDING MOTION PILLS) */}
+                            <div style={{
+                                background: 'rgba(28, 21, 20, 0.72)',
+                                padding: '12px 18px',
+                                borderRadius: '16px',
+                                border: '1px solid rgba(245, 159, 0, 0.14)',
+                                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+                                backdropFilter: 'blur(16px)',
+                                WebkitBackdropFilter: 'blur(16px)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                flexWrap: 'wrap',
+                                gap: '12px'
+                            }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                    <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--brand-gold)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <Users size={16} /> Garson Takibi:
+                                    <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--brand-gold, #f59f00)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <Users size={15} /> Garson Takibi:
                                     </span>
+
+                                    {/* All Tables Button */}
                                     <button
-                                        className={`btn-outline ${selectedWaiterFilter === 'all' ? 'active' : ''}`}
-                                        style={{
-                                            padding: '5px 12px',
-                                            fontSize: '12px',
-                                            fontWeight: 700,
-                                            borderRadius: '999px',
-                                            background: selectedWaiterFilter === 'all' ? 'var(--brand-primary)' : 'transparent',
-                                            borderColor: selectedWaiterFilter === 'all' ? 'var(--brand-primary)' : 'var(--border-card)',
-                                            color: selectedWaiterFilter === 'all' ? '#fff' : 'var(--text-secondary)'
-                                        }}
+                                        type="button"
                                         onClick={() => setSelectedWaiterFilter('all')}
+                                        style={{
+                                            position: 'relative',
+                                            padding: '6px 14px',
+                                            fontSize: '12px',
+                                            fontWeight: selectedWaiterFilter === 'all' ? 800 : 600,
+                                            borderRadius: '10px',
+                                            border: 'none',
+                                            background: 'transparent',
+                                            color: selectedWaiterFilter === 'all' ? '#1c1514' : 'var(--text-secondary, #d1b8af)',
+                                            cursor: 'pointer',
+                                            zIndex: 1,
+                                            transition: 'color 0.18s ease',
+                                            fontFamily: "'Plus Jakarta Sans', sans-serif"
+                                        }}
                                     >
+                                        {selectedWaiterFilter === 'all' && (
+                                            <motion.div
+                                                layoutId="activeLiveWaiterPill"
+                                                style={{
+                                                    position: 'absolute',
+                                                    inset: 0,
+                                                    background: 'linear-gradient(135deg, #f59f00, #f76707)',
+                                                    borderRadius: '10px',
+                                                    zIndex: -1,
+                                                    boxShadow: '0 2px 10px rgba(245, 159, 0, 0.4)'
+                                                }}
+                                                transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                                            />
+                                        )}
                                         Tüm Masalar ({tables.length})
                                     </button>
-                                    {liveWaiterStats.map(w => (
-                                        <button
-                                            key={w.name}
-                                            className={`btn-outline ${selectedWaiterFilter === w.name ? 'active' : ''}`}
-                                            style={{
-                                                padding: '5px 12px',
-                                                fontSize: '12px',
-                                                fontWeight: 700,
-                                                borderRadius: '999px',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '6px',
-                                                background: selectedWaiterFilter === w.name ? 'var(--brand-primary)' : 'rgba(255,255,255,0.04)',
-                                                borderColor: selectedWaiterFilter === w.name ? 'var(--brand-primary)' : 'var(--border-card)',
-                                                color: selectedWaiterFilter === w.name ? '#fff' : 'var(--text-primary)'
-                                            }}
-                                            onClick={() => setSelectedWaiterFilter(selectedWaiterFilter === w.name ? 'all' : w.name)}
-                                            title={`Aktif Masaları: ${w.tableNos.map(n => `Masa ${n}`).join(', ')}`}
-                                        >
-                                            <span>👤 {w.name}</span>
-                                            <span style={{ background: 'rgba(0,0,0,0.3)', padding: '1px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 800, color: selectedWaiterFilter === w.name ? '#fff' : 'var(--brand-gold)' }}>
-                                                {w.tableNos.length} Masa • {formatMoney(w.totalBalance)}
-                                            </span>
-                                        </button>
-                                    ))}
+
+                                    {/* Each Waiter Pill */}
+                                    {liveWaiterStats.map(w => {
+                                        const isSelected = selectedWaiterFilter === w.name;
+                                        const initials = w.name.slice(0, 2).toLocaleUpperCase('tr-TR');
+                                        return (
+                                            <button
+                                                key={w.name}
+                                                type="button"
+                                                onClick={() => setSelectedWaiterFilter(isSelected ? 'all' : w.name)}
+                                                title={`Aktif Masaları: ${w.tableNos.map(n => `Masa ${n}`).join(', ')}`}
+                                                style={{
+                                                    position: 'relative',
+                                                    padding: '5px 12px 5px 8px',
+                                                    fontSize: '12px',
+                                                    fontWeight: isSelected ? 800 : 600,
+                                                    borderRadius: '10px',
+                                                    border: isSelected ? 'none' : '1px solid rgba(255, 255, 255, 0.08)',
+                                                    background: isSelected ? 'transparent' : 'rgba(0, 0, 0, 0.35)',
+                                                    color: isSelected ? '#1c1514' : '#ffffff',
+                                                    cursor: 'pointer',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '7px',
+                                                    zIndex: 1,
+                                                    transition: 'color 0.18s ease',
+                                                    fontFamily: "'Plus Jakarta Sans', sans-serif"
+                                                }}
+                                            >
+                                                {isSelected && (
+                                                    <motion.div
+                                                        layoutId="activeLiveWaiterPill"
+                                                        style={{
+                                                            position: 'absolute',
+                                                            inset: 0,
+                                                            background: 'linear-gradient(135deg, #f59f00, #f76707)',
+                                                            borderRadius: '10px',
+                                                            zIndex: -1,
+                                                            boxShadow: '0 2px 10px rgba(245, 159, 0, 0.4)'
+                                                        }}
+                                                        transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                                                    />
+                                                )}
+                                                {/* Monogram avatar */}
+                                                <span style={{
+                                                    width: '20px',
+                                                    height: '20px',
+                                                    borderRadius: '50%',
+                                                    background: isSelected ? 'rgba(0,0,0,0.2)' : 'linear-gradient(135deg, rgba(59,130,246,0.3), rgba(16,185,129,0.3))',
+                                                    color: isSelected ? '#1c1514' : '#93c5fd',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    fontSize: '9.5px',
+                                                    fontWeight: 900
+                                                }}>
+                                                    {initials}
+                                                </span>
+                                                <span>{w.name}</span>
+                                                <span style={{
+                                                    background: isSelected ? 'rgba(0,0,0,0.25)' : 'rgba(245, 159, 0, 0.15)',
+                                                    color: isSelected ? '#ffffff' : '#f59f00',
+                                                    padding: '2px 6px',
+                                                    borderRadius: '6px',
+                                                    fontSize: '11px',
+                                                    fontWeight: 800
+                                                }}>
+                                                    {w.tableNos.length} Masa • {formatMoney(w.totalBalance)}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
-                                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                                    {selectedWaiterFilter !== 'all' ? `👤 ${selectedWaiterFilter} masaları gösteriliyor` : `Toplam ${openOrdersList.length} açık adisyon`}
+
+                                <div style={{ fontSize: '12px', color: 'var(--text-secondary, #d1b8af)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#f59f00' }} />
+                                    {selectedWaiterFilter !== 'all' ? `${selectedWaiterFilter} masaları gösteriliyor` : `Toplam ${openOrdersList.length} açık adisyon`}
                                 </div>
                             </div>
 
@@ -1256,8 +1493,8 @@ export default function AdminView() {
                     {/* MODAL: YENİ PERSONEL İŞE AL MODALI (21st.dev & Framer Motion Luxury Standard) */}
                     {showStaffModal && typeof document !== 'undefined' && createPortal(
                         <AnimatePresence>
-                            <div 
-                                style={{ 
+                            <div
+                                style={{
                                     position: 'fixed',
                                     top: 0,
                                     left: 0,
@@ -1266,7 +1503,7 @@ export default function AdminView() {
                                     width: '100vw',
                                     height: '100vh',
                                     zIndex: 999999,
-                                    display: 'flex', 
+                                    display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     padding: '20px 16px',
@@ -1274,17 +1511,17 @@ export default function AdminView() {
                                     backdropFilter: 'blur(16px)',
                                     WebkitBackdropFilter: 'blur(16px)',
                                     overflowY: 'auto'
-                                }} 
+                                }}
                                 onClick={() => setShowStaffModal(false)}
                             >
-                                <motion.div 
+                                <motion.div
                                     initial={{ opacity: 0, scale: 0.95, y: 15 }}
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.95, y: 15 }}
                                     transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                                    style={{ 
-                                        maxWidth: '520px', 
-                                        width: '100%', 
+                                    style={{
+                                        maxWidth: '520px',
+                                        width: '100%',
                                         margin: 'auto',
                                         padding: '24px 28px',
                                         background: 'linear-gradient(180deg, #1c1514 0%, #140e0d 100%)',
@@ -1314,10 +1551,10 @@ export default function AdminView() {
                                                 <UserPlus size={20} />
                                             </div>
                                             <div>
-                                                <h3 style={{ 
-                                                    fontSize: '18px', 
-                                                    fontWeight: 800, 
-                                                    color: '#fffaf5', 
+                                                <h3 style={{
+                                                    fontSize: '18px',
+                                                    fontWeight: 800,
+                                                    color: '#fffaf5',
                                                     margin: 0,
                                                     fontFamily: "'Plus Jakarta Sans', sans-serif",
                                                     letterSpacing: '-0.02em'
@@ -1329,7 +1566,7 @@ export default function AdminView() {
                                                 </p>
                                             </div>
                                         </div>
-                                        <button 
+                                        <button
                                             type="button"
                                             onClick={() => setShowStaffModal(false)}
                                             style={{
@@ -1362,8 +1599,8 @@ export default function AdminView() {
                                                     style={{
                                                         padding: '12px 14px',
                                                         borderRadius: '14px',
-                                                        border: staffModalRole === 'waiter' 
-                                                            ? '1.5px solid #f76707' 
+                                                        border: staffModalRole === 'waiter'
+                                                            ? '1.5px solid #f76707'
                                                             : '1px solid rgba(255, 255, 255, 0.08)',
                                                         background: staffModalRole === 'waiter'
                                                             ? 'linear-gradient(135deg, rgba(247, 103, 7, 0.22) 0%, rgba(217, 72, 15, 0.1) 100%)'
@@ -1405,8 +1642,8 @@ export default function AdminView() {
                                                     style={{
                                                         padding: '12px 14px',
                                                         borderRadius: '14px',
-                                                        border: staffModalRole === 'admin' 
-                                                            ? '1.5px solid #f59f00' 
+                                                        border: staffModalRole === 'admin'
+                                                            ? '1.5px solid #f59f00'
                                                             : '1px solid rgba(255, 255, 255, 0.08)',
                                                         background: staffModalRole === 'admin'
                                                             ? 'linear-gradient(135deg, rgba(245, 159, 0, 0.22) 0%, rgba(217, 119, 6, 0.1) 100%)'
@@ -1455,14 +1692,14 @@ export default function AdminView() {
                                                 value={staffNameInput}
                                                 onChange={(e) => setStaffNameInput(e.target.value)}
                                                 placeholder="Örn: Burak Kaya"
-                                                style={{ 
-                                                    width: '100%', 
+                                                style={{
+                                                    width: '100%',
                                                     boxSizing: 'border-box',
-                                                    padding: '12px 14px', 
-                                                    background: 'rgba(255, 255, 255, 0.04)', 
-                                                    border: '1px solid rgba(255, 255, 255, 0.1)', 
-                                                    color: '#fffaf5', 
-                                                    borderRadius: '12px', 
+                                                    padding: '12px 14px',
+                                                    background: 'rgba(255, 255, 255, 0.04)',
+                                                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                    color: '#fffaf5',
+                                                    borderRadius: '12px',
                                                     fontSize: '14px',
                                                     outline: 'none',
                                                     fontFamily: "'Plus Jakarta Sans', sans-serif"
@@ -1482,14 +1719,14 @@ export default function AdminView() {
                                                     value={staffPhoneInput}
                                                     onChange={(e) => setStaffPhoneInput(e.target.value)}
                                                     placeholder="Örn: 0542 000 00 00"
-                                                    style={{ 
-                                                        width: '100%', 
+                                                    style={{
+                                                        width: '100%',
                                                         boxSizing: 'border-box',
-                                                        padding: '12px 14px', 
-                                                        background: 'rgba(255, 255, 255, 0.04)', 
-                                                        border: '1px solid rgba(255, 255, 255, 0.1)', 
-                                                        color: '#fffaf5', 
-                                                        borderRadius: '12px', 
+                                                        padding: '12px 14px',
+                                                        background: 'rgba(255, 255, 255, 0.04)',
+                                                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                        color: '#fffaf5',
+                                                        borderRadius: '12px',
                                                         fontSize: '14px',
                                                         outline: 'none',
                                                         fontFamily: "'Plus Jakarta Sans', sans-serif"
@@ -1525,11 +1762,11 @@ export default function AdminView() {
                                                 <button
                                                     type="button"
                                                     onClick={() => setStaffPinInput(String(Math.floor(100000 + Math.random() * 900000)))}
-                                                    style={{ 
-                                                        padding: '4px 10px', 
-                                                        fontSize: '11px', 
+                                                    style={{
+                                                        padding: '4px 10px',
+                                                        fontSize: '11px',
                                                         fontWeight: 700,
-                                                        color: '#f59f00', 
+                                                        color: '#f59f00',
                                                         background: 'rgba(245, 159, 0, 0.12)',
                                                         border: '1px solid rgba(245, 159, 0, 0.3)',
                                                         borderRadius: '8px',
@@ -1539,7 +1776,7 @@ export default function AdminView() {
                                                         gap: '5px'
                                                     }}
                                                 >
-                                                    <Sparkles size={12} />
+                                                    <Dices size={12} />
                                                     <span>Rastgele Üret</span>
                                                 </button>
                                             </div>
@@ -1549,16 +1786,16 @@ export default function AdminView() {
                                                 value={staffPinInput}
                                                 onChange={(e) => setStaffPinInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
                                                 placeholder="••••••"
-                                                style={{ 
-                                                    width: '100%', 
+                                                style={{
+                                                    width: '100%',
                                                     boxSizing: 'border-box',
-                                                    padding: '12px 14px', 
-                                                    background: 'rgba(0, 0, 0, 0.35)', 
-                                                    border: '1px solid rgba(245, 159, 0, 0.3)', 
-                                                    color: '#f59f00', 
-                                                    fontWeight: 800, 
-                                                    fontSize: '20px', 
-                                                    borderRadius: '12px', 
+                                                    padding: '12px 14px',
+                                                    background: 'rgba(0, 0, 0, 0.35)',
+                                                    border: '1px solid rgba(245, 159, 0, 0.3)',
+                                                    color: '#f59f00',
+                                                    fontWeight: 800,
+                                                    fontSize: '20px',
+                                                    borderRadius: '12px',
                                                     letterSpacing: '8px',
                                                     textAlign: 'center',
                                                     outline: 'none',
@@ -1573,11 +1810,11 @@ export default function AdminView() {
 
                                     {/* Alt Aksiyon Butonları */}
                                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '22px' }}>
-                                        <motion.button 
+                                        <motion.button
                                             type="button"
                                             whileHover={{ scale: 1.02 }}
                                             whileTap={{ scale: 0.98 }}
-                                            onClick={() => setShowStaffModal(false)} 
+                                            onClick={() => setShowStaffModal(false)}
                                             style={{
                                                 padding: '10px 18px',
                                                 background: 'rgba(255, 255, 255, 0.05)',
@@ -1591,11 +1828,11 @@ export default function AdminView() {
                                         >
                                             Vazgeç
                                         </motion.button>
-                                        <motion.button 
+                                        <motion.button
                                             type="button"
                                             whileHover={{ scale: 1.02 }}
                                             whileTap={{ scale: 0.98 }}
-                                            onClick={handleSaveNewStaff} 
+                                            onClick={handleSaveNewStaff}
                                             style={{
                                                 padding: '10px 24px',
                                                 background: 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)',
@@ -1624,8 +1861,8 @@ export default function AdminView() {
                     {/* MODAL: PIN DEĞİŞTİRME (21st.dev & Framer Motion Luxury Standard) */}
                     {showPinModal && editingStaffPin && typeof document !== 'undefined' && createPortal(
                         <AnimatePresence>
-                            <div 
-                                style={{ 
+                            <div
+                                style={{
                                     position: 'fixed',
                                     top: 0,
                                     left: 0,
@@ -1634,7 +1871,7 @@ export default function AdminView() {
                                     width: '100vw',
                                     height: '100vh',
                                     zIndex: 999999,
-                                    display: 'flex', 
+                                    display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     padding: '20px 16px',
@@ -1642,17 +1879,17 @@ export default function AdminView() {
                                     backdropFilter: 'blur(16px)',
                                     WebkitBackdropFilter: 'blur(16px)',
                                     overflowY: 'auto'
-                                }} 
+                                }}
                                 onClick={() => setShowPinModal(false)}
                             >
-                                <motion.div 
+                                <motion.div
                                     initial={{ opacity: 0, scale: 0.95, y: 15 }}
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.95, y: 15 }}
                                     transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                                    style={{ 
-                                        maxWidth: '420px', 
-                                        width: '100%', 
+                                    style={{
+                                        maxWidth: '420px',
+                                        width: '100%',
                                         margin: 'auto',
                                         padding: '24px',
                                         background: 'linear-gradient(180deg, #1c1514 0%, #140e0d 100%)',
@@ -1689,7 +1926,7 @@ export default function AdminView() {
                                                 </p>
                                             </div>
                                         </div>
-                                        <button 
+                                        <button
                                             type="button"
                                             onClick={() => setShowPinModal(false)}
                                             style={{
@@ -1723,11 +1960,11 @@ export default function AdminView() {
                                             <button
                                                 type="button"
                                                 onClick={() => setNewPinInput(String(Math.floor(100000 + Math.random() * 900000)))}
-                                                style={{ 
-                                                    padding: '3px 8px', 
-                                                    fontSize: '11px', 
+                                                style={{
+                                                    padding: '3px 8px',
+                                                    fontSize: '11px',
                                                     fontWeight: 700,
-                                                    color: '#f59f00', 
+                                                    color: '#f59f00',
                                                     background: 'rgba(245, 159, 0, 0.12)',
                                                     border: '1px solid rgba(245, 159, 0, 0.3)',
                                                     borderRadius: '7px',
@@ -1737,7 +1974,7 @@ export default function AdminView() {
                                                     gap: '4px'
                                                 }}
                                             >
-                                                <Sparkles size={11} />
+                                                <Dices size={11} />
                                                 <span>Üret</span>
                                             </button>
                                         </div>
@@ -1747,16 +1984,16 @@ export default function AdminView() {
                                             value={newPinInput}
                                             onChange={(e) => setNewPinInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
                                             placeholder="••••••"
-                                            style={{ 
-                                                width: '100%', 
+                                            style={{
+                                                width: '100%',
                                                 boxSizing: 'border-box',
-                                                padding: '12px 14px', 
-                                                background: 'rgba(0, 0, 0, 0.35)', 
-                                                border: '1px solid rgba(245, 159, 0, 0.3)', 
-                                                color: '#f59f00', 
-                                                fontWeight: 800, 
-                                                fontSize: '20px', 
-                                                borderRadius: '12px', 
+                                                padding: '12px 14px',
+                                                background: 'rgba(0, 0, 0, 0.35)',
+                                                border: '1px solid rgba(245, 159, 0, 0.3)',
+                                                color: '#f59f00',
+                                                fontWeight: 800,
+                                                fontSize: '20px',
+                                                borderRadius: '12px',
                                                 letterSpacing: '8px',
                                                 textAlign: 'center',
                                                 outline: 'none',
@@ -1766,11 +2003,11 @@ export default function AdminView() {
                                     </div>
 
                                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                                        <motion.button 
+                                        <motion.button
                                             type="button"
                                             whileHover={{ scale: 1.02 }}
                                             whileTap={{ scale: 0.98 }}
-                                            onClick={() => setShowPinModal(false)} 
+                                            onClick={() => setShowPinModal(false)}
                                             style={{
                                                 padding: '9px 16px',
                                                 background: 'rgba(255, 255, 255, 0.05)',
@@ -1784,11 +2021,11 @@ export default function AdminView() {
                                         >
                                             Vazgeç
                                         </motion.button>
-                                        <motion.button 
+                                        <motion.button
                                             type="button"
                                             whileHover={{ scale: 1.02 }}
                                             whileTap={{ scale: 0.98 }}
-                                            onClick={handleSavePin} 
+                                            onClick={handleSavePin}
                                             style={{
                                                 padding: '9px 20px',
                                                 background: 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)',
@@ -1829,761 +2066,80 @@ export default function AdminView() {
             </AnimatePresence>
 
             {/* ============================================================== */}
-            {/* YÖNETİCİ CANLI ADİSYON ÇEKMECESİ (GARSON PANELİ İLE 1-E-1 AYNI)*/}
+            {/* YÖNETİCİ CANLI ADİSYON ÇEKMECESİ (ORTAK MODÜL - REFERANS 1)   */}
             {/* ============================================================== */}
-            {selectedDrawerTable !== null && (
-                <>
-                    <div
-                        className="admin-receipt-backdrop"
-                        onClick={() => setSelectedDrawerTable(null)}
-                    />
-                    <aside className="admin-receipt-drawer">
-                        {/* Mobil için sürükleme/kapatma çizgisi */}
-                        <div className="admin-drawer-drag-pill" onClick={() => setSelectedDrawerTable(null)} />
-
-                        {/* Drawer Başlığı (Garson Ekranı ile Birebir Aynı) */}
-                        <div className="receipt-header" style={{ padding: '16px 20px', flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <div>
-                                    <div style={{ fontSize: '11px', color: 'var(--brand-gold)', fontWeight: 700, letterSpacing: '0.5px' }}>
-                                        CANLI ADİSYON
-                                    </div>
-                                    <h2 style={{ fontSize: '20px', fontWeight: 800, letterSpacing: '-0.3px', margin: 0, color: 'white' }}>
-                                        Masa {selectedDrawerTable}
-                                    </h2>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <button
-                                        className="btn-outline"
-                                        onClick={() => { setMoveSourceTable(selectedDrawerTable); setMoveTargetTable(''); setShowMoveModal(true); }}
-                                        style={{ fontSize: '12px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                    >
-                                        <MoveHorizontal size={13} /> Taşı
-                                    </button>
-                                    <button
-                                        className="btn-outline"
-                                        onClick={() => { setSplitTable(selectedDrawerTable); setSplitSelections({}); setSplitPayMethod('cash'); setShowSplitModal(true); }}
-                                        style={{ fontSize: '12px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                    >
-                                        <Scissors size={13} /> Böl
-                                    </button>
-                                    <button
-                                        className="admin-drawer-close-btn"
-                                        onClick={() => setSelectedDrawerTable(null)}
-                                        title="Adisyonu Kapat (ESC)"
-                                    >
-                                        <X size={16} />
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Sorumlu Garson Rozeti */}
-                            <div style={{
-                                padding: '8px 12px',
-                                background: 'var(--bg-surface-elevated)',
-                                border: '1px solid var(--border-card)',
-                                borderRadius: 'var(--radius-sm)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between'
-                            }}>
-                                <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 700 }}>
-                                    👤 Sorumlu Garson:
-                                </div>
-                                <div style={{
-                                    fontSize: '13px',
-                                    fontWeight: 800,
-                                    color: '#ffd43b',
-                                    background: 'rgba(245, 159, 0, 0.12)',
-                                    padding: '3px 10px',
-                                    borderRadius: '4px',
-                                    border: '1px solid rgba(245, 159, 0, 0.3)'
-                                }}>
-                                    {drawerOrder?.waiter_name || '—'}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Drawer İçeriği & Ürün Listesi */}
-                        <div className="receipt-items-list" style={{ flex: 1, overflowY: 'auto', padding: '14px 18px' }}>
-                            {(!drawerOrder || !drawerOrder.items || drawerOrder.items.length === 0) ? (
-                                <div style={{
-                                    height: '100%',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: 'var(--text-muted)',
-                                    textAlign: 'center',
-                                    padding: '24px'
-                                }}>
-                                    <div style={{ fontSize: '40px', marginBottom: '10px' }}>🍽️</div>
-                                    <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-secondary)' }}>Adisyon Henüz Boş</div>
-                                    <div style={{ fontSize: '12px', marginTop: '4px', marginBottom: '16px' }}>Bu masada henüz aktif sipariş bulunmuyor.</div>
-
-                                    {/* ⚡ KURTARICI EMNİYET SÜBABI: BOŞ MASADAN ANINDA HIZLI ÖDEME AL */}
-                                    <button
-                                        onClick={() => setShowQuickAmountModal(true)}
-                                        className="btn-quick-amount-drawer hero"
-                                        style={{ marginBottom: '12px', width: '100%', maxWidth: '320px' }}
-                                    >
-                                        <Zap size={18} /> Hızlı Ödeme Al
-                                    </button>
-
-                                    <button
-                                        className="btn-outline"
-                                        style={{ padding: '10px 18px', fontSize: '13px', width: '100%', maxWidth: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                                        onClick={() => navigateTo('table', selectedDrawerTable)}
-                                    >
-                                        Masaya Git ve Sipariş Aç ↗
-                                    </button>
-                                </div>
-                            ) : (
-                                <>
-                                    {/* Teslim Durumu Özeti & Hızlı Toplu Teslim */}
-                                    <div style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        padding: '8px 12px',
-                                        background: 'rgba(0,0,0,0.35)',
-                                        borderRadius: 'var(--radius-sm)',
-                                        border: '1px solid var(--border-card)',
-                                        marginBottom: '10px',
-                                        gap: '8px',
-                                        flexWrap: 'wrap'
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
-                                            <span style={{ color: 'var(--warning)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <Clock size={13} /> {drawerOrder.items.filter(i => i.status !== 'delivered').length} Hazırlanıyor
-                                            </span>
-                                            <span style={{ color: 'var(--text-muted)' }}>•</span>
-                                            <span style={{ color: 'var(--success)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <CheckCircle2 size={13} /> {drawerOrder.items.filter(i => i.status === 'delivered').length} Teslim
-                                            </span>
-                                        </div>
-                                        {drawerOrder.items.some(i => i.status !== 'delivered') && (
-                                            <button
-                                                onClick={handleDeliverAllDrawerItems}
-                                                className="btn-outline"
-                                                style={{ fontSize: '11px', padding: '3px 8px', color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)', fontWeight: 700 }}
-                                                title="Tüm hazırlananları teslim edildi yap"
-                                            >
-                                                Tümünü Teslim Et ✓
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {/* 1. GRUP: MUTFAKTA HAZIRLANAN / PİŞEN ÜRÜNLER */}
-                                    {drawerOrder.items.some(i => i.status !== 'delivered') && (
-                                        <div style={{ marginBottom: '14px' }}>
-                                            <div style={{
-                                                fontSize: '11px',
-                                                fontWeight: 800,
-                                                color: 'var(--warning)',
-                                                letterSpacing: '0.4px',
-                                                textTransform: 'uppercase',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '5px',
-                                                marginBottom: '6px',
-                                                paddingLeft: '2px'
-                                            }}>
-                                                <Clock size={12} /> 🟡 Hazırlanıyor / Mutfakta ({drawerOrder.items.filter(i => i.status !== 'delivered').length})
-                                            </div>
-                                            {drawerOrder.items.map((item, idx) => {
-                                                if (item.status === 'delivered') return null;
-                                                return (
-                                                    <div
-                                                        key={idx}
-                                                        className="receipt-item-row pending"
-                                                        style={{
-                                                            display: 'flex',
-                                                            flexDirection: 'column',
-                                                            gap: '6px',
-                                                            padding: '10px 12px',
-                                                            background: 'rgba(245, 158, 11, 0.05)',
-                                                            border: '1px solid rgba(245, 158, 11, 0.3)',
-                                                            borderRadius: 'var(--radius-sm)',
-                                                            marginBottom: '6px'
-                                                        }}
-                                                    >
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                            <div>
-                                                                <div style={{ fontWeight: 800, fontSize: '14px', color: 'white' }}>
-                                                                    {item.name}
-                                                                </div>
-                                                                <div style={{ fontSize: '12px', color: 'var(--brand-gold)', fontWeight: 700, marginTop: '2px' }}>
-                                                                    {formatMoney(Number(item.price) * Number(item.quantity || 1))}
-                                                                    <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: '6px' }}>
-                                                                        ({formatMoney(item.price)} x {item.quantity})
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-
-                                                            <button
-                                                                onClick={() => handleToggleDrawerItemStatus(idx)}
-                                                                className="delivery-status-btn pending"
-                                                                title="Teslim Edildi Olarak İşaretle"
-                                                            >
-                                                                <Clock size={13} /> Hazırlanıyor
-                                                            </button>
-                                                        </div>
-
-                                                        {item.notes && (
-                                                            <div style={{
-                                                                fontSize: '11px',
-                                                                color: 'var(--brand-gold)',
-                                                                background: 'rgba(245, 159, 0, 0.1)',
-                                                                padding: '3px 8px',
-                                                                borderRadius: '4px'
-                                                            }}>
-                                                                📝 {item.notes}
-                                                            </div>
-                                                        )}
-
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
-                                                            <button
-                                                                onClick={() => {
-                                                                    setNoteModalItemIdx(idx);
-                                                                    setItemNoteInput(item.notes || '');
-                                                                }}
-                                                                className="btn-outline"
-                                                                style={{
-                                                                    fontSize: '11px',
-                                                                    padding: '2px 8px',
-                                                                    display: 'flex',
-                                                                    alignItems: 'center',
-                                                                    gap: '4px',
-                                                                    color: item.notes ? 'var(--brand-gold)' : 'var(--text-muted)'
-                                                                }}
-                                                            >
-                                                                <MessageSquare size={12} /> {item.notes ? 'Not Düzenle' : '+ Not'}
-                                                            </button>
-
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                <button
-                                                                    onClick={() => handleUpdateDrawerQuantity(idx, -1)}
-                                                                    className="btn-outline"
-                                                                    style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                                >
-                                                                    <Minus size={13} />
-                                                                </button>
-                                                                <span style={{ fontWeight: 800, fontSize: '13px', color: 'white', minWidth: '18px', textAlign: 'center' }}>
-                                                                    {item.quantity}
-                                                                </span>
-                                                                <button
-                                                                    onClick={() => handleUpdateDrawerQuantity(idx, 1)}
-                                                                    className="btn-outline"
-                                                                    style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                                >
-                                                                    <Plus size={13} />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleUpdateDrawerQuantity(idx, -item.quantity)}
-                                                                    className="btn-outline"
-                                                                    style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.4)' }}
-                                                                >
-                                                                    <Trash2 size={13} />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-
-                                    {/* 2. GRUP: MASAYA TESLİM EDİLEN ÜRÜNLER */}
-                                    {drawerOrder.items.some(i => i.status === 'delivered') && (
-                                        <div>
-                                            <div style={{
-                                                fontSize: '11px',
-                                                fontWeight: 800,
-                                                color: 'var(--success)',
-                                                letterSpacing: '0.4px',
-                                                textTransform: 'uppercase',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '5px',
-                                                marginBottom: '6px',
-                                                paddingLeft: '2px'
-                                            }}>
-                                                <CheckCircle2 size={12} /> 🟢 Teslim Edildi / Masada ({drawerOrder.items.filter(i => i.status === 'delivered').length})
-                                            </div>
-                                            {drawerOrder.items.map((item, idx) => {
-                                                if (item.status !== 'delivered') return null;
-                                                return (
-                                                    <div
-                                                        key={idx}
-                                                        className="receipt-item-row delivered"
-                                                        style={{
-                                                            display: 'flex',
-                                                            flexDirection: 'column',
-                                                            gap: '6px',
-                                                            padding: '10px 12px',
-                                                            background: 'rgba(16, 185, 129, 0.05)',
-                                                            border: '1px solid rgba(16, 185, 129, 0.25)',
-                                                            borderRadius: 'var(--radius-sm)',
-                                                            marginBottom: '6px'
-                                                        }}
-                                                    >
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                            <div>
-                                                                <div style={{ fontWeight: 800, fontSize: '14px', color: 'white' }}>
-                                                                    {item.name}
-                                                                </div>
-                                                                <div style={{ fontSize: '12px', color: 'var(--brand-gold)', fontWeight: 700, marginTop: '2px' }}>
-                                                                    {formatMoney(Number(item.price) * Number(item.quantity || 1))}
-                                                                    <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: '6px' }}>
-                                                                        ({formatMoney(item.price)} x {item.quantity})
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-
-                                                            <button
-                                                                onClick={() => handleToggleDrawerItemStatus(idx)}
-                                                                className="delivery-status-btn delivered"
-                                                                title="Geri Al (Hazırlanıyor Yap)"
-                                                            >
-                                                                <CheckCircle2 size={13} /> ✓ Teslim
-                                                            </button>
-                                                        </div>
-
-                                                        {item.notes && (
-                                                            <div style={{
-                                                                fontSize: '11px',
-                                                                color: 'var(--brand-gold)',
-                                                                background: 'rgba(245, 159, 0, 0.1)',
-                                                                padding: '3px 8px',
-                                                                borderRadius: '4px'
-                                                            }}>
-                                                                📝 {item.notes}
-                                                            </div>
-                                                        )}
-
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
-                                                            <button
-                                                                onClick={() => {
-                                                                    setNoteModalItemIdx(idx);
-                                                                    setItemNoteInput(item.notes || '');
-                                                                }}
-                                                                className="btn-outline"
-                                                                style={{
-                                                                    fontSize: '11px',
-                                                                    padding: '2px 8px',
-                                                                    display: 'flex',
-                                                                    alignItems: 'center',
-                                                                    gap: '4px',
-                                                                    color: item.notes ? 'var(--brand-gold)' : 'var(--text-muted)'
-                                                                }}
-                                                            >
-                                                                <MessageSquare size={12} /> {item.notes ? 'Not Düzenle' : '+ Not'}
-                                                            </button>
-
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                <button
-                                                                    onClick={() => handleUpdateDrawerQuantity(idx, -1)}
-                                                                    className="btn-outline"
-                                                                    style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                                >
-                                                                    <Minus size={13} />
-                                                                </button>
-                                                                <span style={{ fontWeight: 800, fontSize: '13px', color: 'white', minWidth: '18px', textAlign: 'center' }}>
-                                                                    {item.quantity}
-                                                                </span>
-                                                                <button
-                                                                    onClick={() => handleUpdateDrawerQuantity(idx, 1)}
-                                                                    className="btn-outline"
-                                                                    style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                                >
-                                                                    <Plus size={13} />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleUpdateDrawerQuantity(idx, -item.quantity)}
-                                                                    className="btn-outline"
-                                                                    style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.4)' }}
-                                                                >
-                                                                    <Trash2 size={13} />
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
-
-                        {/* Footer & Checkout Buttons (Yalnızca adisyonda ürün varsa gösterilir) */}
-                        {drawerOrder && drawerOrder.items && drawerOrder.items.length > 0 && (
-                            <div className="receipt-footer">
-                                {Number(drawerOrder.discount) > 0 ? (
-                                    <div style={{
-                                        background: 'rgba(0, 0, 0, 0.4)',
-                                        border: '1px solid rgba(16, 185, 129, 0.35)',
-                                        borderRadius: '12px',
-                                        padding: '10px 12px',
-                                        marginBottom: '10px'
-                                    }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                            <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Ara Toplam</span>
-                                            <span style={{ fontSize: '14px', color: 'var(--text-muted)', fontWeight: 700, textDecoration: 'line-through' }}>
-                                                {formatMoney(drawerOrder.subtotal || drawerOrder.total)}
-                                            </span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                            <span style={{ fontSize: '12.5px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700 }}>
-                                                🏷️ İndirim / İkram
-                                            </span>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <span style={{ fontSize: '14px', color: '#10b981', fontWeight: 800 }}>
-                                                    -{formatMoney(drawerOrder.discount)}
-                                                </span>
-                                                <button
-                                                    onClick={handleRemoveDrawerDiscount}
-                                                    title="İndirimi Kaldır"
-                                                    style={{
-                                                        background: 'rgba(239, 68, 68, 0.15)',
-                                                        border: '1px solid rgba(239, 68, 68, 0.3)',
-                                                        color: '#ef4444',
-                                                        borderRadius: '4px',
-                                                        padding: '1px 5px',
-                                                        fontSize: '11px',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                >
-                                                    ✕
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)', margin: '6px 0' }} />
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Ödenecek Tutar</span>
-                                            <span style={{ color: 'var(--brand-gold)', fontSize: '24px', fontWeight: 900 }}>
-                                                {formatMoney(drawerOrder.total)}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="total-summary">
-                                        <span style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>Genel Tutar</span>
-                                        <span style={{ color: 'var(--brand-gold)', fontSize: '24px', fontWeight: 800 }}>
-                                            {formatMoney(drawerOrder.total)}
-                                        </span>
-                                    </div>
-                                )}
-
-                                {/* Satır 1: Sipariş Ekle & İndirim (2 Kolon) */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
-                                    <button
-                                        onClick={() => {
-                                            const tNo = selectedDrawerTable;
-                                            setSelectedDrawerTable(null);
-                                            navigateTo('table', tNo);
-                                        }}
-                                        className="btn-outline"
-                                        style={{
-                                            minHeight: '44px',
-                                            padding: '8px 10px',
-                                            fontSize: '13px',
-                                            fontWeight: 800,
-                                            borderRadius: 'var(--radius-md)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '6px',
-                                            color: 'var(--brand-gold)',
-                                            borderColor: 'rgba(245, 158, 11, 0.4)'
-                                        }}
-                                    >
-                                        ➕ Sipariş Ekle ↗
-                                    </button>
-
-                                    <button
-                                        onClick={() => setShowDrawerDiscountModal(true)}
-                                        style={{
-                                            minHeight: '44px',
-                                            padding: '8px 10px',
-                                            background: Number(drawerOrder.discount) > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.08)',
-                                            border: `1px dashed ${Number(drawerOrder.discount) > 0 ? '#10b981' : 'rgba(245, 158, 11, 0.4)'}`,
-                                            borderRadius: 'var(--radius-md)',
-                                            color: Number(drawerOrder.discount) > 0 ? '#10b981' : 'var(--brand-gold)',
-                                            fontSize: '12.5px',
-                                            fontWeight: 800,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '6px',
-                                            cursor: 'pointer'
-                                        }}
-                                    >
-                                        <Tag size={15} />
-                                        {Number(drawerOrder.discount) > 0 ? `İndirim (${formatMoney(drawerOrder.discount)})` : 'İndirim / İkram'}
-                                    </button>
-                                </div>
-
-                                {/* Satır 2: Mutfak Fişi (Tam Genişlik - Sık Kullanılan) */}
-                                <div style={{ marginBottom: '10px' }}>
-                                    <button
-                                        onClick={handlePrintDrawerKitchenTicket}
-                                        className="btn-primary"
-                                        style={{
-                                            width: '100%',
-                                            minHeight: '46px',
-                                            padding: '10px 14px',
-                                            fontSize: '13.5px',
-                                            fontWeight: 800,
-                                            borderRadius: 'var(--radius-md)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '8px'
-                                        }}
-                                    >
-                                        <Printer size={16} /> Mutfak Fişi
-                                    </button>
-                                </div>
-
-                                {/* 3 Checkout Butonu (Nakit, Kart, Masa Hesap Fişi) */}
-                                <div className="checkout-actions-3col">
-                                    <button
-                                        onClick={() => handleDrawerCheckout('cash')}
-                                        disabled={!drawerOrder.items || drawerOrder.items.length === 0}
-                                        className="btn-checkout-action btn-checkout-cash"
-                                    >
-                                        <Banknote size={18} />
-                                        Nakit Kapat
-                                    </button>
-
-                                    <button
-                                        onClick={() => handleDrawerCheckout('card')}
-                                        disabled={!drawerOrder.items || drawerOrder.items.length === 0}
-                                        className="btn-checkout-action btn-checkout-card"
-                                    >
-                                        <CreditCard size={18} />
-                                        Kart Kapat
-                                    </button>
-
-                                    <button
-                                        onClick={handlePrintDrawerCustomerBill}
-                                        disabled={!drawerOrder.items || drawerOrder.items.length === 0}
-                                        className="btn-checkout-action btn-checkout-print"
-                                        title="Müşteri Hesap Fişini Yazdır (Hesap Açık Kalır)"
-                                    >
-                                        <Receipt size={18} />
-                                        Masa Hesap Fişi
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </aside>
-                </>
-            )}
+            <LiveOrderDrawer
+                isOpen={selectedDrawerTable !== null}
+                mode="drawer"
+                tableNo={selectedDrawerTable}
+                order={drawerOrder}
+                currentUser={currentUser}
+                isTableDetail={false}
+                onClose={() => setSelectedDrawerTable(null)}
+                onMove={() => {
+                    setMoveSourceTable(selectedDrawerTable);
+                    setMoveTargetTable('');
+                    setShowMoveModal(true);
+                }}
+                onSplit={() => {
+                    setSplitTable(selectedDrawerTable);
+                    setSplitSelections({});
+                    setSplitPayMethod('cash');
+                    setShowSplitModal(true);
+                }}
+                onToggleItemStatus={handleToggleDrawerItemStatus}
+                onDeliverAll={handleDeliverAllDrawerItems}
+                onUpdateQuantity={handleUpdateDrawerQuantity}
+                onAddNote={(idx) => {
+                    setNoteModalItemIdx(idx);
+                    setItemNoteInput(drawerOrder?.items?.[idx]?.notes || '');
+                }}
+                onNavigateToTable={(tNo) => {
+                    setSelectedDrawerTable(null);
+                    navigateTo('table', tNo);
+                }}
+                onQuickAmount={() => setShowQuickAmountModal(true)}
+                onOpenDiscount={() => setShowDrawerDiscountModal(true)}
+                onRemoveDiscount={handleRemoveDrawerDiscount}
+                onPrintKitchen={handlePrintDrawerKitchenTicket}
+                onPrintCustomerBill={handlePrintDrawerCustomerBill}
+                onCheckout={handleDrawerCheckout}
+            />
 
             {/* ============================================================== */}
             {/* MODAL: MASA TAŞI / BİRLEŞTİR (YÖNETİCİ MODALI)                 */}
             {/* ============================================================== */}
-            {showMoveModal && (
-                <div className="modal-overlay open" style={{ display: 'flex', opacity: 1, zIndex: 1700 }}>
-                    <div className="modal-content open modal-responsive-card" style={{ maxWidth: '440px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                            <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'white', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <MoveHorizontal size={18} className="text-amber-400" />
-                                Masa Taşı / Birleştir
-                            </h3>
-                            <button onClick={() => setShowMoveModal(false)} className="btn-logout" style={{ width: '28px', height: '28px' }}>
-                                <X size={15} />
-                            </button>
-                        </div>
-
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '16px' }}>
-                            Masa <strong>{moveSourceTable}</strong> siparişlerini aktarmak istediğiniz hedef masayı seçin:
-                        </p>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(62px, 1fr))', gap: '8px', marginBottom: '18px' }}>
-                            {tables.map(t => {
-                                const isSelf = t.table_no === Number(moveSourceTable);
-                                const isOccupied = !!activeOrders[String(t.table_no)];
-                                const isSelected = moveTargetTable === String(t.table_no);
-
-                                return (
-                                    <button
-                                        key={t.id}
-                                        disabled={isSelf}
-                                        onClick={() => setMoveTargetTable(String(t.table_no))}
-                                        className="btn-outline"
-                                        style={{
-                                            padding: '10px 0',
-                                            fontWeight: 800,
-                                            fontSize: '13px',
-                                            background: isSelected ? 'var(--brand-primary)' : (isOccupied ? 'rgba(245, 159, 0, 0.15)' : 'var(--bg-surface)'),
-                                            color: isSelf ? 'var(--text-muted)' : (isSelected ? '#fff' : (isOccupied ? 'var(--brand-gold)' : 'var(--text-primary)')),
-                                            borderColor: isSelected ? 'var(--brand-primary)' : 'var(--border-card)',
-                                            cursor: isSelf ? 'not-allowed' : 'pointer'
-                                        }}
-                                    >
-                                        M{t.table_no}
-                                    </button>
-                                );
-                            })}
-                        </div>
-
-                        {moveTargetTable && (
-                            <div style={{
-                                padding: '10px 12px',
-                                borderRadius: 'var(--radius-sm)',
-                                background: activeOrders[moveTargetTable] ? 'rgba(245, 159, 0, 0.12)' : 'rgba(16, 185, 129, 0.12)',
-                                border: activeOrders[moveTargetTable] ? '1px solid rgba(245, 159, 0, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
-                                color: activeOrders[moveTargetTable] ? 'var(--brand-gold)' : 'var(--success)',
-                                fontSize: '12px',
-                                fontWeight: 700,
-                                marginBottom: '16px'
-                            }}>
-                                {activeOrders[moveTargetTable] ? (
-                                    <span>⚠️ Hedef Masa {moveTargetTable} DOLU! Siparişler <strong>BİRLEŞTİRİLECEKTİR</strong>.</span>
-                                ) : (
-                                    <span>✓ Hedef Masa {moveTargetTable} BOŞ. Adisyon doğrudan <strong>TAŞINACAKTIR</strong>.</span>
-                                )}
-                            </div>
-                        )}
-
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <button onClick={() => setShowMoveModal(false)} className="btn-outline" style={{ flex: 1 }}>
-                                Vazgeç
-                            </button>
-                            <button
-                                onClick={handleAdminMoveOrMergeTable}
-                                disabled={!moveTargetTable}
-                                className="btn-primary"
-                                style={{ flex: 2, padding: '10px' }}
-                            >
-                                Onayla ve Aktar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <MoveTableModal
+                isOpen={showMoveModal}
+                sourceTable={moveSourceTable}
+                selectedTargetTable={moveTargetTable}
+                onSelectTargetTable={setMoveTargetTable}
+                onConfirm={handleAdminMoveOrMergeTable}
+                onClose={() => {
+                    setShowMoveModal(false);
+                    setMoveTargetTable('');
+                }}
+                tables={tables}
+                activeOrders={activeOrders}
+            />
 
             {/* ============================================================== */}
             {/* MODAL: PARÇALI / KISMİ HESAP BÖL (YÖNETİCİ MODALI)             */}
             {/* ============================================================== */}
-            {showSplitModal && splitTable && activeOrders[String(splitTable)] && (
-                <div className="modal-overlay open" style={{ display: 'flex', opacity: 1, zIndex: 1700 }}>
-                    <div className="modal-content open modal-responsive-card" style={{ maxWidth: '440px', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                            <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'white', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <Scissors size={18} className="text-emerald-400" />
-                                Masa {splitTable} • Parçalı / Kısmi Ödeme
-                            </h3>
-                            <button onClick={() => setShowSplitModal(false)} className="btn-logout" style={{ width: '28px', height: '28px' }}>
-                                <X size={15} />
-                            </button>
-                        </div>
-
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '12px' }}>
-                            Aşağıdan şu an tahsil edilecek ürün adetlerini seçin:
-                        </p>
-
-                        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px', maxHeight: '300px' }}>
-                            {(activeOrders[String(splitTable)].items || []).map((item, idx) => {
-                                const selQty = Number(splitSelections[idx]) || 0;
-                                const maxQty = Number(item.quantity) || 1;
-
-                                return (
-                                    <div
-                                        key={idx}
-                                        style={{
-                                            background: 'var(--bg-surface)',
-                                            padding: '8px 12px',
-                                            borderRadius: 'var(--radius-sm)',
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            border: '1px solid var(--border-card)'
-                                        }}
-                                    >
-                                        <div>
-                                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'white' }}>{item.name}</div>
-                                            <div style={{ fontSize: '11px', color: 'var(--brand-gold)' }}>{formatMoney(item.price)} (Mevcut: {maxQty})</div>
-                                        </div>
-
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <button
-                                                onClick={() => setSplitSelections(prev => ({ ...prev, [idx]: Math.max(0, (Number(prev[idx]) || 0) - 1) }))}
-                                                className="btn-outline"
-                                                style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                            >
-                                                -
-                                            </button>
-                                            <span style={{ width: '22px', textAlign: 'center', fontWeight: 800, color: selQty > 0 ? 'var(--brand-primary)' : 'var(--text-muted)' }}>
-                                                {selQty}
-                                            </span>
-                                            <button
-                                                onClick={() => setSplitSelections(prev => ({ ...prev, [idx]: Math.min(maxQty, (Number(prev[idx]) || 0) + 1) }))}
-                                                className="btn-outline"
-                                                style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                            >
-                                                +
-                                            </button>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        {/* Seçilen Toplam Tutar ve Ödeme Yöntemi */}
-                        {(() => {
-                            const payingTotal = (activeOrders[String(splitTable)].items || []).reduce((sum, item, idx) => {
-                                const q = Number(splitSelections[idx]) || 0;
-                                return sum + (Number(item.price) * q);
-                            }, 0);
-
-                            return (
-                                <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-sm)', marginBottom: '12px', border: '1px solid var(--border-card)' }}>
-                                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Tahsil Edilecek Tutar:</span>
-                                        <span style={{ fontSize: '18px', fontWeight: 900, color: 'var(--brand-gold)' }}>{formatMoney(payingTotal)}</span>
-                                    </div>
-
-                                    <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-                                        <button
-                                            onClick={() => setSplitPayMethod('cash')}
-                                            className="btn-outline"
-                                            style={{ flex: 1, padding: '8px', fontWeight: 700, fontSize: '12px', background: splitPayMethod === 'cash' ? '#10b981' : 'transparent', color: splitPayMethod === 'cash' ? '#fff' : 'var(--text-secondary)', borderColor: splitPayMethod === 'cash' ? '#10b981' : 'var(--border-card)' }}
-                                        >
-                                            💵 Nakit
-                                        </button>
-                                        <button
-                                            onClick={() => setSplitPayMethod('card')}
-                                            className="btn-outline"
-                                            style={{ flex: 1, padding: '8px', fontWeight: 700, fontSize: '12px', background: splitPayMethod === 'card' ? 'var(--brand-primary)' : 'transparent', color: splitPayMethod === 'card' ? '#fff' : 'var(--text-secondary)', borderColor: splitPayMethod === 'card' ? 'var(--brand-primary)' : 'var(--border-card)' }}
-                                        >
-                                            💳 Kart
-                                        </button>
-                                    </div>
-
-                                    <div style={{ display: 'flex', gap: '10px' }}>
-                                        <button onClick={() => setShowSplitModal(false)} className="btn-outline" style={{ flex: 1 }}>
-                                            Vazgeç
-                                        </button>
-                                        <button
-                                            onClick={handleAdminSplitPayment}
-                                            disabled={payingTotal <= 0}
-                                            className="btn-primary"
-                                            style={{ flex: 2, padding: '10px', background: splitPayMethod === 'cash' ? '#10b981' : 'var(--brand-primary)' }}
-                                        >
-                                            {formatMoney(payingTotal)} Tahsil Et
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })()}
-                    </div>
-                </div>
-            )}
+            <SplitPaymentModal
+                isOpen={showSplitModal && !!splitTable && !!activeOrders[String(splitTable)]}
+                tableNo={splitTable}
+                order={activeOrders[String(splitTable)]}
+                splitSelections={splitSelections}
+                setSplitSelections={setSplitSelections}
+                splitPayMethod={splitPayMethod}
+                setSplitPayMethod={setSplitPayMethod}
+                onConfirm={handleAdminSplitPayment}
+                onClose={() => {
+                    setShowSplitModal(false);
+                    setSplitSelections({});
+                }}
+            />
 
             {/* ============================================================== */}
             {/* MODAL: SİPARİŞ NOTU DÜZENLEME (YÖNETİCİ MODALI)                */}

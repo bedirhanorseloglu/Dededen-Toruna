@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { useApp } from '../context/AppContext';
 import { 
     MENU_CATEGORIES, 
@@ -42,10 +42,14 @@ import {
     X,
     Receipt,
     Tag,
-    Zap
+    Zap,
+    User
 } from 'lucide-react';
 import DiscountModal from '../components/DiscountModal';
 import QuickAmountModal from '../components/QuickAmountModal';
+import MoveTableModal from '../components/MoveTableModal';
+import SplitPaymentModal from '../components/SplitPaymentModal';
+import LiveOrderDrawer from '../components/LiveOrderDrawer';
 
 export default function TableDetailView() {
     const { 
@@ -455,14 +459,18 @@ export default function TableDetailView() {
         const payingItems = [];
         const remainingItems = [];
         let payingSubtotal = 0;
+        let totalSubtotal = 0;
 
         cartItems.forEach((item, index) => {
             const payQty = Number(splitSelections[index]) || 0;
             const fullQty = Number(item.quantity) || 1;
+            const price = Number(item.price) || 0;
+
+            totalSubtotal += price * fullQty;
 
             if (payQty > 0) {
                 payingItems.push({ ...item, quantity: payQty });
-                payingSubtotal += Number(item.price) * payQty;
+                payingSubtotal += price * payQty;
             }
 
             const remainQty = fullQty - payQty;
@@ -476,6 +484,18 @@ export default function TableDetailView() {
             return;
         }
 
+        const currentDiscount = Number(discount) || 0;
+        let payingDiscount = 0;
+        if (currentDiscount > 0 && totalSubtotal > 0 && payingSubtotal > 0) {
+            if (remainingItems.length === 0) {
+                payingDiscount = currentDiscount;
+            } else {
+                payingDiscount = Math.round(currentDiscount * (payingSubtotal / totalSubtotal) * 100) / 100;
+            }
+        }
+        const payingTotal = Math.max(0, payingSubtotal - payingDiscount);
+        const remainingDiscount = Math.max(0, currentDiscount - payingDiscount);
+
         try {
             const partialOrderRecord = {
                 table_no: tableNo,
@@ -483,7 +503,9 @@ export default function TableDetailView() {
                 waiter_name: existingOrder?.waiter_name || (currentUser?.role === 'admin' ? (currentUser?.name || 'Yönetici') : (currentUser?.name || 'Garson')),
                 items: payingItems,
                 subtotal: payingSubtotal,
-                total: payingSubtotal,
+                discount: payingDiscount,
+                discount_reason: discountReason || '',
+                total: payingTotal,
                 is_partial: true,
                 created_at: new Date().toISOString()
             };
@@ -501,10 +523,11 @@ export default function TableDetailView() {
                 setShowSplitModal(false);
                 setSplitSelections({});
                 setCartItems(remainingItems);
+                setDiscount(remainingDiscount);
                 playChimeSound();
-                showToast(`${formatMoney(payingSubtotal)} parçalı tahsil edildi. Kalanlar masada açık.`, 'success');
+                showToast(`${formatMoney(payingTotal)} parçalı tahsil edildi. Kalanlar masada açık.`, 'success');
 
-                await persistOrder(remainingItems);
+                await persistOrder(remainingItems, remainingDiscount, discountReason);
             }
         } catch (e) {
             console.error("Split error:", e);
@@ -525,6 +548,17 @@ export default function TableDetailView() {
         });
     }, [currentProducts, selectedCategory, menuSearch]);
 
+    // Sepetteki ürün adetleri haritası (21st.dev / Motion rozeti için)
+    const cartItemCounts = useMemo(() => {
+        const counts = {};
+        cartItems.forEach(item => {
+            if (item.product_id) {
+                counts[item.product_id] = (counts[item.product_id] || 0) + (Number(item.quantity) || 1);
+            }
+        });
+        return counts;
+    }, [cartItems]);
+
     // Kategori bazlı lezzet sayıları (hap badge'ler için)
     const categoryCounts = useMemo(() => {
         const counts = {};
@@ -544,7 +578,7 @@ export default function TableDetailView() {
 
             {/* LEFT / CENTER: MENU & MODERN STICKY CATEGORIES */}
             <section className="menu-side" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {/* 1. MODERN & KULLANICI DOSTU KATEGORİ VE ARAMA BARI */}
+                {/* 1. 21ST.DEV & MOTION KULLANICI DOSTU KATEGORİ VE ARAMA BARI */}
                 <div className="category-bar-modern">
                     {/* Modern Search Wrapper */}
                     <div className="menu-search-wrapper">
@@ -555,68 +589,103 @@ export default function TableDetailView() {
                             placeholder="Menüde lezzet ara (Sütlaç, Menemen, Köfte, Tost)..."
                             value={menuSearch}
                             onChange={(e) => setMenuSearch(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Escape') setMenuSearch('');
+                            }}
                         />
                         {menuSearch.trim() && (
                             <div className="search-trailing-actions">
-                                <span className="search-count-pill">
+                                <motion.span 
+                                    className="search-count-pill"
+                                    initial={{ scale: 0.8, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                                >
                                     {filteredProducts.length} lezzet
-                                </span>
-                                <button 
+                                </motion.span>
+                                <motion.button 
                                     type="button" 
                                     className="search-clear-btn" 
                                     onClick={() => setMenuSearch('')}
                                     title="Aramayı Temizle"
+                                    whileHover={{ scale: 1.15, rotate: 90 }}
+                                    whileTap={{ scale: 0.85 }}
                                 >
                                     <X size={14} />
-                                </button>
+                                </motion.button>
                             </div>
                         )}
                     </div>
 
-                    {/* Modern 2-Row Category Grid */}
+                    {/* Modern 21st Minimalist Tab Grid with Border Glow & Underline */}
                     <div className="modern-category-grid">
                         <motion.button
+                            type="button"
                             className={`modern-cat-pill ${selectedCategory === 'all' ? 'active' : ''}`}
                             onClick={() => {
                                 setSelectedCategory('all');
                                 setMenuSearch('');
                             }}
-                            whileTap={{ scale: 0.95 }}
+                            whileHover={{ y: -1 }}
+                            whileTap={{ scale: 0.97 }}
                         >
-                            <span className="pill-icon">🍽️</span>
+                            <div className="pill-icon-wrap">
+                                <span>🍽️</span>
+                            </div>
                             <span className="pill-title">Tümü</span>
                             <span className="pill-badge">{currentProducts.length}</span>
+                            {selectedCategory === 'all' && (
+                                <motion.div 
+                                    className="pill-active-underline"
+                                    initial={{ scaleX: 0, opacity: 0 }}
+                                    animate={{ scaleX: 1, opacity: 1 }}
+                                    transition={{ duration: 0.18, ease: "easeOut" }}
+                                />
+                            )}
                         </motion.button>
                         {MENU_CATEGORIES.map(cat => {
                             const count = categoryCounts[cat.id] || 0;
+                            const isSelected = selectedCategory === cat.id;
                             return (
                                 <motion.button
                                     key={cat.id}
-                                    className={`modern-cat-pill ${selectedCategory === cat.id ? 'active' : ''}`}
+                                    type="button"
+                                    className={`modern-cat-pill ${isSelected ? 'active' : ''}`}
                                     onClick={() => {
                                         setSelectedCategory(cat.id);
                                         setMenuSearch('');
                                     }}
-                                    whileTap={{ scale: 0.95 }}
+                                    whileHover={{ y: -1 }}
+                                    whileTap={{ scale: 0.97 }}
                                 >
-                                    <span className="pill-icon">{cat.icon}</span>
+                                    <div className="pill-icon-wrap">
+                                        <span>{cat.icon}</span>
+                                    </div>
                                     <span className="pill-title">{cat.name}</span>
                                     {count > 0 && <span className="pill-badge">{count}</span>}
+                                    {isSelected && (
+                                        <motion.div 
+                                            className="pill-active-underline"
+                                            initial={{ scaleX: 0, opacity: 0 }}
+                                            animate={{ scaleX: 1, opacity: 1 }}
+                                            transition={{ duration: 0.18, ease: "easeOut" }}
+                                        />
+                                    )}
                                 </motion.button>
                             );
                         })}
                     </div>
                 </div>
 
-                {/* 2. PRODUCTS GRID / CATEGORIZED 'TÜMÜ' DISPLAY (Framer Motion Animated) */}
+                {/* 2. PRODUCTS GRID / CATEGORIZED 'TÜMÜ' DISPLAY (Instant & Silky Crossfade) */}
                 <div className="menu-products-scroll">
-                    <AnimatePresence mode="wait">
+                    <AnimatePresence>
                         <motion.div
                             key={selectedCategory + (menuSearch || '')}
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -6 }}
-                            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                            initial={{ opacity: 0.4 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0.4 }}
+                            transition={{ duration: 0.14 }}
                         >
                             {selectedCategory === 'all' && !menuSearch.trim() ? (
                                 MENU_CATEGORIES.map(cat => {
@@ -625,35 +694,76 @@ export default function TableDetailView() {
 
                                     return (
                                         <div key={cat.id} className="menu-category-section">
-                                            <div className="menu-category-header">
-                                                <span>{cat.icon}</span>
-                                                <span>{cat.name}</span>
-                                                <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 500 }}>
-                                                    ({catProducts.length} çeşit)
-                                                </span>
+                                            <div className="modern-category-section-header">
+                                                <div className="modern-cat-icon-badge">
+                                                    {cat.icon}
+                                                </div>
+                                                <div className="modern-cat-header-title-box">
+                                                    <span className="modern-cat-section-title">{cat.name}</span>
+                                                    <span className="modern-cat-section-count">
+                                                        {catProducts.length} lezzet
+                                                    </span>
+                                                </div>
+                                                <div className="modern-cat-header-line" />
                                             </div>
-                                            <div className="products-grid" style={{ padding: 0 }}>
+                                            <motion.div 
+                                                className="products-grid" 
+                                                style={{ padding: 0 }}
+                                                variants={gridVariants}
+                                                initial="hidden"
+                                                animate="show"
+                                            >
                                                 {catProducts.map(p => (
                                                     <ProductItemCard 
                                                         key={p.id} 
                                                         product={p} 
+                                                        inCartCount={cartItemCounts[p.id] || 0}
                                                         onAdd={(e) => handleAddToCart(p, e)} 
                                                     />
                                                 ))}
-                                            </div>
+                                            </motion.div>
                                         </div>
                                     );
                                 })
                             ) : (
-                                <div className="products-grid" style={{ padding: 0 }}>
-                                    {filteredProducts.map(p => (
-                                        <ProductItemCard 
-                                            key={p.id} 
-                                            product={p} 
-                                            onAdd={(e) => handleAddToCart(p, e)} 
-                                        />
-                                    ))}
-                                </div>
+                                <>
+                                    {filteredProducts.length === 0 ? (
+                                        <motion.div 
+                                            className="empty-menu-search"
+                                            initial={{ opacity: 0, scale: 0.95, y: 12 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            transition={{ duration: 0.2 }}
+                                        >
+                                            <div className="empty-search-icon">🔍</div>
+                                            <div className="empty-search-title">"{menuSearch}" ile lezzet bulunamadı</div>
+                                            <p className="empty-search-desc">Lütfen arama kelimenizi kontrol edin veya filtreyi sıfırlayın.</p>
+                                            <button 
+                                                type="button" 
+                                                className="empty-search-clear-btn"
+                                                onClick={() => setMenuSearch('')}
+                                            >
+                                                Aramayı Temizle
+                                            </button>
+                                        </motion.div>
+                                    ) : (
+                                        <motion.div 
+                                            className="products-grid" 
+                                            style={{ padding: 0 }}
+                                            variants={gridVariants}
+                                            initial="hidden"
+                                            animate="show"
+                                        >
+                                            {filteredProducts.map(p => (
+                                                <ProductItemCard 
+                                                    key={p.id} 
+                                                    product={p} 
+                                                    inCartCount={cartItemCounts[p.id] || 0}
+                                                    onAdd={(e) => handleAddToCart(p, e)} 
+                                                />
+                                            ))}
+                                        </motion.div>
+                                    )}
+                                </>
                             )}
                         </motion.div>
                     </AnimatePresence>
@@ -675,542 +785,44 @@ export default function TableDetailView() {
                 <button className="mobile-cart-btn">Adisyonu Aç ↗</button>
             </div>
 
-            {/* RIGHT: ADİSYON SEPETİ & ÖDEME (DESKTOPTA SAĞDA, MOBİLDE SLIDE-UP DRAWER) */}
-            <aside 
-                className={`receipt-side ${isMobileCartOpen ? 'mobile-open' : ''}`}
-            >
-                {/* Header */}
-                <div className="receipt-header">
-                    <div style={{ width: '100%' }}>
-                        {/* Drawer Drag Pill on Mobile */}
-                        <div 
-                            className="drawer-drag-pill" 
-                            onClick={() => setIsMobileCartOpen(false)}
-                        />
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                                <div style={{ fontSize: '11px', color: 'var(--brand-gold)', fontWeight: 700, letterSpacing: '0.5px' }}>
-                                    CANLI ADİSYON
-                                </div>
-                                <h2 style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.3px', margin: 0 }}>
-                                    Masa {tableNo}
-                                </h2>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <button 
-                                    className="btn-outline"
-                                    onClick={() => setShowMoveModal(true)}
-                                    style={{ fontSize: '12px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                >
-                                    <MoveHorizontal size={13} /> Taşı
-                                </button>
-                                <button 
-                                    className="btn-outline"
-                                    onClick={() => {
-                                        setSplitSelections({});
-                                        setShowSplitModal(true);
-                                    }}
-                                    style={{ fontSize: '12px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                >
-                                    <Scissors size={13} /> Böl
-                                </button>
-                                {/* Mobile Drawer Close Button */}
-                                <button 
-                                    className="btn-close-receipt-mobile"
-                                    onClick={() => setIsMobileCartOpen(false)}
-                                    title="Adisyonu Kapat"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Waiter badge */}
-                        <div style={{
-                            marginTop: '10px',
-                            padding: '8px 12px',
-                            background: 'var(--bg-surface-elevated)',
-                            border: '1px solid var(--border-card)',
-                            borderRadius: 'var(--radius-sm)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between'
-                        }}>
-                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 700 }}>
-                                👤 Sorumlu Garson:
-                            </div>
-                            <div style={{
-                                fontSize: '13px',
-                                fontWeight: 800,
-                                color: '#ffd43b',
-                                background: 'rgba(245, 159, 0, 0.12)',
-                                padding: '3px 10px',
-                                borderRadius: '4px',
-                                border: '1px solid rgba(245, 159, 0, 0.3)'
-                            }}>
-                                {existingOrder?.waiter_name || currentUser?.name || 'Garson'}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Items List (Teslim Edilen ve Edilmeyen Ürünler Ayrı Gruplandı) */}
-                <div className="receipt-items-list">
-                    {cartItems.length === 0 ? (
-                        <div style={{
-                            height: '100%',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'var(--text-muted)',
-                            textAlign: 'center',
-                            padding: '24px'
-                        }}>
-                            <div style={{ fontSize: '40px', marginBottom: '10px' }}>🍽️</div>
-                            <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-secondary)' }}>Adisyon Henüz Boş</div>
-                            <div style={{ fontSize: '12px', marginTop: '4px' }}>Soldaki menüden ürün seçerek ekleyebilirsiniz.</div>
-                        </div>
-                    ) : (
-                        <>
-                            {/* Teslim Durumu Özeti & Hızlı Toplu Teslim */}
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                padding: '8px 12px',
-                                background: 'rgba(0,0,0,0.35)',
-                                borderRadius: 'var(--radius-sm)',
-                                border: '1px solid var(--border-card)',
-                                marginBottom: '10px',
-                                gap: '8px',
-                                flexWrap: 'wrap'
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
-                                    <span style={{ color: 'var(--warning)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <Clock size={13} /> {cartItems.filter(i => i.status !== 'delivered').length} Hazırlanıyor
-                                    </span>
-                                    <span style={{ color: 'var(--text-muted)' }}>•</span>
-                                    <span style={{ color: 'var(--success)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <CheckCircle2 size={13} /> {cartItems.filter(i => i.status === 'delivered').length} Teslim
-                                    </span>
-                                </div>
-                                {cartItems.some(i => i.status !== 'delivered') && (
-                                    <button
-                                        onClick={handleDeliverAllPending}
-                                        className="btn-outline"
-                                        style={{ fontSize: '11px', padding: '3px 8px', color: 'var(--success)', borderColor: 'rgba(16,185,129,0.3)', fontWeight: 700 }}
-                                        title="Tüm hazırlananları teslim edildi yap"
-                                    >
-                                        Tümünü Teslim Et ✓
-                                    </button>
-                                )}
-                            </div>
-
-                            {/* 1. GRUP: MUTFAKTA HAZIRLANAN / PİŞEN ÜRÜNLER */}
-                            {cartItems.some(i => i.status !== 'delivered') && (
-                                <div style={{ marginBottom: '14px' }}>
-                                    <div style={{
-                                        fontSize: '11px',
-                                        fontWeight: 800,
-                                        color: 'var(--warning)',
-                                        letterSpacing: '0.4px',
-                                        textTransform: 'uppercase',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '5px',
-                                        marginBottom: '6px',
-                                        paddingLeft: '2px'
-                                    }}>
-                                        <Clock size={12} /> 🟡 Hazırlanıyor / Mutfakta ({cartItems.filter(i => i.status !== 'delivered').length})
-                                    </div>
-                                    {cartItems.map((item, idx) => {
-                                        if (item.status === 'delivered') return null;
-                                        return (
-                                            <div 
-                                                key={idx}
-                                                className="receipt-item-row pending"
-                                                style={{
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    gap: '6px',
-                                                    padding: '10px 12px',
-                                                    background: 'rgba(245, 158, 11, 0.05)',
-                                                    border: '1px solid rgba(245, 158, 11, 0.3)',
-                                                    borderRadius: 'var(--radius-sm)',
-                                                    marginBottom: '6px'
-                                                }}
-                                            >
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                    <div>
-                                                        <div style={{ fontWeight: 800, fontSize: '14px', color: 'white' }}>
-                                                            {item.name}
-                                                        </div>
-                                                        <div style={{ fontSize: '12px', color: 'var(--brand-gold)', fontWeight: 700, marginTop: '2px' }}>
-                                                            {formatMoney(Number(item.price) * Number(item.quantity || 1))}
-                                                            <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: '6px' }}>
-                                                                ({formatMoney(item.price)} x {item.quantity})
-                                                            </span>
-                                                        </div>
-                                                    </div>
-
-                                                    <button
-                                                        onClick={() => handleToggleDeliveryStatus(idx)}
-                                                        className="delivery-status-btn pending"
-                                                        title="Teslim Edildi Olarak İşaretle"
-                                                    >
-                                                        <Clock size={13} /> Hazırlanıyor
-                                                    </button>
-                                                </div>
-
-                                                {item.notes && (
-                                                    <div style={{
-                                                        fontSize: '11px',
-                                                        color: 'var(--brand-gold)',
-                                                        background: 'rgba(245, 159, 0, 0.1)',
-                                                        padding: '3px 8px',
-                                                        borderRadius: '4px'
-                                                    }}>
-                                                        📝 {item.notes}
-                                                    </div>
-                                                )}
-
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
-                                                    <button
-                                                        onClick={() => {
-                                                            setNoteModalItemIdx(idx);
-                                                            setItemNoteInput(item.notes || '');
-                                                        }}
-                                                        className="btn-outline"
-                                                        style={{
-                                                            fontSize: '11px',
-                                                            padding: '2px 8px',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '4px',
-                                                            color: item.notes ? 'var(--brand-gold)' : 'var(--text-muted)'
-                                                        }}
-                                                    >
-                                                        <MessageSquare size={12} /> {item.notes ? 'Not Düzenle' : '+ Not'}
-                                                    </button>
-
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <button
-                                                            onClick={() => handleUpdateQuantity(idx, -1)}
-                                                            className="btn-outline"
-                                                            style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                        >
-                                                            <Minus size={13} />
-                                                        </button>
-                                                        <span style={{ fontWeight: 800, fontSize: '13px', color: 'white', minWidth: '18px', textAlign: 'center' }}>
-                                                            {item.quantity}
-                                                        </span>
-                                                        <button
-                                                            onClick={() => handleUpdateQuantity(idx, 1)}
-                                                            className="btn-outline"
-                                                            style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                        >
-                                                            <Plus size={13} />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleUpdateQuantity(idx, -item.quantity)}
-                                                            className="btn-outline"
-                                                            style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.4)' }}
-                                                        >
-                                                            <Trash2 size={13} />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-
-                            {/* 2. GRUP: MASAYA TESLİM EDİLEN ÜRÜNLER (TATLI, İÇECEK, TESLİM EDİLEN YEMEKLER) */}
-                            {cartItems.some(i => i.status === 'delivered') && (
-                                <div>
-                                    <div style={{
-                                        fontSize: '11px',
-                                        fontWeight: 800,
-                                        color: 'var(--success)',
-                                        letterSpacing: '0.4px',
-                                        textTransform: 'uppercase',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '5px',
-                                        marginBottom: '6px',
-                                        paddingLeft: '2px'
-                                    }}>
-                                        <CheckCircle2 size={12} /> 🟢 Teslim Edildi / Masada ({cartItems.filter(i => i.status === 'delivered').length})
-                                    </div>
-                                    {cartItems.map((item, idx) => {
-                                        if (item.status !== 'delivered') return null;
-                                        return (
-                                            <div 
-                                                key={idx}
-                                                className="receipt-item-row delivered"
-                                                style={{
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    gap: '6px',
-                                                    padding: '10px 12px',
-                                                    background: 'rgba(16, 185, 129, 0.05)',
-                                                    border: '1px solid rgba(16, 185, 129, 0.25)',
-                                                    borderRadius: 'var(--radius-sm)',
-                                                    marginBottom: '6px'
-                                                }}
-                                            >
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                                    <div>
-                                                        <div style={{ fontWeight: 800, fontSize: '14px', color: 'white' }}>
-                                                            {item.name}
-                                                        </div>
-                                                        <div style={{ fontSize: '12px', color: 'var(--brand-gold)', fontWeight: 700, marginTop: '2px' }}>
-                                                            {formatMoney(Number(item.price) * Number(item.quantity || 1))}
-                                                            <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: '6px' }}>
-                                                                ({formatMoney(item.price)} x {item.quantity})
-                                                            </span>
-                                                        </div>
-                                                    </div>
-
-                                                    <button
-                                                        onClick={() => handleToggleDeliveryStatus(idx)}
-                                                        className="delivery-status-btn delivered"
-                                                        title="Geri Al (Hazırlanıyor Yap)"
-                                                    >
-                                                        <CheckCircle2 size={13} /> ✓ Teslim
-                                                    </button>
-                                                </div>
-
-                                                {item.notes && (
-                                                    <div style={{
-                                                        fontSize: '11px',
-                                                        color: 'var(--brand-gold)',
-                                                        background: 'rgba(245, 159, 0, 0.1)',
-                                                        padding: '3px 8px',
-                                                        borderRadius: '4px'
-                                                    }}>
-                                                        📝 {item.notes}
-                                                    </div>
-                                                )}
-
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
-                                                    <button
-                                                        onClick={() => {
-                                                            setNoteModalItemIdx(idx);
-                                                            setItemNoteInput(item.notes || '');
-                                                        }}
-                                                        className="btn-outline"
-                                                        style={{
-                                                            fontSize: '11px',
-                                                            padding: '2px 8px',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '4px',
-                                                            color: item.notes ? 'var(--brand-gold)' : 'var(--text-muted)'
-                                                        }}
-                                                    >
-                                                        <MessageSquare size={12} /> {item.notes ? 'Not Düzenle' : '+ Not'}
-                                                    </button>
-
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <button
-                                                            onClick={() => handleUpdateQuantity(idx, -1)}
-                                                            className="btn-outline"
-                                                            style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                        >
-                                                            <Minus size={13} />
-                                                        </button>
-                                                        <span style={{ fontWeight: 800, fontSize: '13px', color: 'white', minWidth: '18px', textAlign: 'center' }}>
-                                                            {item.quantity}
-                                                        </span>
-                                                        <button
-                                                            onClick={() => handleUpdateQuantity(idx, 1)}
-                                                            className="btn-outline"
-                                                            style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                        >
-                                                            <Plus size={13} />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleUpdateQuantity(idx, -item.quantity)}
-                                                            className="btn-outline"
-                                                            style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.4)' }}
-                                                        >
-                                                            <Trash2 size={13} />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </>
-                    )}
-                </div>
-
-                {/* Footer & Checkout Buttons */}
-                <div className="receipt-footer">
-                    {finalDiscount > 0 ? (
-                        <div style={{
-                            background: 'rgba(0, 0, 0, 0.4)',
-                            border: '1px solid rgba(16, 185, 129, 0.35)',
-                            borderRadius: '12px',
-                            padding: '10px 12px',
-                            marginBottom: '10px'
-                        }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Ara Toplam</span>
-                                <span style={{ fontSize: '14px', color: 'var(--text-muted)', fontWeight: 700, textDecoration: 'line-through' }}>
-                                    {formatMoney(orderSubtotal)}
-                                </span>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                <span style={{ fontSize: '12.5px', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 700 }}>
-                                    🏷️ İndirim / İkram
-                                </span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <span style={{ fontSize: '14px', color: '#10b981', fontWeight: 800 }}>
-                                        -{formatMoney(finalDiscount)}
-                                    </span>
-                                    <button
-                                        onClick={handleRemoveDiscount}
-                                        title="İndirimi Kaldır"
-                                        style={{
-                                            background: 'rgba(239, 68, 68, 0.15)',
-                                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                                            color: '#ef4444',
-                                            borderRadius: '4px',
-                                            padding: '1px 5px',
-                                            fontSize: '11px',
-                                            cursor: 'pointer'
-                                        }}
-                                    >
-                                        ✕
-                                    </button>
-                                </div>
-                            </div>
-                            <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)', margin: '6px 0' }} />
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '14px', fontWeight: 800, color: 'white' }}>Ödenecek Tutar</span>
-                                <span style={{ color: 'var(--brand-gold)', fontSize: '24px', fontWeight: 900 }}>
-                                    {formatMoney(finalTotal)}
-                                </span>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="total-summary">
-                            <span style={{ fontSize: '15px', color: 'var(--text-secondary)' }}>Genel Tutar</span>
-                            <span style={{ color: 'var(--brand-gold)', fontSize: '24px', fontWeight: 800 }}>
-                                {formatMoney(orderSubtotal)}
-                            </span>
-                        </div>
-                    )}
-
-                    {/* Mutfağa Fiş Yazdır (Tatlı ve İçecekler Hariç!) */}
-                    {cartItems.length > 0 && (
-                        <motion.button
-                            onClick={handlePrintKitchenTicket}
-                            className="btn-primary"
-                            whileTap={{ scale: 0.97 }}
-                            style={{
-                                width: '100%',
-                                minHeight: '46px',
-                                padding: '10px 14px',
-                                fontSize: '13.5px',
-                                fontWeight: 800,
-                                borderRadius: 'var(--radius-md)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px',
-                                marginBottom: '8px'
-                            }}
-                        >
-                            <Printer size={16} /> Mutfağa Fiş Gönder
-                        </motion.button>
-                    )}
-
-                    {/* Hızlı Aksiyon Butonları (Ürün varsa İndirim, Masa boşsa Hızlı Ödeme Al) */}
-                    <div style={{ marginBottom: '10px' }}>
-                        {cartItems.length > 0 ? (
-                            <button
-                                onClick={() => setShowDiscountModal(true)}
-                                style={{
-                                    width: '100%',
-                                    minHeight: '44px',
-                                    padding: '8px 12px',
-                                    background: finalDiscount > 0 ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.08)',
-                                    border: `1px dashed ${finalDiscount > 0 ? '#10b981' : 'rgba(245, 158, 11, 0.4)'}`,
-                                    borderRadius: 'var(--radius-md)',
-                                    color: finalDiscount > 0 ? '#10b981' : 'var(--brand-gold)',
-                                    fontSize: '13px',
-                                    fontWeight: 800,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '6px',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                <Tag size={15} />
-                                {finalDiscount > 0 ? `İndirim (${formatMoney(finalDiscount)})` : 'İndirim / İkram'}
-                            </button>
-                        ) : (
-                            <button
-                                onClick={() => setShowQuickAmountModal(true)}
-                                className="btn-quick-amount-drawer hero"
-                                style={{ 
-                                    width: '100%',
-                                    minHeight: '46px', 
-                                    padding: '10px 14px', 
-                                    fontSize: '13.5px', 
-                                    margin: 0 
-                                }}
-                                title="Masayı serbest tutar girerek hızlıca kapat"
-                            >
-                                <Zap size={16} /> Hızlı Ödeme Al
-                            </button>
-                        )}
-                    </div>
-
-                    {/* 3 Checkout Buttons Group (Nakit, Kart, Masa Hesap Fişi) */}
-                    <div className="checkout-actions-3col">
-                        <motion.button
-                            onClick={() => handleCheckout('cash')}
-                            disabled={cartItems.length === 0}
-                            className="btn-checkout-action btn-checkout-cash"
-                            whileTap={{ scale: 0.95 }}
-                        >
-                            <Banknote size={18} />
-                            Nakit Kapat
-                        </motion.button>
-
-                        <motion.button
-                            onClick={() => handleCheckout('card')}
-                            disabled={cartItems.length === 0}
-                            className="btn-checkout-action btn-checkout-card"
-                            whileTap={{ scale: 0.95 }}
-                        >
-                            <CreditCard size={18} />
-                            Kart Kapat
-                        </motion.button>
-
-                        <motion.button
-                            onClick={handlePrintCustomerBill}
-                            disabled={cartItems.length === 0}
-                            className="btn-checkout-action btn-checkout-print"
-                            title="Müşteri Hesap Fişini Yazdır (Masa Açık Kalır)"
-                            whileTap={{ scale: 0.95 }}
-                        >
-                            <Receipt size={18} />
-                            Masa Hesap Fişi
-                        </motion.button>
-                    </div>
-                </div>
-            </aside>
+            {/* RIGHT: ADİSYON SEPETİ & ÖDEME (ORTAK MODÜL - REFERANS 1) */}
+            <LiveOrderDrawer
+                isOpen={isMobileCartOpen}
+                mode="sidebar"
+                tableNo={tableNo}
+                order={{
+                    items: cartItems,
+                    subtotal: orderSubtotal,
+                    discount: finalDiscount,
+                    total: finalTotal,
+                    waiter_name: existingOrder?.waiter_name || currentUser?.name
+                }}
+                currentUser={currentUser}
+                isTableDetail={true}
+                onClose={() => setIsMobileCartOpen(false)}
+                onMove={() => setShowMoveModal(true)}
+                onSplit={() => {
+                    setSplitSelections({});
+                    setShowSplitModal(true);
+                }}
+                onToggleItemStatus={handleToggleDeliveryStatus}
+                onDeliverAll={handleDeliverAllPending}
+                onUpdateQuantity={handleUpdateQuantity}
+                onAddNote={(idx) => {
+                    setNoteModalItemIdx(idx);
+                    setItemNoteInput(cartItems[idx]?.notes || '');
+                }}
+                onNavigateToTable={() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    setIsMobileCartOpen(false);
+                }}
+                onQuickAmount={() => setShowQuickAmountModal(true)}
+                onOpenDiscount={() => setShowDiscountModal(true)}
+                onRemoveDiscount={handleRemoveDiscount}
+                onPrintKitchen={handlePrintKitchenTicket}
+                onPrintCustomerBill={handlePrintCustomerBill}
+                onCheckout={handleCheckout}
+            />
 
             {/* MODAL 1: NOTE MODAL */}
             {noteModalItemIdx !== null && (
@@ -1252,194 +864,42 @@ export default function TableDetailView() {
             )}
 
             {/* MODAL 2: TABLE MOVE & MERGE (v1) */}
-            {showMoveModal && (
-                <div className="modal-overlay open" style={{ display: 'flex', opacity: 1 }}>
-                    <div className="modal-content open modal-responsive-card" style={{ maxWidth: '440px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                            <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'white', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <MoveHorizontal size={18} className="text-amber-400" />
-                                Masa Taşı / Birleştir
-                            </h3>
-                            <button onClick={() => setShowMoveModal(false)} className="btn-logout" style={{ width: '28px', height: '28px' }}>
-                                <X size={15} />
-                            </button>
-                        </div>
-
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '16px' }}>
-                            Masa <strong>{tableNo}</strong> siparişlerini aktarmak istediğiniz hedef masayı seçin:
-                        </p>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(62px, 1fr))', gap: '8px', marginBottom: '18px' }}>
-                            {tables.map(t => {
-                                const isSelf = t.table_no === tableNo;
-                                const isOccupied = !!activeOrders[String(t.table_no)];
-                                const isSelected = targetTableNo === String(t.table_no);
-
-                                return (
-                                    <button
-                                        key={t.id}
-                                        disabled={isSelf}
-                                        onClick={() => setTargetTableNo(String(t.table_no))}
-                                        className="btn-outline"
-                                        style={{
-                                            padding: '10px 0',
-                                            fontWeight: 800,
-                                            fontSize: '13px',
-                                            background: isSelected ? 'var(--brand-primary)' : (isOccupied ? 'rgba(245, 159, 0, 0.15)' : 'var(--bg-surface)'),
-                                            color: isSelf ? 'var(--text-muted)' : (isSelected ? '#fff' : (isOccupied ? 'var(--brand-gold)' : 'var(--text-primary)')),
-                                            borderColor: isSelected ? 'var(--brand-primary)' : 'var(--border-card)',
-                                            cursor: isSelf ? 'not-allowed' : 'pointer'
-                                        }}
-                                    >
-                                        M{t.table_no}
-                                    </button>
-                                );
-                            })}
-                        </div>
-
-                        {targetTableNo && (
-                            <div style={{
-                                padding: '10px 12px',
-                                borderRadius: 'var(--radius-sm)',
-                                background: activeOrders[targetTableNo] ? 'rgba(245, 159, 0, 0.12)' : 'var(--success-soft)',
-                                border: activeOrders[targetTableNo] ? '1px solid rgba(245, 159, 0, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
-                                color: activeOrders[targetTableNo] ? 'var(--brand-gold)' : 'var(--success)',
-                                fontSize: '12px',
-                                fontWeight: 700,
-                                marginBottom: '16px'
-                            }}>
-                                {activeOrders[targetTableNo] ? (
-                                    <span>⚠️ Hedef Masa {targetTableNo} DOLU! Siparişler <strong>BİRLEŞTİRİLECEKTİR</strong>.</span>
-                                ) : (
-                                    <span>✓ Hedef Masa {targetTableNo} BOŞ. Adisyon doğrudan <strong>TAŞINACAKTIR</strong>.</span>
-                                )}
-                            </div>
-                        )}
-
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            <button onClick={() => setShowMoveModal(false)} className="btn-outline" style={{ flex: 1 }}>
-                                Vazgeç
-                            </button>
-                            <button 
-                                onClick={handleMoveOrMergeTable}
-                                disabled={!targetTableNo}
-                                className="btn-primary" 
-                                style={{ flex: 2, padding: '10px' }}
-                            >
-                                Onayla ve Aktar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <MoveTableModal
+                isOpen={showMoveModal}
+                sourceTable={tableNo}
+                selectedTargetTable={targetTableNo}
+                onSelectTargetTable={setTargetTableNo}
+                onConfirm={handleMoveOrMergeTable}
+                onClose={() => {
+                    setShowMoveModal(false);
+                    setTargetTableNo('');
+                }}
+                tables={tables}
+                activeOrders={activeOrders}
+            />
 
             {/* MODAL 3: SPLIT PAYMENT */}
-            {showSplitModal && (
-                <div className="modal-overlay open" style={{ display: 'flex', opacity: 1 }}>
-                    <div className="modal-content open modal-responsive-card" style={{ maxWidth: '440px', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                            <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'white', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <Scissors size={18} className="text-emerald-400" />
-                                Parçalı / Kısmi Ödeme
-                            </h3>
-                            <button onClick={() => setShowSplitModal(false)} className="btn-logout" style={{ width: '28px', height: '28px' }}>
-                                <X size={15} />
-                            </button>
-                        </div>
-
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '12px' }}>
-                            Aşağıdan şu an tahsil edilecek ürün adetlerini seçin:
-                        </p>
-
-                        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-                            {cartItems.map((item, idx) => {
-                                const selQty = Number(splitSelections[idx]) || 0;
-                                const maxQty = Number(item.quantity) || 1;
-
-                                return (
-                                    <div 
-                                        key={idx}
-                                        style={{
-                                            background: 'var(--bg-surface)',
-                                            padding: '8px 12px',
-                                            borderRadius: 'var(--radius-sm)',
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            border: '1px solid var(--border-card)'
-                                        }}
-                                    >
-                                        <div>
-                                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'white' }}>{item.name}</div>
-                                            <div style={{ fontSize: '11px', color: 'var(--brand-gold)' }}>{formatMoney(item.price)} (Mevcut: {maxQty})</div>
-                                        </div>
-
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <button
-                                                onClick={() => setSplitSelections(prev => ({ ...prev, [idx]: Math.max(0, (Number(prev[idx]) || 0) - 1) }))}
-                                                className="btn-outline"
-                                                style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                            >
-                                                -
-                                            </button>
-                                            <span style={{ fontWeight: 800, minWidth: '18px', textAlign: 'center', color: selQty > 0 ? 'var(--success)' : 'var(--text-muted)' }}>
-                                                {selQty}
-                                            </span>
-                                            <button
-                                                onClick={() => setSplitSelections(prev => ({ ...prev, [idx]: Math.min(maxQty, (Number(prev[idx]) || 0) + 1) }))}
-                                                className="btn-outline"
-                                                style={{ width: '26px', height: '26px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                            >
-                                                +
-                                            </button>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-
-                        {/* Pay method */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
-                            <button
-                                onClick={() => setSplitPayMethod('cash')}
-                                className="btn-outline"
-                                style={{
-                                    padding: '9px',
-                                    fontWeight: 800,
-                                    fontSize: '13px',
-                                    background: splitPayMethod === 'cash' ? '#10b981' : 'transparent',
-                                    borderColor: splitPayMethod === 'cash' ? '#10b981' : 'var(--border-card)',
-                                    color: splitPayMethod === 'cash' ? '#fff' : 'var(--text-secondary)'
-                                }}
-                            >
-                                💵 Nakit
-                            </button>
-                            <button
-                                onClick={() => setSplitPayMethod('card')}
-                                className="btn-outline"
-                                style={{
-                                    padding: '9px',
-                                    fontWeight: 800,
-                                    fontSize: '13px',
-                                    background: splitPayMethod === 'card' ? 'var(--brand-primary)' : 'transparent',
-                                    borderColor: splitPayMethod === 'card' ? 'var(--brand-primary)' : 'var(--border-card)',
-                                    color: splitPayMethod === 'card' ? '#fff' : 'var(--text-secondary)'
-                                }}
-                            >
-                                💳 Kredi Kartı
-                            </button>
-                        </div>
-
-                        <button
-                            onClick={handleSplitPayment}
-                            className="btn-primary"
-                            style={{ padding: '12px', fontSize: '14px', fontWeight: 800 }}
-                        >
-                            Seçilenleri Tahsil Et
-                        </button>
-                    </div>
-                </div>
-            )}
+            <SplitPaymentModal
+                isOpen={showSplitModal}
+                tableNo={tableNo}
+                order={{
+                    ...(existingOrder || {}),
+                    items: cartItems,
+                    subtotal: orderSubtotal,
+                    discount: finalDiscount,
+                    discount_reason: discountReason,
+                    total: finalTotal
+                }}
+                splitSelections={splitSelections}
+                setSplitSelections={setSplitSelections}
+                splitPayMethod={splitPayMethod}
+                setSplitPayMethod={setSplitPayMethod}
+                onConfirm={handleSplitPayment}
+                onClose={() => {
+                    setShowSplitModal(false);
+                    setSplitSelections({});
+                }}
+            />
 
             {/* MODAL 4: DISCOUNT MODAL */}
             <DiscountModal
@@ -1467,38 +927,108 @@ export default function TableDetailView() {
     );
 }
 
-// Product Card
-function ProductItemCard({ product, onAdd }) {
+// 21st / Motion Variants
+const gridVariants = {
+    hidden: { opacity: 0 },
+    show: {
+        opacity: 1,
+        transition: {
+            staggerChildren: 0.02,
+            delayChildren: 0.01
+        }
+    }
+};
+
+const cardVariants = {
+    hidden: { opacity: 0, y: 10, scale: 0.97 },
+    show: { 
+        opacity: 1, 
+        y: 0, 
+        scale: 1,
+        transition: { 
+            type: 'spring', 
+            stiffness: 420, 
+            damping: 26 
+        } 
+    }
+};
+
+// 21st / Motion Modern Product Card
+function ProductItemCard({ product, onAdd, inCartCount = 0 }) {
     const isInstant = isInstantDeliveryCategory(product.category_id, product.name);
     const isOutOfStock = product.active === false;
 
     return (
         <motion.div 
-            className={`product-item-card ${isOutOfStock ? 'is-out-of-stock' : ''}`} 
+            variants={cardVariants}
+            className={`modern-product-card ${isOutOfStock ? 'is-out-of-stock' : ''} ${inCartCount > 0 ? 'has-in-cart' : ''}`} 
             onClick={isOutOfStock ? undefined : onAdd} 
             style={{ 
-                position: 'relative',
-                opacity: isOutOfStock ? 0.45 : 1,
+                opacity: isOutOfStock ? 0.42 : 1,
                 cursor: isOutOfStock ? 'not-allowed' : 'pointer'
             }}
-            whileHover={isOutOfStock ? {} : { y: -3, transition: { duration: 0.12 } }}
-            whileTap={isOutOfStock ? {} : { scale: 0.96 }}
+            whileHover={isOutOfStock ? {} : { y: -4, scale: 1.018 }}
+            whileTap={isOutOfStock ? {} : { scale: 0.94 }}
+            transition={{ type: 'spring', stiffness: 450, damping: 24 }}
         >
-            <div className="product-info">
-                <div className="product-name" style={{ textDecoration: isOutOfStock ? 'line-through' : 'none' }}>
-                    {product.name}
+            {/* 21st.dev Specular Top Highlight Glow */}
+            <div className="card-top-glow" />
+
+            {/* 21st.dev Ambient Radial Spotlight */}
+            <div className="card-spotlight-layer" />
+
+            <div className="modern-product-info">
+                <div className="modern-product-name-row">
+                    <div 
+                        className="modern-product-name" 
+                        style={{ textDecoration: isOutOfStock ? 'line-through' : 'none' }}
+                        title={product.name}
+                    >
+                        {product.name}
+                    </div>
+                    {inCartCount > 0 && (
+                        <motion.span 
+                            className="modern-incart-badge"
+                            initial={{ scale: 0.5, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                            title={`${inCartCount} adet adisyonda ekli`}
+                        >
+                            <span className="incart-pulse-dot" />
+                            {inCartCount}
+                        </motion.span>
+                    )}
                 </div>
-                {isOutOfStock ? (
-                    <span style={{ fontSize: '10px', color: '#ef4444', fontWeight: 800 }}>
-                        ⛔ TÜKENDİ
-                    </span>
-                ) : isInstant ? (
-                    <span style={{ fontSize: '10px', color: 'var(--success)', fontWeight: 700 }}>
-                        ⚡ Tezgahtan Verilir
-                    </span>
-                ) : null}
+
+                <div className="modern-product-badges">
+                    {isOutOfStock ? (
+                        <span className="stock-badge out">
+                            ⛔ TÜKENDİ
+                        </span>
+                    ) : isInstant ? (
+                        <span className="stock-badge instant" title="Doğrudan tezgahtan teslim edilir">
+                            ⚡ Tezgahtan
+                        </span>
+                    ) : null}
+                </div>
             </div>
-            <div className="product-price">{formatMoney(product.price)}</div>
+
+            <div className="modern-product-footer">
+                <div className="modern-price-wrap">
+                    <span className="modern-product-price">{formatMoney(product.price)}</span>
+                </div>
+                {!isOutOfStock && (
+                    <motion.div 
+                        className={`modern-add-circle ${inCartCount > 0 ? 'in-cart' : ''}`} 
+                        title="Adisyona Ekle (+1)"
+                        whileHover={{ scale: 1.15, rotate: 90 }}
+                        whileTap={{ scale: 0.84 }}
+                        transition={{ type: 'spring', stiffness: 420, damping: 18 }}
+                    >
+                        <Plus size={15} strokeWidth={2.6} />
+                    </motion.div>
+                )}
+            </div>
         </motion.div>
     );
 }

@@ -48,7 +48,6 @@ import {
     Award,
     Crown,
     Flame,
-    Sparkles,
     User
 } from 'lucide-react';
 import ModernDatePicker from './ModernDatePicker';

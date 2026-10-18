@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../context/AppContext';
 import { formatMoney } from '../data/menu';
-import { Search } from 'lucide-react';
+import { Search, Utensils, CheckCircle2, Clock, ArrowUpRight, X, User } from 'lucide-react';
 
 export default function TableCardGrid({
     onSelectTableForReceipt,
@@ -48,9 +48,11 @@ export default function TableCardGrid({
             const order = getTableOrder(t.table_no);
             const isOccupied = !!order;
 
-            // Waiter filter (from Admin panel or parent)
+            // Waiter filter (with patron text cleaned)
             if (selectedWaiterFilter && selectedWaiterFilter !== 'all') {
-                if (!order || order.waiter_name !== selectedWaiterFilter) {
+                const rawName = order?.waiter_name || '';
+                const cleanName = rawName.replace(/\s*\(patron\)\s*/gi, '').trim() || 'Yönetici';
+                if (!order || cleanName !== selectedWaiterFilter) {
                     return false;
                 }
             }
@@ -70,7 +72,7 @@ export default function TableCardGrid({
 
     return (
         <div className="table-card-grid-wrapper">
-            {/* Filter Buttons & Search Box */}
+            {/* Filter Buttons & Search Box (When Enabled) */}
             {showControls && (
                 <div className="waiter-controls-row" style={{ marginBottom: '18px' }}>
                     <div className="modern-segmented-control">
@@ -117,14 +119,14 @@ export default function TableCardGrid({
                                 className="clear-search-btn"
                                 onClick={() => setSearchQuery('')}
                             >
-                                ✕
+                                <X size={14} />
                             </button>
                         )}
                     </div>
                 </div>
             )}
 
-            {/* 17 Tables Grid with Framer Motion Stagger */}
+            {/* Tables Grid with Framer Motion Stagger */}
             <motion.div
                 className="tables-grid"
                 initial="hidden"
@@ -134,7 +136,7 @@ export default function TableCardGrid({
                     show: {
                         opacity: 1,
                         transition: {
-                            staggerChildren: 0.018,
+                            staggerChildren: 0.016,
                             delayChildren: 0.02
                         }
                     }
@@ -148,6 +150,11 @@ export default function TableCardGrid({
                     const isMyTable = currentUser?.role === 'waiter' && order && (order.waiter_id === currentUser.id || order.waiter_name === currentUser.name);
                     const itemCount = isBusy ? (order.items || []).reduce((acc, it) => acc + (Number(it.quantity) || 1), 0) : 0;
                     const deliveredCount = isBusy ? (order.items || []).filter(it => it.status === 'delivered').reduce((acc, it) => acc + (Number(it.quantity) || 1), 0) : 0;
+                    const deliveryProgressPct = itemCount > 0 ? Math.round((deliveredCount / itemCount) * 100) : 0;
+
+                    const rawWaiterName = order?.waiter_name || 'Garson';
+                    const waiterName = rawWaiterName.replace(/\s*\(patron\)\s*/gi, '').trim() || 'Yönetici';
+                    const initials = waiterName.slice(0, 2).toLocaleUpperCase('tr-TR');
 
                     return (
                         <motion.div
@@ -155,64 +162,105 @@ export default function TableCardGrid({
                             className={`modern-table-card table-card ${allDelivered ? 'delivered is-delivered' : (isBusy ? 'busy is-busy' : 'is-empty')}`}
                             id={`table-card-${tableNum}`}
                             variants={{
-                                hidden: { opacity: 0, y: 12 },
-                                show: { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] } }
+                                hidden: { opacity: 0, y: 12, scale: 0.98 },
+                                show: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.22, ease: [0.16, 1, 0.3, 1] } }
                             }}
-                            whileHover={{ y: -3, transition: { duration: 0.12 } }}
+                            whileHover={{ y: -4, scale: 1.018, transition: { duration: 0.16, ease: 'easeOut' } }}
+                            whileTap={{ scale: 0.98 }}
                             onClick={() => {
                                 if (isBusy) handleSelectReceipt(tableNum);
                                 else handleOpenOrder(tableNum);
                             }}
                         >
-                            {/* Top Color Accent Strip */}
+                            {/* Top Ambient Glow / Color Accent Strip */}
                             <div className="card-top-strip" />
 
-                            {/* Card Header: Table No & Status */}
+                            {/* Card Header: Table No & Status Pill */}
                             <div className="card-head">
                                 <div className="table-badge">
                                     <span className="table-title">Masa {tableNum}</span>
                                 </div>
                                 <div className={`status-pill ${allDelivered ? 'pill-delivered' : (isBusy ? 'pill-busy' : 'pill-empty')}`}>
-                                    <span className="status-indicator-dot" />
-                                    <span>{allDelivered ? 'Teslim Edildi' : (isBusy ? 'Teslim Edilmedi' : 'Boş')}</span>
+                                    {allDelivered ? (
+                                        <>
+                                            <CheckCircle2 size={11} strokeWidth={2.5} />
+                                            <span>Teslim Edildi</span>
+                                        </>
+                                    ) : isBusy ? (
+                                        <>
+                                            <span className="live-pulse-dot is-amber" />
+                                            <span>Hazırlanıyor</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="live-pulse-dot is-green" />
+                                            <span>Boş</span>
+                                        </>
+                                    )}
                                 </div>
                             </div>
 
-                            {/* Card Body: Waiter Info / Item Count & Total */}
+                            {/* Card Body: Waiter Info / Item Status / Delivery Progress */}
                             <div className="card-body">
                                 {isBusy ? (
                                     <>
                                         <div className="busy-details">
                                             <span className="waiter-name-chip">
-                                                👤 {order.waiter_name || 'Garson'}
+                                                <span className="waiter-chip-avatar">{initials}</span>
+                                                <span className="waiter-chip-text">{waiterName}</span>
                                                 {isMyTable && <span className="my-table-tag">BENİM</span>}
                                             </span>
-                                            <div className="items-badge-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' }}>
+                                            <div className="items-badge-container">
                                                 <span className="items-count-chip">
-                                                    🍽️ {itemCount} Ürün
+                                                    <Utensils size={10.5} style={{ opacity: 0.8 }} />
+                                                    <span>{itemCount} Ürün</span>
                                                 </span>
                                                 <span 
                                                     className="delivered-count-sub"
                                                     style={{
-                                                        fontSize: '11px',
-                                                        fontWeight: 700,
-                                                        color: allDelivered ? '#10b981' : '#f59e0b',
-                                                        letterSpacing: '-0.2px'
+                                                        color: allDelivered ? '#10b981' : '#f59f00'
                                                     }}
                                                 >
-                                                    {deliveredCount}/{itemCount} Teslim Edildi
+                                                    {deliveredCount}/{itemCount} Teslim
                                                 </span>
                                             </div>
                                         </div>
-                                        <div className="table-amount is-active-amount">
-                                            {formatMoney(order.total)}
+
+                                        {/* Micro Delivery Progress Bar */}
+                                        <div className="table-card-progress-track">
+                                            <motion.div
+                                                className="table-card-progress-fill"
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${deliveryProgressPct}%` }}
+                                                transition={{ duration: 0.4, ease: 'easeOut' }}
+                                                style={{
+                                                    background: allDelivered 
+                                                        ? 'linear-gradient(90deg, #10b981, #34d399)' 
+                                                        : 'linear-gradient(90deg, #f59f00, #f76707)'
+                                                }}
+                                            />
+                                        </div>
+
+                                        {/* Footer Amount Row */}
+                                        <div className="card-footer-amount-row">
+                                            <div className="table-amount-label">Hesap Tutarı</div>
+                                            <div className="table-amount is-active-amount">
+                                                <span>{formatMoney(order.total)}</span>
+                                                <ArrowUpRight size={13} className="amount-arrow-icon" />
+                                            </div>
                                         </div>
                                     </>
                                 ) : (
                                     <>
-                                        <div className="empty-subtext">Masa Müsait</div>
-                                        <div className="table-amount is-zero-amount">
-                                            0,00 ₺
+                                        <div className="empty-subtext-container">
+                                            <span className="empty-subtext">Masa Müsait</span>
+                                            <span className="empty-action-hint">Sipariş Aç</span>
+                                        </div>
+                                        <div className="card-footer-amount-row">
+                                            <div className="table-amount-label">Tutar</div>
+                                            <div className="table-amount is-zero-amount">
+                                                0,00 ₺
+                                            </div>
                                         </div>
                                     </>
                                 )}
