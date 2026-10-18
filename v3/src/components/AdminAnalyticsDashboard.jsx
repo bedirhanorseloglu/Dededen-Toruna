@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
     ResponsiveContainer, 
     AreaChart, 
@@ -43,17 +44,24 @@ import {
     Wallet,
     Layers,
     Filter,
-    Table as TableIcon
+    Table as TableIcon,
+    Award,
+    Crown,
+    Flame,
+    Sparkles,
+    User
 } from 'lucide-react';
 import ModernDatePicker from './ModernDatePicker';
 
 const COLORS = {
-    gold: '#f59e0b',
-    goldGlow: 'rgba(245, 158, 11, 0.25)',
+    gold: '#f59f00',
+    goldGlow: 'rgba(245, 159, 0, 0.25)',
+    primary: '#f76707',
+    primaryGlow: 'rgba(247, 103, 7, 0.25)',
     cash: '#10b981',
     card: '#3b82f6',
     purple: '#a855f7',
-    orange: '#f97316',
+    orange: '#f76707',
     grid: 'rgba(255, 255, 255, 0.05)'
 };
 
@@ -61,7 +69,7 @@ const COLORS = {
 const CustomChartTooltip = ({ active, payload, label, unit = '₺' }) => {
     if (!active || !payload || !payload.length) return null;
 
-    const headerTitle = 
+    const headerTitle =
         payload[0]?.payload?.dateDisplay ||
         (payload[0]?.payload?.dayName && payload[0]?.payload?.dateStr ? `${payload[0]?.payload?.dayName} (${payload[0]?.payload?.dateStr})` : null) ||
         (typeof label === 'number' ? `${label}. Gün` : label);
@@ -109,23 +117,37 @@ const CustomChartTooltip = ({ active, payload, label, unit = '₺' }) => {
 
     return (
         <div style={{
-            background: 'rgba(15, 23, 42, 0.95)',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
-            backdropFilter: 'blur(10px)',
-            borderRadius: '12px',
-            padding: '12px 16px',
-            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)',
+            background: 'rgba(28, 21, 20, 0.96)',
+            border: '1px solid rgba(245, 159, 0, 0.25)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            borderRadius: '14px',
+            padding: '14px 18px',
+            boxShadow: '0 14px 36px rgba(0, 0, 0, 0.6), 0 0 16px rgba(245, 159, 0, 0.1)',
             fontSize: '13px',
-            minWidth: '180px'
+            minWidth: '200px',
+            fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif"
         }}>
-            <div style={{ fontWeight: 800, color: 'white', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>
-                {headerTitle}
-            </div>
+            {headerTitle && (
+                <div style={{ 
+                    fontWeight: 800, 
+                    color: '#fffaf5', 
+                    marginBottom: '10px', 
+                    borderBottom: '1px solid rgba(245, 159, 0, 0.15)', 
+                    paddingBottom: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#f59f00' }} />
+                    <span>{headerTitle}</span>
+                </div>
+            )}
             {sortedPayload.map((entry, index) => {
-                const isCount = 
-                    entry.name?.toLowerCase().includes('adet') || 
-                    entry.name?.toLowerCase().includes('adedi') || 
-                    entry.dataKey === 'count' || 
+                const isCount =
+                    entry.name?.toLowerCase().includes('adet') ||
+                    entry.name?.toLowerCase().includes('adedi') ||
+                    entry.dataKey === 'count' ||
                     entry.dataKey === 'quantity';
 
                 let displayValue;
@@ -148,27 +170,27 @@ const CustomChartTooltip = ({ active, payload, label, unit = '₺' }) => {
                             display: 'flex', 
                             justifyContent: 'space-between', 
                             alignItems: 'center', 
-                            gap: '14px', 
-                            margin: '4px 0', 
-                            fontSize: '12px',
-                            paddingTop: isNetProfit ? '4px' : '0',
-                            borderTop: isNetProfit ? '1px dashed rgba(255, 255, 255, 0.12)' : 'none'
+                            gap: '16px', 
+                            margin: '6px 0', 
+                            fontSize: '12.5px',
+                            paddingTop: isNetProfit ? '6px' : '0',
+                            borderTop: isNetProfit ? '1px dashed rgba(245, 159, 0, 0.2)' : 'none'
                         }}
                     >
                         <span style={{ 
                             color: entry.color, 
                             display: 'flex', 
                             alignItems: 'center', 
-                            gap: '6px',
+                            gap: '7px',
                             fontWeight: isRevenue || isNetProfit ? 800 : 600 
                         }}>
-                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: entry.color, flexShrink: 0 }} />
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: entry.color, flexShrink: 0, boxShadow: `0 0 8px ${entry.color}88` }} />
                             {entry.name}:
                         </span>
                         <span style={{ 
                             fontWeight: isRevenue || isNetProfit ? 900 : 700, 
-                            color: isExpense ? '#f87171' : isNetProfit ? (entry.value >= 0 ? '#10b981' : '#f87171') : 'white', 
-                            fontFamily: 'monospace' 
+                            color: isExpense ? '#f87171' : isNetProfit ? (entry.value >= 0 ? '#10b981' : '#f87171') : '#ffffff', 
+                            fontFamily: "'Plus Jakarta Sans', sans-serif" 
                         }}>
                             {displayValue}
                         </span>
@@ -202,6 +224,9 @@ export default function AdminAnalyticsDashboard({
     const [activeDetailTab, setActiveDetailTab] = useState(
         currentPeriod === 'all' ? 'all' : (currentPeriod === 'month' ? 'monthly' : 'weekly')
     );
+
+    // Kasa Tahsilat Donut Hover Durumu (Çakışmayı önleyen akıllı merkez göstergesi)
+    const [hoveredPaymentIndex, setHoveredPaymentIndex] = useState(null);
 
     // Gün Gün Detaylı Muhasebe Dökümü State'leri (Stack / Akordeon Modu)
     const [isBreakdownOpen, setIsBreakdownOpen] = useState(true);
@@ -382,11 +407,21 @@ export default function AdminAnalyticsDashboard({
         return waiterFilteredOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
     }, [waiterFilteredOrders]);
 
+    const getWaiterInitials = (name) => {
+        if (!name) return 'G';
+        const clean = name.replace(/\(.*?\)/g, '').trim();
+        const parts = clean.split(/\s+/).filter(Boolean);
+        if (parts.length === 0) return 'G';
+        if (parts.length === 1) return parts[0].slice(0, 2).toLocaleUpperCase('tr-TR');
+        return (parts[0][0] + parts[parts.length - 1][0]).toLocaleUpperCase('tr-TR');
+    };
+
     // Seçilen döneme göre dinamik hesaplanan garson istatistikleri
     const dynamicWaiterStats = useMemo(() => {
         const map = {};
         waiterFilteredOrders.forEach(o => {
-            const name = o.waiter_name || 'Bilinmiyor';
+            const rawName = o.waiter_name || 'Bilinmiyor';
+            const name = rawName.replace(/\s*\(patron\)\s*/gi, '').trim() || 'Yönetici';
             if (!map[name]) {
                 map[name] = {
                     name,
@@ -442,8 +477,8 @@ export default function AdminAnalyticsDashboard({
             if (productSortField === 'name') {
                 const valA = (a.name || '').toLocaleLowerCase('tr-TR');
                 const valB = (b.name || '').toLocaleLowerCase('tr-TR');
-                return productSortDirection === 'asc' 
-                    ? valA.localeCompare(valB, 'tr-TR') 
+                return productSortDirection === 'asc'
+                    ? valA.localeCompare(valB, 'tr-TR')
                     : valB.localeCompare(valA, 'tr-TR');
             } else if (productSortField === 'quantity') {
                 const valA = Number(a.quantity) || 0;
@@ -465,8 +500,8 @@ export default function AdminAnalyticsDashboard({
             if (waiterSortField === 'name') {
                 const valA = (a.name || '').toLocaleLowerCase('tr-TR');
                 const valB = (b.name || '').toLocaleLowerCase('tr-TR');
-                return waiterSortDirection === 'asc' 
-                    ? valA.localeCompare(valB, 'tr-TR') 
+                return waiterSortDirection === 'asc'
+                    ? valA.localeCompare(valB, 'tr-TR')
                     : valB.localeCompare(valA, 'tr-TR');
             } else if (waiterSortField === 'orderCount') {
                 const valA = Number(a.orderCount) || 0;
@@ -720,10 +755,10 @@ export default function AdminAnalyticsDashboard({
 
     const currentFilteredDetailList = useMemo(() => {
         if (!hideEmptyDays) return currentRawDetailList;
-        return currentRawDetailList.filter(d => 
-            (d.revenue > 0) || 
-            ((d.expense || 0) > 0) || 
-            (d.count > 0) || 
+        return currentRawDetailList.filter(d =>
+            (d.revenue > 0) ||
+            ((d.expense || 0) > 0) ||
+            (d.count > 0) ||
             Boolean(d.isToday)
         );
     }, [currentRawDetailList, hideEmptyDays]);
@@ -736,24 +771,43 @@ export default function AdminAnalyticsDashboard({
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 flexWrap: 'wrap',
-                gap: '14px',
-                background: 'var(--bg-surface)',
-                padding: '16px 20px',
-                borderRadius: 'var(--radius-lg)',
-                border: '1px solid var(--border-card)',
-                boxShadow: 'var(--shadow-soft)'
+                gap: '16px',
+                background: 'rgba(28, 21, 20, 0.75)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                padding: '18px 22px',
+                borderRadius: '16px',
+                border: '1px solid rgba(245, 159, 0, 0.16)',
+                boxShadow: '0 10px 30px rgba(0, 0, 0, 0.35)'
             }}>
-                <div>
-                    <h2 style={{ fontSize: '20px', fontWeight: 900, letterSpacing: '-0.3px', margin: 0, color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ color: 'var(--brand-gold)' }}>📊</span> Finansal Performans & Satış Analizi
-                    </h2>
-                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                        Restoran cirosu, lezzet satışları ve anlık grafik analizleri
-                    </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, rgba(245, 159, 0, 0.2), rgba(247, 103, 7, 0.12))',
+                        border: '1px solid rgba(245, 159, 0, 0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--brand-gold, #f59f00)',
+                        boxShadow: '0 4px 14px rgba(245, 159, 0, 0.15)',
+                        flexShrink: 0
+                    }}>
+                        <BarChart3 size={22} />
+                    </div>
+                    <div>
+                        <h2 style={{ fontSize: '20px', fontWeight: 900, letterSpacing: '-0.4px', margin: 0, color: 'white' }}>
+                            Finansal Performans & Satış Analizi
+                        </h2>
+                        <p style={{ fontSize: '13px', color: 'var(--text-secondary, #d1b8af)', margin: '3px 0 0 0' }}>
+                            Restoran cirosu, lezzet satışları ve anlık grafik analizleri
+                        </p>
+                    </div>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                    <div className="filter-pill-group">
+                    <div className="filter-pill-group" style={{ background: 'rgba(0, 0, 0, 0.35)', padding: '4px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
                         <button 
                             className={`filter-pill-btn ${currentPeriod === 'today' ? 'active' : ''}`} 
                             onClick={() => handleSelectPeriod('today')}
@@ -785,15 +839,20 @@ export default function AdminAnalyticsDashboard({
                             onClick={handleResetAnalytics}
                             className="btn-outline"
                             style={{ 
-                                padding: '6px 12px', 
+                                padding: '8px 14px', 
                                 fontSize: '12px', 
-                                color: '#ef4444', 
-                                borderColor: 'rgba(239, 68, 68, 0.4)',
+                                fontWeight: 700,
+                                color: '#f87171', 
+                                background: 'rgba(239, 68, 68, 0.08)',
+                                borderColor: 'rgba(239, 68, 68, 0.25)',
+                                borderRadius: '10px',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '5px'
+                                gap: '6px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease'
                             }}
-                            title="Tüm satış ve ciro geçmişini sıfırla (Canlı lansman öncesi temizlik)"
+                            title="Tüm satış ve ciro geçmişini sıfırla"
                         >
                             <RotateCcw size={13} />
                             Sıfırla
@@ -804,202 +863,256 @@ export default function AdminAnalyticsDashboard({
 
             {/* 4 BÜYÜK MODERN KPI KARTI (DÖNEM FİLTRESİNE GÖRE DİNAMİK) */}
             <div className="admin-kpi-grid" style={{ marginBottom: 0 }}>
-                {/* 1. Net Ciro (Dinamik Başlık) */}
+                {/* 1. Net Ciro */}
                 <div style={{
-                    background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08), var(--bg-surface))',
-                    border: '1px solid rgba(245, 158, 11, 0.25)',
-                    borderRadius: 'var(--radius-lg)',
+                    background: 'linear-gradient(145deg, rgba(245, 159, 0, 0.12) 0%, rgba(28, 21, 20, 0.85) 100%)',
+                    border: '1px solid rgba(245, 159, 0, 0.28)',
+                    borderRadius: '16px',
                     padding: '20px',
                     position: 'relative',
                     overflow: 'hidden',
-                    boxShadow: 'var(--shadow-soft)',
-                    transition: 'all 0.2s ease'
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    minWidth: 0
                 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                            {currentPeriod === 'today' ? 'Bugün Toplam Ciro' : currentPeriod === 'week' ? 'Bu Hafta Toplam Ciro' : currentPeriod === 'month' ? 'Bu Ay Toplam Ciro' : 'Tüm Zamanlar Toplam Ciro'}
-                        </span>
-                        <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand-gold)' }}>
-                            <TrendingUp size={20} />
+                    <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary, #d1b8af)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                                {currentPeriod === 'today' ? 'Bugün Toplam Ciro' : currentPeriod === 'week' ? 'Bu Hafta Toplam Ciro' : currentPeriod === 'month' ? 'Bu Ay Toplam Ciro' : 'Tüm Zamanlar Ciro'}
+                            </span>
+                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(245, 159, 0, 0.16)', border: '1px solid rgba(245, 159, 0, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand-gold, #f59f00)', flexShrink: 0 }}>
+                                <TrendingUp size={18} />
+                            </div>
+                        </div>
+                        <div style={{ fontSize: 'clamp(22px, 2.2vw, 28px)', fontWeight: 900, color: 'var(--brand-gold, #f59f00)', letterSpacing: '-0.5px', fontFamily: "'Plus Jakarta Sans', sans-serif", wordBreak: 'break-word' }}>
+                            {formatMoney(totalRevenue)}
                         </div>
                     </div>
-                    <div style={{ fontSize: '30px', fontWeight: 900, color: 'var(--brand-gold)', letterSpacing: '-0.5px' }}>
-                        {formatMoney(totalRevenue)}
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--success)', marginTop: '6px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <div style={{ fontSize: '12px', color: '#10b981', marginTop: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <ArrowUpRight size={14} /> {orderCount} tamamlanan sipariş
                     </div>
                 </div>
 
-                {/* 2. Ortalama Masa Harcaması (Dinamik Dönem Başlığı & Açıklaması) */}
+                {/* 2. Ortalama Masa Harcaması */}
                 <div style={{
-                    background: 'var(--bg-surface)',
-                    border: '1px solid var(--border-card)',
-                    borderRadius: 'var(--radius-lg)',
+                    background: 'linear-gradient(145deg, rgba(247, 103, 7, 0.10) 0%, rgba(28, 21, 20, 0.85) 100%)',
+                    border: '1px solid rgba(247, 103, 7, 0.24)',
+                    borderRadius: '16px',
                     padding: '20px',
-                    boxShadow: 'var(--shadow-soft)'
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    minWidth: 0
                 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                            {currentPeriod === 'today' ? 'Bugün Ort. Masa Harcaması' : currentPeriod === 'week' ? 'Bu Hafta Ort. Masa Harcaması' : currentPeriod === 'month' ? 'Bu Ay Ort. Masa Harcaması' : 'Tüm Zamanlar Ort. Masa Harcaması'}
-                        </span>
-                        <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(139, 92, 246, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#a78bfa' }}>
-                            <ShoppingBag size={20} />
+                    <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary, #d1b8af)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                                {currentPeriod === 'today' ? 'Bugün Ort. Masa' : currentPeriod === 'week' ? 'Bu Hafta Ort. Masa' : currentPeriod === 'month' ? 'Bu Ay Ort. Masa' : 'Ortalama Masa'}
+                            </span>
+                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(247, 103, 7, 0.16)', border: '1px solid rgba(247, 103, 7, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand-primary, #f76707)', flexShrink: 0 }}>
+                                <ShoppingBag size={18} />
+                            </div>
+                        </div>
+                        <div style={{ fontSize: 'clamp(22px, 2.2vw, 28px)', fontWeight: 900, color: '#fffaf5', letterSpacing: '-0.5px', fontFamily: "'Plus Jakarta Sans', sans-serif", wordBreak: 'break-word' }}>
+                            {formatMoney(avgOrder)}
                         </div>
                     </div>
-                    <div style={{ fontSize: '30px', fontWeight: 900, color: 'var(--brand-primary)', letterSpacing: '-0.5px' }}>
-                        {formatMoney(avgOrder)}
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '6px' }}>
-                        {currentPeriod === 'today' ? 'Bugünkü masa başına ortalama' : currentPeriod === 'week' ? 'Bu haftaki masa başına ortalama' : currentPeriod === 'month' ? 'Bu aydaki masa başına ortalama' : 'Masa başına ortalama harcama'}
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary, #d1b8af)', marginTop: '10px' }}>
+                        {currentPeriod === 'today' ? 'Bugünkü masa başına ortalama' : currentPeriod === 'week' ? 'Haftalık masa ortalaması' : currentPeriod === 'month' ? 'Aylık masa ortalaması' : 'Masa başına ortalama'}
                     </div>
                 </div>
 
-                {/* 4. Toplam Gider (Harcamalar - Dinamik Dönem Başlığı & Açıklaması) */}
+                {/* 3. Toplam Gider */}
                 <div style={{
-                    background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.08), var(--bg-surface))',
-                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                    borderRadius: 'var(--radius-lg)',
+                    background: 'linear-gradient(145deg, rgba(239, 68, 68, 0.10) 0%, rgba(28, 21, 20, 0.85) 100%)',
+                    border: '1px solid rgba(239, 68, 68, 0.24)',
+                    borderRadius: '16px',
                     padding: '20px',
-                    boxShadow: 'var(--shadow-soft)'
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    minWidth: 0
                 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                            {currentPeriod === 'today' ? 'Bugün Toplam Gider' : currentPeriod === 'week' ? 'Bu Hafta Toplam Gider' : currentPeriod === 'month' ? 'Bu Ay Toplam Gider' : 'Tüm Zamanlar Toplam Gider'}
-                        </span>
-                        <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444' }}>
-                            <ArrowDownRight size={20} />
+                    <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary, #d1b8af)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                                {currentPeriod === 'today' ? 'Bugün Toplam Gider' : currentPeriod === 'week' ? 'Bu Hafta Toplam Gider' : currentPeriod === 'month' ? 'Bu Ay Toplam Gider' : 'Tüm Zamanlar Gider'}
+                            </span>
+                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.16)', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', flexShrink: 0 }}>
+                                <ArrowDownRight size={18} />
+                            </div>
+                        </div>
+                        <div style={{ fontSize: 'clamp(22px, 2.2vw, 28px)', fontWeight: 900, color: '#ef4444', letterSpacing: '-0.5px', fontFamily: "'Plus Jakarta Sans', sans-serif", wordBreak: 'break-word' }}>
+                            -{formatMoney(totalExpenses)}
                         </div>
                     </div>
-                    <div style={{ fontSize: '30px', fontWeight: 900, color: '#ef4444', letterSpacing: '-0.5px' }}>
-                        -{formatMoney(totalExpenses)}
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px', fontWeight: 700 }}>
-                        {currentPeriod === 'today' ? 'Bugün kaydedilen tüm harcamalar' : currentPeriod === 'week' ? 'Bu hafta kaydedilen harcamalar' : currentPeriod === 'month' ? 'Bu ay kaydedilen harcamalar' : 'Dönem içi kaydedilen tüm harcamalar'}
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary, #d1b8af)', marginTop: '10px', fontWeight: 600 }}>
+                        {currentPeriod === 'today' ? 'Bugün kaydedilen harcamalar' : currentPeriod === 'week' ? 'Haftalık giderler' : currentPeriod === 'month' ? 'Aylık giderler' : 'Dönem harcamaları'}
                     </div>
                 </div>
 
-                {/* 5. Net İşletme Kârı (Dinamik Dönem Başlığı & Açıklaması) */}
+                {/* 4. Net İşletme Kârı */}
                 <div style={{
                     background: netProfit >= 0
-                        ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), var(--bg-surface))'
-                        : 'linear-gradient(135deg, rgba(239, 68, 68, 0.1), var(--bg-surface))',
-                    border: `1px solid ${netProfit >= 0 ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
-                    borderRadius: 'var(--radius-lg)',
+                        ? 'linear-gradient(145deg, rgba(16, 185, 129, 0.12) 0%, rgba(28, 21, 20, 0.85) 100%)'
+                        : 'linear-gradient(145deg, rgba(239, 68, 68, 0.12) 0%, rgba(28, 21, 20, 0.85) 100%)',
+                    border: `1px solid ${netProfit >= 0 ? 'rgba(16, 185, 129, 0.32)' : 'rgba(239, 68, 68, 0.32)'}`,
+                    borderRadius: '16px',
                     padding: '20px',
-                    boxShadow: 'var(--shadow-soft)'
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    minWidth: 0
                 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                            {currentPeriod === 'today' ? 'Bugün Net İşletme Kârı' : currentPeriod === 'week' ? 'Bu Hafta Net İşletme Kârı' : currentPeriod === 'month' ? 'Bu Ay Net İşletme Kârı' : 'Tüm Zamanlar Net Kâr'}
-                        </span>
-                        <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: netProfit >= 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: netProfit >= 0 ? '#10b981' : '#ef4444' }}>
-                            {netProfit >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+                    <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary, #d1b8af)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                                {currentPeriod === 'today' ? 'Bugün Net Kâr' : currentPeriod === 'week' ? 'Bu Hafta Net Kâr' : currentPeriod === 'month' ? 'Bu Ay Net Kâr' : 'Tüm Zamanlar Net Kâr'}
+                            </span>
+                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: netProfit >= 0 ? 'rgba(16, 185, 129, 0.16)' : 'rgba(239, 68, 68, 0.16)', border: `1px solid ${netProfit >= 0 ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: netProfit >= 0 ? '#10b981' : '#ef4444', flexShrink: 0 }}>
+                                {netProfit >= 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
+                            </div>
+                        </div>
+                        <div style={{ fontSize: 'clamp(22px, 2.2vw, 28px)', fontWeight: 900, color: netProfit >= 0 ? '#10b981' : '#ef4444', letterSpacing: '-0.5px', fontFamily: "'Plus Jakarta Sans', sans-serif", wordBreak: 'break-word' }}>
+                            {formatMoney(netProfit)}
                         </div>
                     </div>
-                    <div style={{ fontSize: '30px', fontWeight: 900, color: netProfit >= 0 ? '#10b981' : '#ef4444', letterSpacing: '-0.5px' }}>
-                        {formatMoney(netProfit)}
-                    </div>
-                    <div style={{ fontSize: '12px', color: netProfit >= 0 ? '#10b981' : '#ef4444', marginTop: '6px', fontWeight: 700 }}>
-                        {netProfit >= 0 ? '✓ Kârda' : '✕ Zararda'} ({currentPeriod === 'today' ? 'Bugünkü Ciro' : currentPeriod === 'week' ? 'Haftalık Ciro' : currentPeriod === 'month' ? 'Aylık Ciro' : 'Ciro'} - Giderler)
+                    <div style={{ fontSize: '12px', color: netProfit >= 0 ? '#10b981' : '#ef4444', marginTop: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {netProfit >= 0 ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+                        <span>{netProfit >= 0 ? 'Kârda' : 'Zararda'} ({currentPeriod === 'today' ? 'Bugün' : currentPeriod === 'week' ? 'Hafta' : currentPeriod === 'month' ? 'Ay' : 'Genel'})</span>
                     </div>
                 </div>
             </div>
 
             {/* BÜYÜK İNTERAKTİF CİRO GRAFİĞİ (GÖRSELLEŞTİRME MERKEZİ) */}
             <div style={{
-                background: 'var(--bg-surface)',
-                borderRadius: 'var(--radius-lg)',
-                border: '1px solid var(--border-card)',
+                background: 'rgba(28, 21, 20, 0.75)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                borderRadius: '16px',
+                border: '1px solid rgba(245, 159, 0, 0.14)',
                 padding: '24px',
-                boxShadow: 'var(--shadow-soft)'
+                boxShadow: '0 10px 30px rgba(0, 0, 0, 0.35)'
             }}>
                 <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                     flexWrap: 'wrap',
-                    gap: '12px',
-                    marginBottom: '20px'
+                    gap: '14px',
+                    marginBottom: '22px'
                 }}>
                     <div>
                         <h3 style={{ fontSize: '17px', fontWeight: 900, margin: 0, color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <BarChart3 size={18} className="text-amber-400" />
+                            <BarChart3 size={18} color="var(--brand-gold, #f59f00)" />
                             {chartMode === 'hourly' && 'Bugün: Saatlik Sipariş Yoğunluğu ve Ciro Dağılımı (07:00 – 00:00)'}
                             {chartMode === 'weekly' && 'Bu Hafta: Gün Gün Ciro Eğrisi (Pazartesi - Pazar)'}
                             {chartMode === 'monthly' && 'Bu Ay: Günlük Ciro Dağılım Trendi (1 - 31 Gün)'}
                             {chartMode === 'all' && 'Tüm Zamanlar: Genel Ciro ve Tarihsel Sipariş Eğrisi'}
                         </h3>
-                        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                        <p style={{ fontSize: '12px', color: 'var(--text-secondary, #d1b8af)', margin: '4px 0 0 0' }}>
                             Grafik üzerine gelerek detaylı gün ve saat dökümünü inceleyebilirsiniz
                         </p>
                     </div>
 
                     {/* Grafik Görünüm Seçici Butonları */}
-                    <div style={{ display: 'flex', gap: '6px', background: 'var(--bg-surface-elevated)', padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-card)', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '6px', background: 'rgba(0, 0, 0, 0.35)', padding: '4px', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.08)', flexWrap: 'wrap' }}>
                         <button
                             onClick={() => handleSelectPeriod('today')}
                             style={{
                                 padding: '6px 14px',
                                 border: 'none',
-                                borderRadius: 'var(--radius-sm)',
+                                borderRadius: '8px',
                                 fontSize: '12px',
                                 fontWeight: 800,
                                 cursor: 'pointer',
-                                background: chartMode === 'hourly' ? 'linear-gradient(135deg, var(--brand-primary), #e8590c)' : 'transparent',
-                                color: chartMode === 'hourly' ? 'white' : 'var(--text-muted)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                background: chartMode === 'hourly' ? 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)' : 'transparent',
+                                color: chartMode === 'hourly' ? '#ffffff' : 'var(--text-secondary, #d1b8af)',
+                                boxShadow: chartMode === 'hourly' ? '0 3px 12px rgba(247, 103, 7, 0.35)' : 'none',
                                 transition: 'all 0.15s ease'
                             }}
                         >
-                            ⏰ Bugün
+                            <Clock size={13} />
+                            <span>Bugün</span>
                         </button>
                         <button
                             onClick={() => handleSelectPeriod('week')}
                             style={{
                                 padding: '6px 14px',
                                 border: 'none',
-                                borderRadius: 'var(--radius-sm)',
+                                borderRadius: '8px',
                                 fontSize: '12px',
                                 fontWeight: 800,
                                 cursor: 'pointer',
-                                background: chartMode === 'weekly' ? 'linear-gradient(135deg, var(--brand-primary), #e8590c)' : 'transparent',
-                                color: chartMode === 'weekly' ? 'white' : 'var(--text-muted)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                background: chartMode === 'weekly' ? 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)' : 'transparent',
+                                color: chartMode === 'weekly' ? '#ffffff' : 'var(--text-secondary, #d1b8af)',
+                                boxShadow: chartMode === 'weekly' ? '0 3px 12px rgba(247, 103, 7, 0.35)' : 'none',
                                 transition: 'all 0.15s ease'
                             }}
                         >
-                            📅 Bu Hafta
+                            <Calendar size={13} />
+                            <span>Bu Hafta</span>
                         </button>
                         <button
                             onClick={() => handleSelectPeriod('month')}
                             style={{
                                 padding: '6px 14px',
                                 border: 'none',
-                                borderRadius: 'var(--radius-sm)',
+                                borderRadius: '8px',
                                 fontSize: '12px',
                                 fontWeight: 800,
                                 cursor: 'pointer',
-                                background: chartMode === 'monthly' ? 'linear-gradient(135deg, var(--brand-primary), #e8590c)' : 'transparent',
-                                color: chartMode === 'monthly' ? 'white' : 'var(--text-muted)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                background: chartMode === 'monthly' ? 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)' : 'transparent',
+                                color: chartMode === 'monthly' ? '#ffffff' : 'var(--text-secondary, #d1b8af)',
+                                boxShadow: chartMode === 'monthly' ? '0 3px 12px rgba(247, 103, 7, 0.35)' : 'none',
                                 transition: 'all 0.15s ease'
                             }}
                         >
-                            🗓️ Bu Ay
+                            <CalendarDays size={13} />
+                            <span>Bu Ay</span>
                         </button>
                         <button
                             onClick={() => handleSelectPeriod('all')}
                             style={{
                                 padding: '6px 14px',
                                 border: 'none',
-                                borderRadius: 'var(--radius-sm)',
+                                borderRadius: '8px',
                                 fontSize: '12px',
                                 fontWeight: 800,
                                 cursor: 'pointer',
-                                background: chartMode === 'all' ? 'linear-gradient(135deg, var(--brand-primary), var(--brand-primary-hover))' : 'rgba(255,255,255,0.06)',
-                                color: chartMode === 'all' ? 'white' : 'var(--text-muted)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                background: chartMode === 'all' ? 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)' : 'transparent',
+                                color: chartMode === 'all' ? '#ffffff' : 'var(--text-secondary, #d1b8af)',
+                                boxShadow: chartMode === 'all' ? '0 3px 12px rgba(247, 103, 7, 0.35)' : 'none',
                                 transition: 'all 0.15s ease'
                             }}
                         >
-                            🌐 Tüm Zamanlar
+                            <TrendingUp size={13} />
+                            <span>Tüm Zamanlar</span>
                         </button>
                     </div>
                 </div>
@@ -1125,16 +1238,16 @@ export default function AdminAnalyticsDashboard({
                                 <Area yAxisId="left" type="monotone" dataKey="revenue" name="Toplam Ciro" stroke={COLORS.gold} strokeWidth={3} fillOpacity={1} fill="url(#gradHourlyRevenue)" />
                                 <Area yAxisId="left" type="monotone" dataKey="cash" name="Nakit" stroke={COLORS.cash} strokeWidth={2} fillOpacity={1} fill="url(#gradHourlyCash)" />
                                 <Area yAxisId="left" type="monotone" dataKey="card" name="Kredi Kartı" stroke={COLORS.card} strokeWidth={2} fillOpacity={1} fill="url(#gradHourlyCard)" />
-                                <Line 
-                                    yAxisId="right" 
-                                    type="monotone" 
-                                    dataKey="count" 
-                                    name="Sipariş Adedi" 
-                                    stroke="#38bdf8" 
-                                    strokeWidth={2.5} 
-                                    strokeDasharray="4 4" 
-                                    dot={{ r: 4, fill: '#38bdf8', stroke: '#0f172a', strokeWidth: 1.5 }} 
-                                    activeDot={{ r: 6, fill: '#38bdf8' }} 
+                                <Line
+                                    yAxisId="right"
+                                    type="monotone"
+                                    dataKey="count"
+                                    name="Sipariş Adedi"
+                                    stroke="#38bdf8"
+                                    strokeWidth={2.5}
+                                    strokeDasharray="4 4"
+                                    dot={{ r: 4, fill: '#38bdf8', stroke: '#0f172a', strokeWidth: 1.5 }}
+                                    activeDot={{ r: 6, fill: '#38bdf8' }}
                                 />
                             </ComposedChart>
                         )}
@@ -1144,25 +1257,27 @@ export default function AdminAnalyticsDashboard({
 
             {/* KASA TAHSİLAT ORANLARI (ÖDEME DAĞILIMI DONUT GRAFİĞİ) */}
             <div style={{
-                background: 'var(--bg-surface)',
-                borderRadius: 'var(--radius-lg)',
-                border: '1px solid var(--border-card)',
-                padding: '22px',
-                boxShadow: 'var(--shadow-soft)',
+                background: 'rgba(28, 21, 20, 0.75)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                borderRadius: '16px',
+                border: '1px solid rgba(245, 159, 0, 0.14)',
+                padding: '24px',
+                boxShadow: '0 10px 30px rgba(0, 0, 0, 0.35)',
                 display: 'flex',
                 flexDirection: 'column'
             }}>
-                <div style={{ marginBottom: '14px' }}>
+                <div style={{ marginBottom: '16px' }}>
                     <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <PieIcon size={18} className="text-emerald-400" />
+                        <PieIcon size={18} color="var(--brand-gold, #f59f00)" />
                         Kasa Tahsilat Oranları (Nakit / Kart)
                     </h3>
-                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                    <p style={{ fontSize: '12px', color: 'var(--text-secondary, #d1b8af)', margin: '3px 0 0 0' }}>
                         Cironun ödeme yöntemlerine göre görsel dağılımı
                     </p>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', alignItems: 'center', gap: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', alignItems: 'center', gap: '24px' }}>
                     <div style={{ width: '100%', height: '220px', position: 'relative' }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
@@ -1170,353 +1285,812 @@ export default function AdminAnalyticsDashboard({
                                     data={paymentPieData}
                                     cx="50%"
                                     cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={85}
-                                    paddingAngle={5}
+                                    innerRadius={62}
+                                    outerRadius={88}
+                                    paddingAngle={4}
                                     dataKey="value"
+                                    onMouseEnter={(_, index) => setHoveredPaymentIndex(index)}
+                                    onMouseLeave={() => setHoveredPaymentIndex(null)}
                                 >
-                                    {paymentPieData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} stroke="transparent" />
-                                    ))}
+                                    {paymentPieData.map((entry, index) => {
+                                        const isHovered = hoveredPaymentIndex === index;
+                                        const isDimmed = hoveredPaymentIndex !== null && !isHovered;
+                                        return (
+                                            <Cell 
+                                                key={`cell-${index}`} 
+                                                fill={entry.color} 
+                                                stroke={isHovered ? '#ffffff' : 'transparent'} 
+                                                strokeWidth={isHovered ? 2 : 0}
+                                                opacity={isDimmed ? 0.35 : 1}
+                                                style={{ 
+                                                    transition: 'all 0.25s ease', 
+                                                    cursor: 'pointer',
+                                                    outline: 'none'
+                                                }}
+                                            />
+                                        );
+                                    })}
                                 </Pie>
-                                <Tooltip content={<CustomChartTooltip />} />
                             </PieChart>
                         </ResponsiveContainer>
-                        {/* Ortadaki Gösterge */}
+
+                        {/* Ortadaki Akıllı Gösterge (Hover Edilen Dilimi veya Toplamı Gösterir - Asla Çakışma Olmaz) */}
                         <div style={{
                             position: 'absolute',
                             top: '50%',
                             left: '50%',
                             transform: 'translate(-50%, -50%)',
                             textAlign: 'center',
-                            pointerEvents: 'none'
+                            pointerEvents: 'none',
+                            width: '116px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s ease'
                         }}>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>TOPLAM</div>
-                            <div style={{ fontSize: '16px', fontWeight: 900, color: 'white' }}>{formatMoney(totalRevenue)}</div>
+                            {hoveredPaymentIndex !== null && paymentPieData[hoveredPaymentIndex] ? (
+                                <>
+                                    <div style={{ 
+                                        fontSize: '11px', 
+                                        color: paymentPieData[hoveredPaymentIndex].color, 
+                                        fontWeight: 800, 
+                                        letterSpacing: '0.4px',
+                                        textTransform: 'uppercase',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '4px'
+                                    }}>
+                                        <span>{paymentPieData[hoveredPaymentIndex].name}</span>
+                                        <span style={{ opacity: 0.9 }}>%{paymentPieData[hoveredPaymentIndex].pct}</span>
+                                    </div>
+                                    <div style={{ 
+                                        fontSize: '15.5px', 
+                                        fontWeight: 900, 
+                                        color: '#ffffff', 
+                                        fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                        marginTop: '3px',
+                                        wordBreak: 'break-word',
+                                        lineHeight: 1.2
+                                    }}>
+                                        {formatMoney(paymentPieData[hoveredPaymentIndex].value)}
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div style={{ fontSize: '10.5px', color: 'var(--text-secondary, #d1b8af)', fontWeight: 800, letterSpacing: '0.6px' }}>
+                                        TOPLAM KASA
+                                    </div>
+                                    <div style={{ 
+                                        fontSize: totalRevenue > 99999 ? '15px' : '17px', 
+                                        fontWeight: 900, 
+                                        color: '#fffaf5', 
+                                        fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                        marginTop: '3px',
+                                        wordBreak: 'break-word',
+                                        lineHeight: 1.2
+                                    }}>
+                                        {formatMoney(totalRevenue)}
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
 
                     {/* Detay Açıklamaları */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                        <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '10px', padding: '16px', textAlign: 'center' }}>
-                            <div style={{ fontSize: '12px', color: COLORS.cash, fontWeight: 700 }}>💵 Nakit Kasa</div>
-                            <div style={{ fontSize: '18px', fontWeight: 800, color: 'white', margin: '4px 0' }}>{formatMoney(cashTotal)}</div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>%{cashPct} Oran</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '14px' }}>
+                        <div 
+                            onMouseEnter={() => setHoveredPaymentIndex(0)}
+                            onMouseLeave={() => setHoveredPaymentIndex(null)}
+                            style={{ 
+                                background: hoveredPaymentIndex === 0 ? 'rgba(16, 185, 129, 0.16)' : 'rgba(16, 185, 129, 0.08)', 
+                                border: `1px solid ${hoveredPaymentIndex === 0 ? '#10b981' : 'rgba(16, 185, 129, 0.25)'}`, 
+                                borderRadius: '14px', 
+                                padding: '18px 16px', 
+                                textAlign: 'center',
+                                boxShadow: hoveredPaymentIndex === 0 ? '0 6px 20px rgba(16, 185, 129, 0.25)' : '0 4px 14px rgba(0, 0, 0, 0.2)',
+                                transition: 'all 0.2s ease',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '13px', color: '#10b981', fontWeight: 800 }}>
+                                <Banknote size={16} />
+                                <span>Nakit Kasa</span>
+                            </div>
+                            <div style={{ fontSize: 'clamp(18px, 1.8vw, 22px)', fontWeight: 900, color: '#ffffff', margin: '6px 0', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                                {formatMoney(cashTotal)}
+                            </div>
+                            <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: '20px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontSize: '12px', fontWeight: 800 }}>
+                                %{cashPct} Oran
+                            </span>
                         </div>
-                        <div style={{ background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.25)', borderRadius: '10px', padding: '16px', textAlign: 'center' }}>
-                            <div style={{ fontSize: '12px', color: COLORS.card, fontWeight: 700 }}>💳 Kredi Kartı</div>
-                            <div style={{ fontSize: '18px', fontWeight: 800, color: 'white', margin: '4px 0' }}>{formatMoney(cardTotal)}</div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>%{cardPct} Oran</div>
+
+                        <div 
+                            onMouseEnter={() => setHoveredPaymentIndex(1)}
+                            onMouseLeave={() => setHoveredPaymentIndex(null)}
+                            style={{ 
+                                background: hoveredPaymentIndex === 1 ? 'rgba(59, 130, 246, 0.16)' : 'rgba(59, 130, 246, 0.08)', 
+                                border: `1px solid ${hoveredPaymentIndex === 1 ? '#3b82f6' : 'rgba(59, 130, 246, 0.25)'}`, 
+                                borderRadius: '14px', 
+                                padding: '18px 16px', 
+                                textAlign: 'center',
+                                boxShadow: hoveredPaymentIndex === 1 ? '0 6px 20px rgba(59, 130, 246, 0.25)' : '0 4px 14px rgba(0, 0, 0, 0.2)',
+                                transition: 'all 0.2s ease',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '13px', color: '#3b82f6', fontWeight: 800 }}>
+                                <CreditCard size={16} />
+                                <span>Kredi Kartı</span>
+                            </div>
+                            <div style={{ fontSize: 'clamp(18px, 1.8vw, 22px)', fontWeight: 900, color: '#ffffff', margin: '6px 0', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                                {formatMoney(cardTotal)}
+                            </div>
+                            <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: '20px', background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', fontSize: '12px', fontWeight: 800 }}>
+                                %{cardPct} Oran
+                            </span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* DETAYLI ANALİZ TABLOLARI (AKILLI TABLOLAR) */}
+            {/* DETAYLI ANALİZ KARTLARI (21ST.DEV & MOTION LEADERBOARDS) */}
             <div className="analytics-grid">
-                {/* Sol Sütun: En Çok Satan Lezzetler Tablosu (Arama Kutulu) */}
-                <div style={{ background: 'var(--bg-surface)', padding: '22px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-card)', boxShadow: 'var(--shadow-soft)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-                        <div>
-                            <h3 style={{ fontSize: '17px', fontWeight: 800, margin: 0, color: 'white' }}>🏆 Tüm Ürün Satış Karnesi</h3>
-                            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>Hangi üründen kaç adet satıldı, ne kadar ciro sağladı?</p>
+                {/* Sol Kart: Ürün Satış Karnesi (Leaderboard) */}
+                <div style={{ 
+                    background: 'rgba(28, 21, 20, 0.75)', 
+                    padding: '24px', 
+                    borderRadius: '20px', 
+                    border: '1px solid rgba(245, 159, 0, 0.16)', 
+                    boxShadow: '0 12px 36px rgba(0, 0, 0, 0.45)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
+                    display: 'flex',
+                    flexDirection: 'column'
+                }}>
+                    {/* Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '12px',
+                                background: 'linear-gradient(135deg, rgba(245, 159, 0, 0.2), rgba(247, 103, 7, 0.1))',
+                                border: '1px solid rgba(245, 159, 0, 0.3)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'var(--brand-gold, #f59f00)',
+                                boxShadow: '0 4px 14px rgba(245, 159, 0, 0.15)'
+                            }}>
+                                <Award size={22} />
+                            </div>
+                            <div>
+                                <h3 style={{ fontSize: '17px', fontWeight: 900, margin: 0, color: '#ffffff', letterSpacing: '-0.3px' }}>
+                                    Tüm Ürün Satış Karnesi
+                                </h3>
+                                <p style={{ fontSize: '12px', color: 'var(--text-secondary, #d1b8af)', margin: '3px 0 0 0' }}>
+                                    Hangi üründen kaç adet satıldı, ne kadar ciro sağladı?
+                                </p>
+                            </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                            {/* Dönem Filtre Butonları */}
-                            <div className="filter-pill-group" style={{ margin: 0 }}>
-                                <button
-                                    type="button"
-                                    className={`filter-pill-btn ${productPeriod === 'today' ? 'active' : ''}`}
-                                    onClick={() => setProductPeriod('today')}
-                                    style={{ padding: '4px 10px', fontSize: '11.5px' }}
-                                >
-                                    Bugün
-                                </button>
-                                <button
-                                    type="button"
-                                    className={`filter-pill-btn ${productPeriod === 'week' ? 'active' : ''}`}
-                                    onClick={() => setProductPeriod('week')}
-                                    style={{ padding: '4px 10px', fontSize: '11.5px' }}
-                                >
-                                    Bu Hafta
-                                </button>
-                                <button
-                                    type="button"
-                                    className={`filter-pill-btn ${productPeriod === 'month' ? 'active' : ''}`}
-                                    onClick={() => setProductPeriod('month')}
-                                    style={{ padding: '4px 10px', fontSize: '11.5px' }}
-                                >
-                                    Bu Ay
-                                </button>
-                                <button
-                                    type="button"
-                                    className={`filter-pill-btn ${productPeriod === 'all' ? 'active' : ''}`}
-                                    onClick={() => setProductPeriod('all')}
-                                    style={{ padding: '4px 10px', fontSize: '11.5px' }}
-                                >
-                                    Tümü
-                                </button>
-                            </div>
 
-                            {/* Arama Kutusu */}
-                            <div style={{ position: 'relative' }}>
-                                <input 
-                                    type="text" 
-                                    placeholder="Ürün ara..." 
-                                    value={productSearch}
-                                    onChange={(e) => setProductSearch(e.target.value)}
-                                    style={{ padding: '6px 10px 6px 28px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: 'white', borderRadius: 'var(--radius-md)', fontSize: '12px', width: '130px' }}
-                                />
-                                <Search size={13} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                            </div>
+                        {/* Animated Tab Switcher */}
+                        <div style={{ 
+                            display: 'inline-flex', 
+                            background: 'rgba(0, 0, 0, 0.45)', 
+                            padding: '3px', 
+                            borderRadius: '12px', 
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            position: 'relative'
+                        }}>
+                            {[
+                                { id: 'today', label: 'Bugün' },
+                                { id: 'week', label: 'Bu Hafta' },
+                                { id: 'month', label: 'Bu Ay' },
+                                { id: 'all', label: 'Tümü' }
+                            ].map((tab) => {
+                                const isActive = productPeriod === tab.id;
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        type="button"
+                                        onClick={() => setProductPeriod(tab.id)}
+                                        style={{
+                                            position: 'relative',
+                                            background: 'transparent',
+                                            border: 'none',
+                                            padding: '6px 12px',
+                                            borderRadius: '9px',
+                                            fontSize: '11.5px',
+                                            fontWeight: isActive ? 800 : 600,
+                                            color: isActive ? '#1c1514' : 'var(--text-secondary, #d1b8af)',
+                                            cursor: 'pointer',
+                                            zIndex: 1,
+                                            transition: 'color 0.18s ease',
+                                            fontFamily: "'Plus Jakarta Sans', sans-serif"
+                                        }}
+                                    >
+                                        {isActive && (
+                                            <motion.div
+                                                layoutId="productPeriodHighlight"
+                                                style={{
+                                                    position: 'absolute',
+                                                    inset: 0,
+                                                    background: 'linear-gradient(135deg, #f59f00, #f76707)',
+                                                    borderRadius: '9px',
+                                                    zIndex: -1,
+                                                    boxShadow: '0 2px 10px rgba(245, 159, 0, 0.4)'
+                                                }}
+                                                transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                                            />
+                                        )}
+                                        {tab.label}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
-                    <div style={{ overflowX: 'auto', maxHeight: '420px' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                            <thead>
-                                <tr style={{ textAlign: 'left', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-card)' }}>
-                                    <th 
-                                        onClick={() => handleProductSort('revenue')}
-                                        style={{ padding: '10px 6px', cursor: 'pointer', userSelect: 'none' }}
-                                        title="Ciroya göre azalan sırala"
-                                    >
-                                        #
-                                    </th>
-                                    <th 
-                                        onClick={() => handleProductSort('name')}
-                                        style={{ 
-                                            padding: '10px 8px', 
-                                            cursor: 'pointer', 
-                                            userSelect: 'none',
-                                            color: productSortField === 'name' ? 'var(--brand-gold)' : 'var(--text-muted)',
-                                            transition: 'color 0.15s ease'
+                    {/* Controls Bar: Search & Sort Buttons */}
+                    <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center', 
+                        gap: '12px', 
+                        marginBottom: '14px',
+                        paddingBottom: '12px',
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+                        flexWrap: 'wrap'
+                    }}>
+                        {/* Search Bar */}
+                        <div style={{ position: 'relative', flex: '1', minWidth: '160px', maxWidth: '240px' }}>
+                            <input 
+                                type="text" 
+                                placeholder="Ürün ara..." 
+                                value={productSearch}
+                                onChange={(e) => setProductSearch(e.target.value)}
+                                style={{ 
+                                    width: '100%',
+                                    padding: '7px 28px 7px 32px', 
+                                    background: 'rgba(0, 0, 0, 0.4)', 
+                                    border: '1px solid rgba(245, 159, 0, 0.22)', 
+                                    color: '#ffffff', 
+                                    borderRadius: '10px', 
+                                    fontSize: '12px', 
+                                    outline: 'none',
+                                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                    boxSizing: 'border-box',
+                                    transition: 'border-color 0.2s, box-shadow 0.2s'
+                                }}
+                                onFocus={(e) => {
+                                    e.target.style.borderColor = 'rgba(245, 159, 0, 0.6)';
+                                    e.target.style.boxShadow = '0 0 10px rgba(245, 159, 0, 0.2)';
+                                }}
+                                onBlur={(e) => {
+                                    e.target.style.borderColor = 'rgba(245, 159, 0, 0.22)';
+                                    e.target.style.boxShadow = 'none';
+                                }}
+                            />
+                            <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary, #d1b8af)', pointerEvents: 'none' }} />
+                            {productSearch && (
+                                <button
+                                    type="button"
+                                    onClick={() => setProductSearch('')}
+                                    style={{
+                                        position: 'absolute',
+                                        right: '8px',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        background: 'transparent',
+                                        border: 'none',
+                                        color: 'rgba(255,255,255,0.5)',
+                                        cursor: 'pointer',
+                                        padding: '2px',
+                                        display: 'flex',
+                                        alignItems: 'center'
+                                    }}
+                                >
+                                    <X size={12} />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Interactive Sort Pills */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--text-secondary, #d1b8af)', fontWeight: 700 }}>Sırala:</span>
+                            {[
+                                { id: 'revenue', label: 'Ciro' },
+                                { id: 'quantity', label: 'Adet' },
+                                { id: 'name', label: 'İsim' }
+                            ].map((sortOption) => {
+                                const isSortActive = productSortField === sortOption.id;
+                                return (
+                                    <button
+                                        key={sortOption.id}
+                                        type="button"
+                                        onClick={() => handleProductSort(sortOption.id)}
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            padding: '4px 9px',
+                                            borderRadius: '8px',
+                                            fontSize: '11px',
+                                            fontWeight: 700,
+                                            border: isSortActive ? '1px solid rgba(245, 159, 0, 0.45)' : '1px solid rgba(255, 255, 255, 0.08)',
+                                            background: isSortActive ? 'rgba(245, 159, 0, 0.12)' : 'rgba(0, 0, 0, 0.3)',
+                                            color: isSortActive ? 'var(--brand-gold, #f59f00)' : 'var(--text-secondary, #d1b8af)',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.15s ease'
                                         }}
-                                        title="Ürün adına göre sırala (A-Z / Z-A)"
                                     >
-                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                                            <span>Ürün</span>
-                                            {productSortField === 'name' ? (
-                                                productSortDirection === 'asc' ? <ArrowUp size={13} color="var(--brand-gold)" /> : <ArrowDown size={13} color="var(--brand-gold)" />
-                                            ) : (
-                                                <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
-                                            )}
-                                        </div>
-                                    </th>
-                                    <th 
-                                        onClick={() => handleProductSort('quantity')}
-                                        style={{ 
-                                            padding: '10px 8px', 
-                                            textAlign: 'center', 
-                                            cursor: 'pointer', 
-                                            userSelect: 'none',
-                                            color: productSortField === 'quantity' ? 'var(--brand-gold)' : 'var(--text-muted)',
-                                            transition: 'color 0.15s ease'
-                                        }}
-                                        title="Satış adedine göre sırala (Çoktan aza / Azdan çoğa)"
-                                    >
-                                        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
-                                            <span>Adet</span>
-                                            {productSortField === 'quantity' ? (
-                                                productSortDirection === 'asc' ? <ArrowUp size={13} color="var(--brand-gold)" /> : <ArrowDown size={13} color="var(--brand-gold)" />
-                                            ) : (
-                                                <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
-                                            )}
-                                        </div>
-                                    </th>
-                                    <th 
-                                        onClick={() => handleProductSort('revenue')}
-                                        style={{ 
-                                            padding: '10px 8px', 
-                                            textAlign: 'right', 
-                                            cursor: 'pointer', 
-                                            userSelect: 'none',
-                                            color: productSortField === 'revenue' ? 'var(--brand-gold)' : 'var(--text-muted)',
-                                            transition: 'color 0.15s ease'
-                                        }}
-                                        title="Toplam ciroya göre sırala (Çoktan aza / Azdan çoğa)"
-                                    >
-                                        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '5px' }}>
-                                            <span>Toplam Ciro</span>
-                                            {productSortField === 'revenue' ? (
-                                                productSortDirection === 'asc' ? <ArrowUp size={13} color="var(--brand-gold)" /> : <ArrowDown size={13} color="var(--brand-gold)" />
-                                            ) : (
-                                                <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
-                                            )}
-                                        </div>
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {sortedProductStats.length === 0 ? (
-                                    <tr><td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>Satış kaydı bulunamadı.</td></tr>
-                                ) : (
-                                    sortedProductStats.map((p, idx) => {
-                                        const sharePct = productPeriodTotalRevenue > 0 ? ((p.revenue / productPeriodTotalRevenue) * 100).toFixed(1) : 0;
-                                        const rankClass = idx === 0 ? 'top-1' : (idx === 1 ? 'top-2' : (idx === 2 ? 'top-3' : ''));
-                                        return (
-                                            <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                                <td style={{ padding: '10px 6px' }}>
-                                                    <span className={`rank-badge ${rankClass}`}>{idx + 1}</span>
-                                                </td>
-                                                <td style={{ padding: '10px 8px', fontWeight: 700 }}>
-                                                    <div style={{ color: 'white' }}>{p.name}</div>
-                                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>%{sharePct} Ciro Payı</div>
-                                                </td>
-                                                <td style={{ padding: '10px 8px', textAlign: 'center', fontWeight: 800, color: 'var(--brand-primary)' }}>{p.quantity}x</td>
-                                                <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 800, color: 'white' }}>{formatMoney(p.revenue)}</td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
-                            </tbody>
-                        </table>
+                                        <span>{sortOption.label}</span>
+                                        {isSortActive ? (
+                                            productSortDirection === 'asc' ? <ArrowUp size={11} /> : <ArrowDown size={11} />
+                                        ) : (
+                                            <ArrowUpDown size={10} style={{ opacity: 0.4 }} />
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Animated Product Feed (Custom Luxury Scroll) */}
+                    <div className="luxury-scroll" style={{ maxHeight: '420px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
+                        {sortedProductStats.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-secondary, #d1b8af)' }}>
+                                <ShoppingBag size={34} style={{ opacity: 0.3, marginBottom: '8px' }} />
+                                <div style={{ fontSize: '13px', fontWeight: 700 }}>Satış kaydı bulunamadı</div>
+                                <div style={{ fontSize: '11px', opacity: 0.7, marginTop: '2px' }}>Farklı bir arama veya dönem seçebilirsiniz</div>
+                            </div>
+                        ) : (
+                            <AnimatePresence mode="popLayout">
+                                {sortedProductStats.map((p, idx) => {
+                                    const sharePct = productPeriodTotalRevenue > 0 ? Number(((p.revenue / productPeriodTotalRevenue) * 100).toFixed(1)) : 0;
+                                    const isTop1 = idx === 0;
+                                    const isTop2 = idx === 1;
+                                    const isTop3 = idx === 2;
+
+                                    return (
+                                        <motion.div
+                                            key={p.name || idx}
+                                            layout
+                                            initial={{ opacity: 0, y: 8 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.95 }}
+                                            transition={{ duration: 0.2 }}
+                                            whileHover={{ scale: 1.006, x: 2 }}
+                                            style={{
+                                                background: isTop1 
+                                                    ? 'linear-gradient(135deg, rgba(245, 159, 0, 0.08), rgba(28, 21, 20, 0.7))'
+                                                    : 'rgba(255, 255, 255, 0.025)',
+                                                border: isTop1 
+                                                    ? '1px solid rgba(245, 159, 0, 0.3)' 
+                                                    : '1px solid rgba(255, 255, 255, 0.06)',
+                                                borderRadius: '13px',
+                                                padding: '11px 13px',
+                                                transition: 'border-color 0.15s ease, background-color 0.15s ease'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                                                {/* Left: Rank Badge + Name + Quantity */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                                                    {/* Rank Badge */}
+                                                    <div style={{
+                                                        width: '26px',
+                                                        height: '26px',
+                                                        minWidth: '26px',
+                                                        borderRadius: '8px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        fontSize: '11px',
+                                                        fontWeight: 900,
+                                                        background: isTop1 
+                                                            ? 'linear-gradient(135deg, #f59f00, #ffc078)'
+                                                            : isTop2 
+                                                                ? 'linear-gradient(135deg, #94a3b8, #e2e8f0)'
+                                                                : isTop3 
+                                                                    ? 'linear-gradient(135deg, #b45309, #d97706)'
+                                                                    : 'rgba(255, 255, 255, 0.06)',
+                                                        color: isTop1 ? '#1c1514' : isTop2 ? '#0f172a' : isTop3 ? '#ffffff' : '#94a3b8',
+                                                        boxShadow: isTop1 ? '0 0 12px rgba(245, 159, 0, 0.4)' : 'none'
+                                                    }}>
+                                                        {isTop1 ? <Crown size={13} strokeWidth={2.5} /> : idx + 1}
+                                                    </div>
+
+                                                    {/* Title & Badge */}
+                                                    <div style={{ minWidth: 0, flex: 1 }}>
+                                                        <div style={{ 
+                                                            fontSize: '13px', 
+                                                            fontWeight: 800, 
+                                                            color: '#ffffff', 
+                                                            whiteSpace: 'nowrap', 
+                                                            overflow: 'hidden', 
+                                                            textOverflow: 'ellipsis' 
+                                                        }}>
+                                                            {p.name}
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                                            <span style={{ 
+                                                                fontSize: '11px', 
+                                                                fontWeight: 800, 
+                                                                color: 'var(--brand-primary, #f76707)',
+                                                                background: 'rgba(247, 103, 7, 0.12)',
+                                                                padding: '1px 6px',
+                                                                borderRadius: '6px'
+                                                            }}>
+                                                                {p.quantity} Adet
+                                                            </span>
+                                                            <span style={{ fontSize: '11px', color: 'var(--text-secondary, #d1b8af)' }}>
+                                                                %{sharePct} Pay
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Right: Revenue */}
+                                                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                                    <div style={{ 
+                                                        fontSize: '14px', 
+                                                        fontWeight: 900, 
+                                                        color: '#fffaf5',
+                                                        fontFamily: "'Plus Jakarta Sans', sans-serif" 
+                                                    }}>
+                                                        {formatMoney(p.revenue)}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Micro Progress Bar */}
+                                            <div style={{ 
+                                                width: '100%', 
+                                                height: '3.5px', 
+                                                background: 'rgba(255, 255, 255, 0.05)', 
+                                                borderRadius: '999px', 
+                                                overflow: 'hidden', 
+                                                marginTop: '8px' 
+                                            }}>
+                                                <motion.div
+                                                    initial={{ width: 0 }}
+                                                    animate={{ width: `${Math.min(100, Math.max(3, sharePct))}%` }}
+                                                    transition={{ duration: 0.5, ease: 'easeOut' }}
+                                                    style={{ 
+                                                        height: '100%', 
+                                                        background: isTop1 
+                                                            ? 'linear-gradient(90deg, #f59f00, #ff922b)' 
+                                                            : 'linear-gradient(90deg, #f76707, #f59f00)',
+                                                        borderRadius: '999px' 
+                                                    }}
+                                                />
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })}
+                            </AnimatePresence>
+                        )}
                     </div>
                 </div>
 
-                {/* Sağ Sütun: Garson Performans Karnesi */}
-                <div style={{ background: 'var(--bg-surface)', padding: '22px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-card)', boxShadow: 'var(--shadow-soft)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-                        <div>
-                            <h3 style={{ fontSize: '17px', fontWeight: 800, margin: 0, color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <Users size={18} className="text-amber-400" />
-                                Garson Satış & Performans Karnesi
-                            </h3>
-                            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
-                                Hangi garson kaç masaya baktı, ne kadar ciro sağladı?
-                            </p>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                            {/* Dönem Filtre Butonları */}
-                            <div className="filter-pill-group" style={{ margin: 0 }}>
-                                <button
-                                    type="button"
-                                    className={`filter-pill-btn ${waiterPeriod === 'today' ? 'active' : ''}`}
-                                    onClick={() => setWaiterPeriod('today')}
-                                    style={{ padding: '4px 10px', fontSize: '11.5px' }}
-                                >
-                                    Bugün
-                                </button>
-                                <button
-                                    type="button"
-                                    className={`filter-pill-btn ${waiterPeriod === 'week' ? 'active' : ''}`}
-                                    onClick={() => setWaiterPeriod('week')}
-                                    style={{ padding: '4px 10px', fontSize: '11.5px' }}
-                                >
-                                    Bu Hafta
-                                </button>
-                                <button
-                                    type="button"
-                                    className={`filter-pill-btn ${waiterPeriod === 'month' ? 'active' : ''}`}
-                                    onClick={() => setWaiterPeriod('month')}
-                                    style={{ padding: '4px 10px', fontSize: '11.5px' }}
-                                >
-                                    Bu Ay
-                                </button>
-                                <button
-                                    type="button"
-                                    className={`filter-pill-btn ${waiterPeriod === 'all' ? 'active' : ''}`}
-                                    onClick={() => setWaiterPeriod('all')}
-                                    style={{ padding: '4px 10px', fontSize: '11.5px' }}
-                                >
-                                    Tümü
-                                </button>
+                {/* Sağ Kart: Garson Performans Karnesi (Leaderboard) */}
+                <div style={{ 
+                    background: 'rgba(28, 21, 20, 0.75)', 
+                    padding: '24px', 
+                    borderRadius: '20px', 
+                    border: '1px solid rgba(245, 159, 0, 0.16)', 
+                    boxShadow: '0 12px 36px rgba(0, 0, 0, 0.45)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
+                    display: 'flex',
+                    flexDirection: 'column'
+                }}>
+                    {/* Header */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '12px',
+                                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(16, 185, 129, 0.1))',
+                                border: '1px solid rgba(59, 130, 246, 0.3)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#60a5fa',
+                                boxShadow: '0 4px 14px rgba(59, 130, 246, 0.15)'
+                            }}>
+                                <Users size={22} />
                             </div>
+                            <div>
+                                <h3 style={{ fontSize: '17px', fontWeight: 900, margin: 0, color: '#ffffff', letterSpacing: '-0.3px' }}>
+                                    Garson Satış & Performans Karnesi
+                                </h3>
+                                <p style={{ fontSize: '12px', color: 'var(--text-secondary, #d1b8af)', margin: '3px 0 0 0' }}>
+                                    Hangi garson kaç masaya baktı, ne kadar ciro sağladı?
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Animated Tab Switcher */}
+                        <div style={{ 
+                            display: 'inline-flex', 
+                            background: 'rgba(0, 0, 0, 0.45)', 
+                            padding: '3px', 
+                            borderRadius: '12px', 
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            position: 'relative'
+                        }}>
+                            {[
+                                { id: 'today', label: 'Bugün' },
+                                { id: 'week', label: 'Bu Hafta' },
+                                { id: 'month', label: 'Bu Ay' },
+                                { id: 'all', label: 'Tümü' }
+                            ].map((tab) => {
+                                const isActive = waiterPeriod === tab.id;
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        type="button"
+                                        onClick={() => setWaiterPeriod(tab.id)}
+                                        style={{
+                                            position: 'relative',
+                                            background: 'transparent',
+                                            border: 'none',
+                                            padding: '6px 12px',
+                                            borderRadius: '9px',
+                                            fontSize: '11.5px',
+                                            fontWeight: isActive ? 800 : 600,
+                                            color: isActive ? '#1c1514' : 'var(--text-secondary, #d1b8af)',
+                                            cursor: 'pointer',
+                                            zIndex: 1,
+                                            transition: 'color 0.18s ease',
+                                            fontFamily: "'Plus Jakarta Sans', sans-serif"
+                                        }}
+                                    >
+                                        {isActive && (
+                                            <motion.div
+                                                layoutId="waiterPeriodHighlight"
+                                                style={{
+                                                    position: 'absolute',
+                                                    inset: 0,
+                                                    background: 'linear-gradient(135deg, #f59f00, #f76707)',
+                                                    borderRadius: '9px',
+                                                    zIndex: -1,
+                                                    boxShadow: '0 2px 10px rgba(245, 159, 0, 0.4)'
+                                                }}
+                                                transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                                            />
+                                        )}
+                                        {tab.label}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
-                    <div style={{ overflowX: 'auto', maxHeight: '420px' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                            <thead>
-                                <tr style={{ textAlign: 'left', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-card)' }}>
-                                    <th 
-                                        onClick={() => handleWaiterSort('name')}
-                                        style={{ 
-                                            padding: '10px 8px', 
-                                            cursor: 'pointer', 
-                                            userSelect: 'none',
-                                            color: waiterSortField === 'name' ? 'var(--brand-gold)' : 'var(--text-muted)'
+                    {/* Controls Bar: Staff Count & Sort Buttons */}
+                    <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center', 
+                        gap: '12px', 
+                        marginBottom: '14px',
+                        paddingBottom: '12px',
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+                        flexWrap: 'wrap'
+                    }}>
+                        {/* Summary Pill */}
+                        <div style={{ 
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '6px', 
+                            background: 'rgba(59, 130, 246, 0.1)', 
+                            border: '1px solid rgba(59, 130, 246, 0.2)', 
+                            padding: '4px 10px', 
+                            borderRadius: '8px', 
+                            fontSize: '11.5px', 
+                            color: '#93c5fd', 
+                            fontWeight: 700 
+                        }}>
+                            <User size={12} color="#60a5fa" />
+                            <span>{sortedWaiterStats.length} Personel Aktif</span>
+                        </div>
+
+                        {/* Interactive Sort Pills */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--text-secondary, #d1b8af)', fontWeight: 700 }}>Sırala:</span>
+                            {[
+                                { id: 'revenue', label: 'Ciro' },
+                                { id: 'orderCount', label: 'Masa' },
+                                { id: 'name', label: 'İsim' }
+                            ].map((sortOption) => {
+                                const isSortActive = waiterSortField === sortOption.id;
+                                return (
+                                    <button
+                                        key={sortOption.id}
+                                        type="button"
+                                        onClick={() => handleWaiterSort(sortOption.id)}
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            padding: '4px 9px',
+                                            borderRadius: '8px',
+                                            fontSize: '11px',
+                                            fontWeight: 700,
+                                            border: isSortActive ? '1px solid rgba(59, 130, 246, 0.45)' : '1px solid rgba(255, 255, 255, 0.08)',
+                                            background: isSortActive ? 'rgba(59, 130, 246, 0.15)' : 'rgba(0, 0, 0, 0.3)',
+                                            color: isSortActive ? '#60a5fa' : 'var(--text-secondary, #d1b8af)',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.15s ease'
                                         }}
-                                        title="Garson adına göre sırala"
                                     >
-                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                                            <span>Garson</span>
-                                            {waiterSortField === 'name' ? (
-                                                waiterSortDirection === 'asc' ? <ArrowUp size={13} color="var(--brand-gold)" /> : <ArrowDown size={13} color="var(--brand-gold)" />
-                                            ) : (
-                                                <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
-                                            )}
-                                        </div>
-                                    </th>
-                                    <th 
-                                        onClick={() => handleWaiterSort('orderCount')}
-                                        style={{ 
-                                            padding: '10px 8px', 
-                                            textAlign: 'center', 
-                                            cursor: 'pointer', 
-                                            userSelect: 'none',
-                                            color: waiterSortField === 'orderCount' ? 'var(--brand-gold)' : 'var(--text-muted)'
-                                        }}
-                                        title="Masa/Adisyon adedine göre sırala"
-                                    >
-                                        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
-                                            <span>Masa</span>
-                                            {waiterSortField === 'orderCount' ? (
-                                                waiterSortDirection === 'asc' ? <ArrowUp size={13} color="var(--brand-gold)" /> : <ArrowDown size={13} color="var(--brand-gold)" />
-                                            ) : (
-                                                <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
-                                            )}
-                                        </div>
-                                    </th>
-                                    <th style={{ padding: '10px 8px', textAlign: 'right' }}>Ciro Payı</th>
-                                    <th 
-                                        onClick={() => handleWaiterSort('revenue')}
-                                        style={{ 
-                                            padding: '10px 8px', 
-                                            textAlign: 'right', 
-                                            cursor: 'pointer', 
-                                            userSelect: 'none',
-                                            color: waiterSortField === 'revenue' ? 'var(--brand-gold)' : 'var(--text-muted)'
-                                        }}
-                                        title="Garson cirosuna göre sırala"
-                                    >
-                                        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '5px' }}>
-                                            <span>Toplam Ciro</span>
-                                            {waiterSortField === 'revenue' ? (
-                                                waiterSortDirection === 'asc' ? <ArrowUp size={13} color="var(--brand-gold)" /> : <ArrowDown size={13} color="var(--brand-gold)" />
-                                            ) : (
-                                                <ArrowUpDown size={12} style={{ opacity: 0.35 }} />
-                                            )}
-                                        </div>
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {sortedWaiterStats.length === 0 ? (
-                                    <tr><td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>Garson verisi bulunamadı.</td></tr>
-                                ) : (
-                                    sortedWaiterStats.map((w, idx) => {
-                                        const wShare = waiterPeriodTotalRevenue > 0 ? ((w.revenue / waiterPeriodTotalRevenue) * 100).toFixed(1) : 0;
-                                        return (
-                                            <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                                                <td style={{ padding: '12px 8px', fontWeight: 800, color: 'white' }}>
-                                                    {w.name}
-                                                </td>
-                                                <td style={{ padding: '12px 8px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                                                    {w.orderCount} adisyon
-                                                </td>
-                                                <td style={{ padding: '12px 8px', textAlign: 'right', color: 'var(--brand-gold)', fontWeight: 700 }}>
-                                                    %{wShare}
-                                                </td>
-                                                <td style={{ padding: '12px 8px', textAlign: 'right', fontWeight: 800, color: 'var(--success)' }}>
-                                                    {formatMoney(w.revenue)}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
-                            </tbody>
-                        </table>
+                                        <span>{sortOption.label}</span>
+                                        {isSortActive ? (
+                                            waiterSortDirection === 'asc' ? <ArrowUp size={11} /> : <ArrowDown size={11} />
+                                        ) : (
+                                            <ArrowUpDown size={10} style={{ opacity: 0.4 }} />
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Animated Waiter Feed (Custom Luxury Scroll) */}
+                    <div className="luxury-scroll" style={{ maxHeight: '420px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
+                        {sortedWaiterStats.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-secondary, #d1b8af)' }}>
+                                <Users size={34} style={{ opacity: 0.3, marginBottom: '8px' }} />
+                                <div style={{ fontSize: '13px', fontWeight: 700 }}>Garson kaydı bulunamadı</div>
+                                <div style={{ fontSize: '11px', opacity: 0.7, marginTop: '2px' }}>Bu dönemde tamamlanan adisyon bulunmuyor</div>
+                            </div>
+                        ) : (
+                            <AnimatePresence mode="popLayout">
+                                {sortedWaiterStats.map((w, idx) => {
+                                    const wShare = waiterPeriodTotalRevenue > 0 ? Number(((w.revenue / waiterPeriodTotalRevenue) * 100).toFixed(1)) : 0;
+                                    const isTop1 = idx === 0;
+                                    const isTop2 = idx === 1;
+                                    const isTop3 = idx === 2;
+                                    const initials = getWaiterInitials(w.name);
+
+                                    return (
+                                        <motion.div
+                                            key={w.name || idx}
+                                            layout
+                                            initial={{ opacity: 0, y: 8 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.95 }}
+                                            transition={{ duration: 0.2 }}
+                                            whileHover={{ scale: 1.006, x: 2 }}
+                                            style={{
+                                                background: isTop1 
+                                                    ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(28, 21, 20, 0.7))'
+                                                    : 'rgba(255, 255, 255, 0.025)',
+                                                border: isTop1 
+                                                    ? '1px solid rgba(16, 185, 129, 0.3)' 
+                                                    : '1px solid rgba(255, 255, 255, 0.06)',
+                                                borderRadius: '13px',
+                                                padding: '11px 13px',
+                                                transition: 'border-color 0.15s ease, background-color 0.15s ease'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                                                {/* Left: Rank Badge + Avatar + Name + Order Count */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                                                    {/* Rank Badge */}
+                                                    <div style={{
+                                                        width: '26px',
+                                                        height: '26px',
+                                                        minWidth: '26px',
+                                                        borderRadius: '8px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        fontSize: '11px',
+                                                        fontWeight: 900,
+                                                        background: isTop1 
+                                                            ? 'linear-gradient(135deg, #f59f00, #ffc078)'
+                                                            : isTop2 
+                                                                ? 'linear-gradient(135deg, #94a3b8, #e2e8f0)'
+                                                                : isTop3 
+                                                                    ? 'linear-gradient(135deg, #b45309, #d97706)'
+                                                                    : 'rgba(255, 255, 255, 0.06)',
+                                                        color: isTop1 ? '#1c1514' : isTop2 ? '#0f172a' : isTop3 ? '#ffffff' : '#94a3b8',
+                                                        boxShadow: isTop1 ? '0 0 12px rgba(245, 159, 0, 0.4)' : 'none'
+                                                    }}>
+                                                        {isTop1 ? <Crown size={13} strokeWidth={2.5} /> : idx + 1}
+                                                    </div>
+
+                                                    {/* Monogram Avatar */}
+                                                    <div style={{
+                                                        width: '28px',
+                                                        height: '28px',
+                                                        minWidth: '28px',
+                                                        borderRadius: '50%',
+                                                        background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(16, 185, 129, 0.25))',
+                                                        border: '1px solid rgba(59, 130, 246, 0.35)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        fontSize: '11px',
+                                                        fontWeight: 800,
+                                                        color: '#93c5fd'
+                                                    }}>
+                                                        {initials}
+                                                    </div>
+
+                                                    {/* Name & Badge */}
+                                                    <div style={{ minWidth: 0, flex: 1 }}>
+                                                        <div style={{ 
+                                                            fontSize: '13px', 
+                                                            fontWeight: 800, 
+                                                            color: '#ffffff', 
+                                                            whiteSpace: 'nowrap', 
+                                                            overflow: 'hidden', 
+                                                            textOverflow: 'ellipsis' 
+                                                        }}>
+                                                            {w.name}
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                                                            <span style={{ 
+                                                                fontSize: '11px', 
+                                                                fontWeight: 800, 
+                                                                color: '#60a5fa',
+                                                                background: 'rgba(59, 130, 246, 0.12)',
+                                                                padding: '1px 6px',
+                                                                borderRadius: '6px'
+                                                            }}>
+                                                                {w.orderCount} Adisyon
+                                                            </span>
+                                                            <span style={{ fontSize: '11px', color: 'var(--text-secondary, #d1b8af)' }}>
+                                                                %{wShare} Pay
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Right: Revenue */}
+                                                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                                                    <div style={{ 
+                                                        fontSize: '14px', 
+                                                        fontWeight: 900, 
+                                                        color: '#10b981',
+                                                        fontFamily: "'Plus Jakarta Sans', sans-serif" 
+                                                    }}>
+                                                        {formatMoney(w.revenue)}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Micro Progress Bar */}
+                                            <div style={{ 
+                                                width: '100%', 
+                                                height: '3.5px', 
+                                                background: 'rgba(255, 255, 255, 0.05)', 
+                                                borderRadius: '999px', 
+                                                overflow: 'hidden', 
+                                                marginTop: '8px' 
+                                            }}>
+                                                <motion.div
+                                                    initial={{ width: 0 }}
+                                                    animate={{ width: `${Math.min(100, Math.max(3, wShare))}%` }}
+                                                    transition={{ duration: 0.5, ease: 'easeOut' }}
+                                                    style={{ 
+                                                        height: '100%', 
+                                                        background: 'linear-gradient(90deg, #10b981, #06b6d4)',
+                                                        borderRadius: '999px' 
+                                                    }}
+                                                />
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })}
+                            </AnimatePresence>
+                        )}
                     </div>
                 </div>
             </div>

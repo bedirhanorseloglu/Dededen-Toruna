@@ -3022,30 +3022,53 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
     color: var(--text-secondary);
 }
 
-.rank-badge.top-1 { background: #ffd43b; color: #110d0c; }
-.rank-badge.top-2 { background: #ced4da; color: #110d0c; }
-.rank-badge.top-3 { background: #d97706; color: white; }
+.rank-badge.top-1 { background: linear-gradient(135deg, #f59f00 0%, #d97706 100%); color: #110d0c; box-shadow: 0 2px 8px rgba(245, 159, 0, 0.45); font-weight: 900; }
+.rank-badge.top-2 { background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%); color: #0f172a; box-shadow: 0 2px 8px rgba(148, 163, 184, 0.35); font-weight: 900; }
+.rank-badge.top-3 { background: linear-gradient(135deg, #fdba74 0%, #ea580c 100%); color: #ffffff; box-shadow: 0 2px 8px rgba(234, 88, 12, 0.35); font-weight: 900; }
 
 /* 4. YÖNETİCİ KPI KARTLARI */
 .admin-kpi-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
     margin-bottom: 22px;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
     .admin-kpi-grid {
         grid-template-columns: repeat(2, 1fr);
-        gap: 10px;
+        gap: 12px;
         margin-bottom: 16px;
     }
-    .admin-kpi-grid .stat-box {
-        padding: 12px 10px !important;
+}
+
+@media (max-width: 480px) {
+    .admin-kpi-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
     }
-    .admin-kpi-grid .stat-box div:nth-child(2) {
-        font-size: 19px !important;
-    }
+}
+
+/* LUXURY OBSIDIAN SCROLLBAR */
+.luxury-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(245, 159, 0, 0.35) rgba(0, 0, 0, 0.2);
+}
+.luxury-scroll::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+.luxury-scroll::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 8px;
+}
+.luxury-scroll::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(245, 159, 0, 0.45), rgba(247, 103, 7, 0.45));
+    border-radius: 8px;
+    border: 1px solid rgba(245, 159, 0, 0.2);
+}
+.luxury-scroll::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(245, 159, 0, 0.75), rgba(247, 103, 7, 0.75));
 }
 
 /* 4.1 GİDERLER & HARCAMA DÜZENİ (MODERN SAĞ ÇEKMECE & RESPONSİVE LİSTE) */
@@ -5341,8 +5364,8 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
     }
 
     .admin-kpi-grid {
-        grid-template-columns: repeat(3, 1fr) !important;
-        gap: 10px !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px !important;
     }
 }
 
