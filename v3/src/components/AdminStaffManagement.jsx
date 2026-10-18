@@ -15,7 +15,6 @@ import {
     EyeOff, 
     LayoutGrid, 
     List, 
-    Sparkles,
     Phone,
     TrendingUp,
     UtensilsCrossed,
@@ -227,15 +226,17 @@ export default function AdminStaffManagement({
         };
 
         if (showConfirm) {
-            showConfirm(
-                `${staff.name} Personel Sayacını Sıfırla`,
-                `"${staff.name}" adlı personelin toplam ciro ve sipariş adet sayaçları 0,00 ₺ olarak sıfırlanacaktır. Bu işlem geri alınamaz. Onaylıyor musunuz?`,
-                doReset,
-                'danger'
-            );
+            const ok = await showConfirm({
+                title: `${staff.name} Personel Sayacını Sıfırla`,
+                message: `"${staff.name}" adlı personelin toplam ciro ve sipariş adet sayaçları 0,00 ₺ olarak sıfırlanacaktır. Bu işlem geri alınamaz. Onaylıyor musunuz?`,
+                confirmText: 'Evet, Sıfırla',
+                cancelText: 'Vazgeç',
+                variant: 'danger'
+            });
+            if (ok) await doReset();
         } else {
             if (window.confirm(`${staff.name} personelinin ciro sayacını sıfırlamak istediğinize emin misiniz?`)) {
-                doReset();
+                await doReset();
             }
         }
     };

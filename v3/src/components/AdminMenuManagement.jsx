@@ -11,7 +11,6 @@ import {
     RotateCcw,
     CheckCircle2,
     SlidersHorizontal,
-    Sparkles,
     AlertCircle,
     CheckCircle,
     XCircle,

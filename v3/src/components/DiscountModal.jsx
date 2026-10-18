@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tag, X, Check, Sparkles, RefreshCw, AlertCircle, Percent, ArrowRight } from 'lucide-react';
+import { Tag, X, Check, Calculator, RefreshCw, AlertCircle, Percent, ArrowRight } from 'lucide-react';
 import { formatMoney } from '../data/menu';
 
 export default function DiscountModal({
@@ -316,7 +316,7 @@ export default function DiscountModal({
                     {smartRoundings.length > 0 && (
                         <div style={{ marginBottom: '14px' }}>
                             <div style={{ fontSize: '11px', fontWeight: 800, color: 'var(--brand-gold)', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Sparkles size={12} /> Hızlı Düz Hesap (Yuvarla)
+                                <Calculator size={12} /> Hızlı Düz Hesap (Yuvarla)
                             </div>
                             <div className="discount-chips-container">
                                 {smartRoundings.map((opt, idx) => (

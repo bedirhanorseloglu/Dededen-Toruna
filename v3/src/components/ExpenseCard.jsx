@@ -1,8 +1,30 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Pencil, Trash2 } from 'lucide-react';
+import { 
+    Pencil, 
+    Trash2, 
+    UtensilsCrossed, 
+    Coffee, 
+    Users, 
+    Receipt, 
+    Wrench, 
+    Package, 
+    Wallet, 
+    CreditCard, 
+    Calendar,
+    Tag
+} from 'lucide-react';
 import { formatMoney } from '../data/menu';
 import { EXPENSE_CATEGORIES, formatTurkishDate } from './AdminExpenses';
+
+const CATEGORY_ICONS = {
+    mutfak: UtensilsCrossed,
+    icecek: Coffee,
+    personel: Users,
+    faturalar: Receipt,
+    sarf: Wrench,
+    diger: Package
+};
 
 export default function ExpenseCard({
     exp,
@@ -12,6 +34,7 @@ export default function ExpenseCard({
     const cat = EXPENSE_CATEGORIES.find(c => c.id === exp.category);
     const isCash = exp.payment_method === 'cash';
     const catColor = cat?.color || '#ef4444';
+    const CatIcon = CATEGORY_ICONS[exp.category] || Package;
 
     return (
         <motion.div
@@ -19,76 +42,110 @@ export default function ExpenseCard({
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.96 }}
-            transition={{ duration: 0.18 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
             whileHover={{ y: -3 }}
             className="admin-expense-grid-card"
-            style={{ '--card-accent': catColor }}
+            style={{ 
+                '--card-accent': catColor,
+                position: 'relative',
+                background: 'linear-gradient(145deg, rgba(30, 23, 21, 0.92) 0%, rgba(18, 14, 13, 0.98) 100%)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '18px',
+                padding: '16px 18px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                minHeight: '172px',
+                boxShadow: '0 8px 24px -6px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.06)',
+                cursor: 'pointer',
+                overflow: 'hidden'
+            }}
             onClick={() => !exp.isOrderDiscount && onEdit?.(exp)}
         >
-            {/* Kart Üst Bölüm: Kategori İkonu + Rozetler + Sağda Aksiyonlar */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* 21st.dev Katman 1: Ambient Glow Aura (Kategori renginde arkaya hafif yayılan ışık) */}
+            <div style={{
+                position: 'absolute',
+                top: -24,
+                right: -24,
+                width: '110px',
+                height: '110px',
+                background: `radial-gradient(circle, ${catColor}16, transparent 70%)`,
+                filter: 'blur(22px)',
+                pointerEvents: 'none',
+                zIndex: 0
+            }} />
+
+            {/* 1. ÜST BÖLÜM: Kategori Rozetleri + Aksiyon Butonları */}
+            <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                     <div style={{
-                        width: '42px',
-                        height: '42px',
-                        borderRadius: '12px',
-                        background: `${catColor}18`,
-                        border: `1px solid ${catColor}35`,
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '11px',
+                        background: `${catColor}15`,
+                        border: `1px solid ${catColor}30`,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontSize: '20px',
+                        color: catColor,
                         flexShrink: 0
                     }}>
-                        {cat?.icon || '📦'}
+                        <CatIcon size={17} />
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span style={{
-                            background: `${catColor}18`,
+                            background: `${catColor}14`,
                             color: catColor,
-                            padding: '2px 8px',
+                            padding: '3px 8px',
                             borderRadius: '6px',
                             fontWeight: 800,
                             fontSize: '11px',
-                            border: `1px solid ${catColor}30`,
-                            width: 'fit-content'
+                            border: `1px solid ${catColor}28`,
+                            letterSpacing: '0.2px'
                         }}>
                             {cat?.name || 'Genel'}
                         </span>
+
                         <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
                             background: isCash ? 'rgba(245, 158, 11, 0.12)' : 'rgba(56, 189, 248, 0.12)',
                             color: isCash ? 'var(--brand-gold)' : '#38bdf8',
-                            padding: '2px 8px',
+                            padding: '3px 8px',
                             borderRadius: '6px',
-                            fontWeight: 700,
+                            fontWeight: 800,
                             fontSize: '11px',
-                            border: isCash ? '1px solid rgba(245, 158, 11, 0.25)' : '1px solid rgba(56, 189, 248, 0.25)',
-                            width: 'fit-content'
+                            border: isCash ? '1px solid rgba(245, 158, 11, 0.28)' : '1px solid rgba(56, 189, 248, 0.28)'
                         }}>
-                            {isCash ? '💵 Nakit' : '💳 Kart'}
+                            {isCash ? <Wallet size={11} /> : <CreditCard size={11} />}
+                            <span>{isCash ? 'Nakit' : 'Kart'}</span>
                         </span>
                     </div>
                 </div>
 
-                {/* Aksiyon Butonları (Düzenle & Sil veya Adisyon İndirimi Rozeti) */}
+                {/* Aksiyon Butonları */}
                 {exp.isOrderDiscount ? (
                     <span style={{
-                        background: 'rgba(244, 63, 94, 0.15)',
+                        background: 'rgba(244, 63, 94, 0.14)',
                         color: '#f43f5e',
-                        border: '1px solid rgba(244, 63, 94, 0.35)',
-                        padding: '4px 9px',
-                        borderRadius: '8px',
+                        border: '1px solid rgba(244, 63, 94, 0.3)',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
                         fontSize: '11px',
                         fontWeight: 800,
-                        display: 'flex',
+                        display: 'inline-flex',
                         alignItems: 'center',
                         gap: '4px'
                     }}>
-                        🏷️ Adisyon
+                        <Tag size={11} /> Adisyon
                     </span>
                 ) : (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                        <button
+                        <motion.button
+                            whileHover={{ scale: 1.08 }}
+                            whileTap={{ scale: 0.92 }}
                             type="button"
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -96,54 +153,55 @@ export default function ExpenseCard({
                             }}
                             style={{
                                 background: 'rgba(255, 255, 255, 0.05)',
-                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                border: '1px solid rgba(255, 255, 255, 0.12)',
                                 borderRadius: '8px',
-                                width: '30px',
-                                height: '30px',
+                                width: '28px',
+                                height: '28px',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 color: 'var(--text-secondary)',
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease'
+                                cursor: 'pointer'
                             }}
                             title="Düzenle"
                         >
-                            <Pencil size={13} />
-                        </button>
-                        <button
+                            <Pencil size={12} />
+                        </motion.button>
+                        <motion.button
+                            whileHover={{ scale: 1.08 }}
+                            whileTap={{ scale: 0.92 }}
                             type="button"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onDelete?.(exp);
                             }}
                             style={{
-                                background: 'rgba(239, 68, 68, 0.1)',
-                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                background: 'rgba(239, 68, 68, 0.12)',
+                                border: '1px solid rgba(239, 68, 68, 0.28)',
                                 borderRadius: '8px',
-                                width: '30px',
-                                height: '30px',
+                                width: '28px',
+                                height: '28px',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                color: '#f87171',
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease'
+                                color: '#ef4444',
+                                cursor: 'pointer'
                             }}
                             title="Sil"
                         >
-                            <Trash2 size={13} />
-                        </button>
+                            <Trash2 size={12} />
+                        </motion.button>
                     </div>
                 )}
             </div>
 
-            {/* Kart Orta Bölüm: Başlık & Tarih / Not */}
-            <div style={{ margin: '14px 0 10px 0' }}>
+            {/* 2. ORTA BÖLÜM: Harcama Başlığı & Tarih / Not */}
+            <div style={{ position: 'relative', zIndex: 1, margin: '14px 0 10px 0' }}>
                 <div style={{
-                    fontSize: '16px',
-                    fontWeight: 800,
+                    fontSize: '17px',
+                    fontWeight: 900,
                     color: 'white',
+                    letterSpacing: '-0.3px',
                     lineHeight: 1.3,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -155,14 +213,15 @@ export default function ExpenseCard({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
-                    fontSize: '12px',
+                    fontSize: '11.5px',
                     color: 'var(--text-muted)',
-                    marginTop: '4px'
+                    marginTop: '5px'
                 }}>
-                    <span>📅 {formatTurkishDate(exp.date || (exp.created_at ? exp.created_at.slice(0, 10) : ''))}</span>
+                    <Calendar size={12} color="var(--brand-gold)" />
+                    <span>{formatTurkishDate(exp.date || (exp.created_at ? exp.created_at.slice(0, 10) : ''))}</span>
                     {exp.notes && (
                         <>
-                            <span>•</span>
+                            <span style={{ opacity: 0.35 }}>•</span>
                             <span style={{ fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 "{exp.notes}"
                             </span>
@@ -171,8 +230,10 @@ export default function ExpenseCard({
                 </div>
             </div>
 
-            {/* Kart Alt Bölüm: Tutar */}
+            {/* 3. ALT BÖLÜM: Harcama Tutarı (Sans-Serif, Zengin Kırmızı/Rose Vurgusu) */}
             <div style={{
+                position: 'relative',
+                zIndex: 1,
                 borderTop: '1px solid rgba(255, 255, 255, 0.06)',
                 paddingTop: '10px',
                 marginTop: 'auto',
@@ -180,14 +241,14 @@ export default function ExpenseCard({
                 alignItems: 'center',
                 justifyContent: 'space-between'
             }}>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>
+                <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                     {exp.isOrderDiscount ? 'İndirim Tutarı' : 'Harcama Tutarı'}
                 </span>
                 <span style={{ 
-                    fontSize: '17px', 
+                    fontSize: '19px', 
                     fontWeight: 900, 
-                    color: exp.isOrderDiscount ? '#f43f5e' : '#f87171', 
-                    fontFamily: 'monospace' 
+                    color: exp.isOrderDiscount ? '#f43f5e' : '#ef4444', 
+                    letterSpacing: '-0.5px' 
                 }}>
                     -{formatMoney(exp.amount)}
                 </span>

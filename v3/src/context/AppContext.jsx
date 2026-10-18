@@ -534,13 +534,27 @@ export function AppProvider({ children }) {
     };
 
     // Modern Evrensel Onay Modalı Çağırma Fonksiyonu (Promise Döndürür)
-    const showConfirm = ({
-        title = 'İşlemi Onaylayın',
-        message = 'Bu işlemi gerçekleştirmek istediğinize emin misiniz?',
-        confirmText = 'Evet, Onayla',
-        cancelText = 'Vazgeç',
-        variant = 'danger'
-    }) => {
+    const showConfirm = (optionsOrTitle = {}, maybeMessage, maybeOnConfirm, maybeVariant) => {
+        let title = 'İşlemi Onaylayın';
+        let message = 'Bu işlemi gerçekleştirmek istediğinize emin misiniz?';
+        let confirmText = 'Evet, Onayla';
+        let cancelText = 'Vazgeç';
+        let variant = 'danger';
+        let legacyCallback = null;
+
+        if (typeof optionsOrTitle === 'object' && optionsOrTitle !== null) {
+            title = optionsOrTitle.title || title;
+            message = optionsOrTitle.message || message;
+            confirmText = optionsOrTitle.confirmText || confirmText;
+            cancelText = optionsOrTitle.cancelText || cancelText;
+            variant = optionsOrTitle.variant || variant;
+        } else if (typeof optionsOrTitle === 'string') {
+            title = optionsOrTitle;
+            if (typeof maybeMessage === 'string') message = maybeMessage;
+            if (typeof maybeOnConfirm === 'function') legacyCallback = maybeOnConfirm;
+            if (typeof maybeVariant === 'string') variant = maybeVariant;
+        }
+
         return new Promise((resolve) => {
             setConfirmModal({
                 isOpen: true,
@@ -551,6 +565,7 @@ export function AppProvider({ children }) {
                 variant,
                 onConfirm: () => {
                     setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                    if (legacyCallback) legacyCallback();
                     resolve(true);
                 },
                 onCancel: () => {

@@ -9,7 +9,6 @@ import {
     Calendar, 
     CalendarDays,
     Clock, 
-    Sparkles,
     Banknote,
     CreditCard
 } from 'lucide-react';

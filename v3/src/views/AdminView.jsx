@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../context/AppContext';
 import { formatMoney, MENU_PRODUCTS } from '../data/menu';
 import {
@@ -1026,60 +1027,44 @@ export default function AdminView() {
             {/* Admin Nav Header & Tabs (Tablet dikey/yatay ve mobilde tam sığan ultra-responsive yapı) */}
             <header className="admin-nav-header">
                 <nav className="admin-nav-tabs">
-                    <button
-                        className={`admin-nav-btn ${currentActiveTab === 'tables' ? 'active' : ''}`}
-                        onClick={() => setCurrentActiveTab('tables')}
-                        title="Canlı Masalar & Kasa (17)"
-                    >
-                        <span className="tab-icon">🪑</span>
-                        <span className="tab-label-full">Canlı Masalar & Kasa (17)</span>
-                        <span className="tab-label-short">Masalar (17)</span>
-                    </button>
-                    <button
-                        className={`admin-nav-btn ${currentActiveTab === 'analytics' ? 'active' : ''}`}
-                        onClick={() => setCurrentActiveTab('analytics')}
-                        title="Ciro & Satış Analizi"
-                    >
-                        <span className="tab-icon">📊</span>
-                        <span className="tab-label-full">Ciro & Satış Analizi</span>
-                        <span className="tab-label-short">Satış Analizi</span>
-                    </button>
-                    <button
-                        className={`admin-nav-btn ${currentActiveTab === 'expenses' ? 'active' : ''}`}
-                        onClick={() => setCurrentActiveTab('expenses')}
-                        title="Giderler & Harcama"
-                    >
-                        <span className="tab-icon">💸</span>
-                        <span className="tab-label-full">Giderler & Harcama</span>
-                        <span className="tab-label-short">Giderler</span>
-                    </button>
-                    <button
-                        className={`admin-nav-btn ${currentActiveTab === 'menu' ? 'active' : ''}`}
-                        onClick={() => setCurrentActiveTab('menu')}
-                        title="Menü Yönetimi"
-                    >
-                        <span className="tab-icon">🍔</span>
-                        <span className="tab-label-full">Menü Yönetimi</span>
-                        <span className="tab-label-short">Menü</span>
-                    </button>
-                    <button
-                        className={`admin-nav-btn ${currentActiveTab === 'staff' ? 'active' : ''}`}
-                        onClick={() => setCurrentActiveTab('staff')}
-                        title="Personel & PIN"
-                    >
-                        <span className="tab-icon">👥</span>
-                        <span className="tab-label-full">Personel & PIN</span>
-                        <span className="tab-label-short">Personel</span>
-                    </button>
-                    <button
-                        className={`admin-nav-btn ${currentActiveTab === 'printer' ? 'active' : ''}`}
-                        onClick={() => setCurrentActiveTab('printer')}
-                        title="Kasa Yazıcısı"
-                    >
-                        <span className="tab-icon">🖨️</span>
-                        <span className="tab-label-full">Kasa Yazıcısı</span>
-                        <span className="tab-label-short">Yazıcı</span>
-                    </button>
+                    {[
+                        { id: 'tables', icon: '🪑', fullLabel: `Canlı Masalar & Kasa (${tables.length})`, shortLabel: `Masalar (${tables.length})` },
+                        { id: 'analytics', icon: '📊', fullLabel: 'Ciro & Satış Analizi', shortLabel: 'Satış Analizi' },
+                        { id: 'expenses', icon: '💸', fullLabel: 'Giderler & Harcama', shortLabel: 'Giderler' },
+                        { id: 'menu', icon: '🍔', fullLabel: 'Menü Yönetimi', shortLabel: 'Menü' },
+                        { id: 'staff', icon: '👥', fullLabel: 'Personel & PIN', shortLabel: 'Personel' },
+                        { id: 'printer', icon: '🖨️', fullLabel: 'Kasa Yazıcısı', shortLabel: 'Yazıcı' }
+                    ].map(tab => {
+                        const isActive = currentActiveTab === tab.id;
+                        return (
+                            <motion.button
+                                key={tab.id}
+                                whileTap={{ scale: 0.96 }}
+                                className={`admin-nav-btn ${isActive ? 'active' : ''}`}
+                                onClick={() => setCurrentActiveTab(tab.id)}
+                                title={tab.fullLabel}
+                                style={{ position: 'relative' }}
+                            >
+                                {isActive && (
+                                    <motion.div
+                                        layoutId="admin-active-tab-indicator"
+                                        style={{
+                                            position: 'absolute',
+                                            inset: 0,
+                                            borderRadius: 'var(--radius-md)',
+                                            background: 'linear-gradient(135deg, var(--brand-primary), #e8590c)',
+                                            boxShadow: '0 4px 16px rgba(247, 103, 7, 0.4)',
+                                            zIndex: 0
+                                        }}
+                                        transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                                    />
+                                )}
+                                <span className="tab-icon" style={{ position: 'relative', zIndex: 1 }}>{tab.icon}</span>
+                                <span className="tab-label-full" style={{ position: 'relative', zIndex: 1 }}>{tab.fullLabel}</span>
+                                <span className="tab-label-short" style={{ position: 'relative', zIndex: 1 }}>{tab.shortLabel}</span>
+                            </motion.button>
+                        );
+                    })}
                 </nav>
 
                 <div className="admin-nav-actions">
@@ -1096,8 +1081,17 @@ export default function AdminView() {
             </header>
 
             {/* ============================================================== */}
-            {/* MENÜ YÖNETİMİ SEKMESİ                                          */}
+            {/* ANİMASYONLU SEKME İÇERİK DEĞİŞİMİ                              */}
             {/* ============================================================== */}
+            <AnimatePresence mode="wait">
+                <motion.div
+                    key={currentActiveTab}
+                    initial={{ opacity: 0, y: 12, filter: 'blur(4px)' }}
+                    animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                    exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                    style={{ width: '100%' }}
+                >
             {currentActiveTab === 'menu' && (
                 <AdminMenuManagement
                     menuProducts={menuProducts}
@@ -1393,6 +1387,8 @@ export default function AdminView() {
                     showToast={showToast}
                 />
             )}
+                </motion.div>
+            </AnimatePresence>
 
             {/* ============================================================== */}
             {/* YÖNETİCİ CANLI ADİSYON ÇEKMECESİ (GARSON PANELİ İLE 1-E-1 AYNI)*/}
