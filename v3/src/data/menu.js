@@ -1,3 +1,34 @@
+import {
+    UtensilsCrossed,
+    Sandwich,
+    Layers,
+    Flame,
+    Beef,
+    Utensils,
+    CookingPot,
+    Salad,
+    Soup,
+    Cake,
+    Coffee
+} from 'lucide-react';
+
+export const CATEGORY_LUCIDE_ICONS = {
+    'all': UtensilsCrossed,
+    'kahvalti': UtensilsCrossed,
+    'tost': Sandwich,
+    'gozleme': Layers,
+    'tavuk': Flame,
+    'et': Beef,
+    'hamburger': Utensils,
+    'makarna': CookingPot,
+    'salata': Salad,
+    'gunun-menusu': Soup,
+    'tatlilar': Cake,
+    'icecekler': Coffee
+};
+
+export const getCategoryLucideIcon = (id) => CATEGORY_LUCIDE_ICONS[id] || UtensilsCrossed;
+
 // Dededen Toruna - Menü Verisi ve Kategori Tanımları
 export const MENU_CATEGORIES = [
     { id: "kahvalti", name: "Kahvaltılar", sort: 10, icon: "🍳" },
