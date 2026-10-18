@@ -120,3 +120,23 @@ export function speakAnnouncement(text) {
 }
 
 export const speakTurkish = speakAnnouncement;
+
+// Tuş Takımı Hafif Tıklama Sesi (Tactile Keypad Click)
+export function playKeypadBeep() {
+    if (isSoundMuted) return;
+    try {
+        initAudio();
+        if (!audioCtx) return;
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(580, now);
+        gain.gain.setValueAtTime(0.04, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.045);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.045);
+    } catch (e) {}
+}

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { 
     db, 
     collection, 
@@ -100,8 +100,11 @@ export function AppProvider({ children }) {
 
     const [selectedTableId, setSelectedTableId] = useState(null);
     const [soundEnabled, setSoundEnabled] = useState(() => !isAudioMuted());
-    const [isFullscreen, setIsFullscreen] = useState(false);
-    const [toast, setToast] = useState(null);
+    const [isFullscreen, setIsFullscreen] = useState(() => !!getFullscreenElement() || isStandaloneApp());
+    // Multi-Toast Stack State (Arka arkaya bildirim sorununu önleyen kuyruk ve zamanlayıcı yönetimi)
+    const [toasts, setToasts] = useState([]);
+    const toastTimersRef = useRef({});
+    const lastToastRef = useRef(null);
 
     // Modern Evrensel Onay Modalı State'i
     const [confirmModal, setConfirmModal] = useState({
@@ -474,9 +477,59 @@ export function AppProvider({ children }) {
         }
     };
 
-    const showToast = (message, type = 'info') => {
-        setToast({ message, type, id: Date.now() });
-        setTimeout(() => setToast(null), 3500);
+    const showToast = (message, type = 'info', duration = 3500) => {
+        if (!message) return;
+
+        const now = Date.now();
+        // 800ms içinde gelen birebir aynı bildirimi (çift tıklama/spam) engelle
+        if (
+            lastToastRef.current &&
+            lastToastRef.current.message === message &&
+            lastToastRef.current.type === type &&
+            now - lastToastRef.current.time < 800
+        ) {
+            return;
+        }
+        lastToastRef.current = { message, type, time: now };
+
+        const id = `${now}_${Math.random().toString(36).substr(2, 6)}`;
+        const newToast = { id, message, type, duration, timestamp: now };
+
+        setToasts(prev => {
+            const updated = [...prev, newToast];
+            // Ekranda aynı anda en fazla 3 bildirim tut
+            if (updated.length > 3) {
+                const removed = updated.shift();
+                if (toastTimersRef.current[removed.id]) {
+                    clearTimeout(toastTimersRef.current[removed.id]);
+                    delete toastTimersRef.current[removed.id];
+                }
+            }
+            return updated;
+        });
+
+        // Her bildirimin kendi bağımsız kapanma zamanlayıcısı (birbirini ezmez)
+        const timer = setTimeout(() => {
+            hideToast(id);
+        }, duration);
+
+        toastTimersRef.current[id] = timer;
+    };
+
+    const hideToast = (idToRemove) => {
+        if (!idToRemove) {
+            Object.values(toastTimersRef.current).forEach(t => clearTimeout(t));
+            toastTimersRef.current = {};
+            setToasts([]);
+            return;
+        }
+
+        if (toastTimersRef.current[idToRemove]) {
+            clearTimeout(toastTimersRef.current[idToRemove]);
+            delete toastTimersRef.current[idToRemove];
+        }
+
+        setToasts(prev => prev.filter(t => t.id !== idToRemove));
     };
 
     const login = (user) => {
@@ -645,7 +698,8 @@ export function AppProvider({ children }) {
             selectedTableId,
             soundEnabled,
             isFullscreen,
-            toast,
+            toast: toasts[toasts.length - 1] || null,
+            toasts,
             activeOrders,
             loadingOrders,
             tables: DEFAULT_TABLES,
@@ -655,6 +709,7 @@ export function AppProvider({ children }) {
             toggleFullscreen,
             toggleSound,
             showToast,
+            hideToast,
             closeTableOrder,
             printerSettings,
             savePrinterSettings,

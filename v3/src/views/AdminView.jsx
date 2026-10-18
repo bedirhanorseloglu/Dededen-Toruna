@@ -55,7 +55,8 @@ import {
     Layers,
     ArrowUpRight,
     Utensils,
-    Flame
+    Flame,
+    Sunset
 } from 'lucide-react';
 import TableCardGrid from '../components/TableCardGrid';
 import DiscountModal from '../components/DiscountModal';
@@ -1061,18 +1062,19 @@ export default function AdminView() {
 
     return (
         <div className="admin-page-container">
-            {/* Admin Nav Header & Tabs (Tablet dikey/yatay ve mobilde tam sığan ultra-responsive yapı) */}
+            {/* 21st.dev & Motion Modern Glassmorphic Admin Nav Tabs */}
             <header className="admin-nav-header">
                 <nav className="admin-nav-tabs">
                     {[
-                        { id: 'tables', icon: '🪑', fullLabel: `Canlı Masalar & Kasa (${tables.length})`, shortLabel: `Masalar (${tables.length})` },
-                        { id: 'analytics', icon: '📊', fullLabel: 'Ciro & Satış Analizi', shortLabel: 'Satış Analizi' },
-                        { id: 'expenses', icon: '💸', fullLabel: 'Giderler & Harcama', shortLabel: 'Giderler' },
-                        { id: 'menu', icon: '🍔', fullLabel: 'Menü Yönetimi', shortLabel: 'Menü' },
-                        { id: 'staff', icon: '👥', fullLabel: 'Personel & PIN', shortLabel: 'Personel' },
-                        { id: 'printer', icon: '🖨️', fullLabel: 'Kasa Yazıcısı', shortLabel: 'Yazıcı' }
+                        { id: 'tables', icon: LayoutGrid, fullLabel: 'Canlı Masalar & Kasa', shortLabel: 'Masalar', badge: tables.length },
+                        { id: 'analytics', icon: TrendingUp, fullLabel: 'Ciro & Satış Analizi', shortLabel: 'Satış Analizi' },
+                        { id: 'expenses', icon: Receipt, fullLabel: 'Giderler & Harcama', shortLabel: 'Giderler' },
+                        { id: 'menu', icon: Utensils, fullLabel: 'Menü Yönetimi', shortLabel: 'Menü' },
+                        { id: 'staff', icon: Users, fullLabel: 'Personel & PIN', shortLabel: 'Personel' },
+                        { id: 'printer', icon: Printer, fullLabel: 'Kasa Yazıcısı', shortLabel: 'Yazıcı' }
                     ].map(tab => {
                         const isActive = currentActiveTab === tab.id;
+                        const IconComp = tab.icon;
                         return (
                             <motion.button
                                 key={tab.id}
@@ -1080,40 +1082,42 @@ export default function AdminView() {
                                 className={`admin-nav-btn ${isActive ? 'active' : ''}`}
                                 onClick={() => setCurrentActiveTab(tab.id)}
                                 title={tab.fullLabel}
-                                style={{ position: 'relative' }}
                             >
                                 {isActive && (
                                     <motion.div
                                         layoutId="admin-active-tab-indicator"
-                                        style={{
-                                            position: 'absolute',
-                                            inset: 0,
-                                            borderRadius: 'var(--radius-md)',
-                                            background: 'linear-gradient(135deg, var(--brand-primary), #e8590c)',
-                                            boxShadow: '0 4px 16px rgba(247, 103, 7, 0.4)',
-                                            zIndex: 0
-                                        }}
-                                        transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+                                        className="admin-nav-active-pill"
+                                        transition={{ type: 'spring', stiffness: 440, damping: 32 }}
                                     />
                                 )}
-                                <span className="tab-icon" style={{ position: 'relative', zIndex: 1 }}>{tab.icon}</span>
-                                <span className="tab-label-full" style={{ position: 'relative', zIndex: 1 }}>{tab.fullLabel}</span>
-                                <span className="tab-label-short" style={{ position: 'relative', zIndex: 1 }}>{tab.shortLabel}</span>
+                                <span className="tab-icon-wrapper">
+                                    <IconComp size={15} strokeWidth={isActive ? 2.4 : 2} />
+                                </span>
+                                <span className="tab-label-text tab-label-full">{tab.fullLabel}</span>
+                                <span className="tab-label-text tab-label-short">{tab.shortLabel}</span>
+                                {tab.badge !== undefined && (
+                                    <span className={`tab-badge-pill ${isActive ? 'active' : ''}`}>
+                                        {tab.badge}
+                                    </span>
+                                )}
                             </motion.button>
                         );
                     })}
                 </nav>
 
                 <div className="admin-nav-actions">
-                    <button
+                    <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.96 }}
                         className="btn-daily-closing"
                         onClick={() => setShowDailyClosingModal(true)}
                         title="Gün Sonu Hesap Özeti (Z-Raporu)"
                     >
-                        <span className="tab-icon">🌅</span>
+                        <span className="closing-btn-glow" />
+                        <Sunset size={16} strokeWidth={2.4} className="closing-btn-icon" />
                         <span className="tab-label-full">Gün Sonu Özeti (Z-Raporu)</span>
                         <span className="tab-label-short">Gün Sonu (Z-Raporu)</span>
-                    </button>
+                    </motion.button>
                 </div>
             </header>
 
@@ -1123,10 +1127,10 @@ export default function AdminView() {
             <AnimatePresence mode="wait">
                 <motion.div
                     key={currentActiveTab}
-                    initial={{ opacity: 0, y: 12, filter: 'blur(4px)' }}
-                    animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                    exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
-                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                     style={{ width: '100%' }}
                 >
                     {currentActiveTab === 'menu' && (

@@ -619,35 +619,25 @@ export default function TableDetailView() {
 
                     {/* Modern 21st Minimalist Tab Grid with Border Glow & Underline */}
                     <div className="modern-category-grid">
-                        <motion.button
+                        <button
                             type="button"
                             className={`modern-cat-pill ${selectedCategory === 'all' ? 'active' : ''}`}
                             onClick={() => {
                                 setSelectedCategory('all');
                                 setMenuSearch('');
                             }}
-                            whileHover={{ y: -1 }}
-                            whileTap={{ scale: 0.97 }}
                         >
                             <div className="pill-icon-wrap">
                                 <span>🍽️</span>
                             </div>
                             <span className="pill-title">Tümü</span>
                             <span className="pill-badge">{currentProducts.length}</span>
-                            {selectedCategory === 'all' && (
-                                <motion.div 
-                                    className="pill-active-underline"
-                                    initial={{ scaleX: 0, opacity: 0 }}
-                                    animate={{ scaleX: 1, opacity: 1 }}
-                                    transition={{ duration: 0.18, ease: "easeOut" }}
-                                />
-                            )}
-                        </motion.button>
+                        </button>
                         {MENU_CATEGORIES.map(cat => {
                             const count = categoryCounts[cat.id] || 0;
                             const isSelected = selectedCategory === cat.id;
                             return (
-                                <motion.button
+                                <button
                                     key={cat.id}
                                     type="button"
                                     className={`modern-cat-pill ${isSelected ? 'active' : ''}`}
@@ -655,105 +645,47 @@ export default function TableDetailView() {
                                         setSelectedCategory(cat.id);
                                         setMenuSearch('');
                                     }}
-                                    whileHover={{ y: -1 }}
-                                    whileTap={{ scale: 0.97 }}
                                 >
                                     <div className="pill-icon-wrap">
                                         <span>{cat.icon}</span>
                                     </div>
                                     <span className="pill-title">{cat.name}</span>
                                     {count > 0 && <span className="pill-badge">{count}</span>}
-                                    {isSelected && (
-                                        <motion.div 
-                                            className="pill-active-underline"
-                                            initial={{ scaleX: 0, opacity: 0 }}
-                                            animate={{ scaleX: 1, opacity: 1 }}
-                                            transition={{ duration: 0.18, ease: "easeOut" }}
-                                        />
-                                    )}
-                                </motion.button>
+                                </button>
                             );
                         })}
                     </div>
                 </div>
 
-                {/* 2. PRODUCTS GRID / CATEGORIZED 'TÜMÜ' DISPLAY (Instant & Silky Crossfade) */}
+                {/* 2. PRODUCTS GRID / CATEGORIZED 'TÜMÜ' DISPLAY (Snappy Animated Cascade) */}
                 <div className="menu-products-scroll">
-                    <AnimatePresence>
+                    {selectedCategory === 'all' && !menuSearch.trim() ? (
                         <motion.div
-                            key={selectedCategory + (menuSearch || '')}
-                            initial={{ opacity: 0.4 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0.4 }}
-                            transition={{ duration: 0.14 }}
+                            key="all_categories"
+                            variants={menuGridVariants}
+                            initial="initial"
+                            animate="animate"
                         >
-                            {selectedCategory === 'all' && !menuSearch.trim() ? (
-                                MENU_CATEGORIES.map(cat => {
-                                    const catProducts = currentProducts.filter(p => p.category_id === cat.id);
-                                    if (catProducts.length === 0) return null;
+                            {MENU_CATEGORIES.map(cat => {
+                                const catProducts = currentProducts.filter(p => p.category_id === cat.id);
+                                if (catProducts.length === 0) return null;
 
-                                    return (
-                                        <div key={cat.id} className="menu-category-section">
-                                            <div className="modern-category-section-header">
-                                                <div className="modern-cat-icon-badge">
-                                                    {cat.icon}
-                                                </div>
-                                                <div className="modern-cat-header-title-box">
-                                                    <span className="modern-cat-section-title">{cat.name}</span>
-                                                    <span className="modern-cat-section-count">
-                                                        {catProducts.length} lezzet
-                                                    </span>
-                                                </div>
-                                                <div className="modern-cat-header-line" />
+                                return (
+                                    <div key={cat.id} className="menu-category-section">
+                                        <div className="modern-category-section-header">
+                                            <div className="modern-cat-icon-badge">
+                                                {cat.icon}
                                             </div>
-                                            <motion.div 
-                                                className="products-grid" 
-                                                style={{ padding: 0 }}
-                                                variants={gridVariants}
-                                                initial="hidden"
-                                                animate="show"
-                                            >
-                                                {catProducts.map(p => (
-                                                    <ProductItemCard 
-                                                        key={p.id} 
-                                                        product={p} 
-                                                        inCartCount={cartItemCounts[p.id] || 0}
-                                                        onAdd={(e) => handleAddToCart(p, e)} 
-                                                    />
-                                                ))}
-                                            </motion.div>
+                                            <div className="modern-cat-header-title-box">
+                                                <span className="modern-cat-section-title">{cat.name}</span>
+                                                <span className="modern-cat-section-count">
+                                                    {catProducts.length} lezzet
+                                                </span>
+                                            </div>
+                                            <div className="modern-cat-header-line" />
                                         </div>
-                                    );
-                                })
-                            ) : (
-                                <>
-                                    {filteredProducts.length === 0 ? (
-                                        <motion.div 
-                                            className="empty-menu-search"
-                                            initial={{ opacity: 0, scale: 0.95, y: 12 }}
-                                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                                            transition={{ duration: 0.2 }}
-                                        >
-                                            <div className="empty-search-icon">🔍</div>
-                                            <div className="empty-search-title">"{menuSearch}" ile lezzet bulunamadı</div>
-                                            <p className="empty-search-desc">Lütfen arama kelimenizi kontrol edin veya filtreyi sıfırlayın.</p>
-                                            <button 
-                                                type="button" 
-                                                className="empty-search-clear-btn"
-                                                onClick={() => setMenuSearch('')}
-                                            >
-                                                Aramayı Temizle
-                                            </button>
-                                        </motion.div>
-                                    ) : (
-                                        <motion.div 
-                                            className="products-grid" 
-                                            style={{ padding: 0 }}
-                                            variants={gridVariants}
-                                            initial="hidden"
-                                            animate="show"
-                                        >
-                                            {filteredProducts.map(p => (
+                                        <div className="products-grid" style={{ padding: 0 }}>
+                                            {catProducts.map(p => (
                                                 <ProductItemCard 
                                                     key={p.id} 
                                                     product={p} 
@@ -761,12 +693,52 @@ export default function TableDetailView() {
                                                     onAdd={(e) => handleAddToCart(p, e)} 
                                                 />
                                             ))}
-                                        </motion.div>
-                                    )}
-                                </>
-                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </motion.div>
-                    </AnimatePresence>
+                    ) : (
+                        <>
+                            {filteredProducts.length === 0 ? (
+                                <motion.div 
+                                    className="empty-menu-search"
+                                    initial={{ opacity: 0, scale: 0.96 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    transition={{ duration: 0.15 }}
+                                >
+                                    <div className="empty-search-icon">🔍</div>
+                                    <div className="empty-search-title">"{menuSearch}" ile lezzet bulunamadı</div>
+                                    <p className="empty-search-desc">Lütfen arama kelimenizi kontrol edin veya filtreyi sıfırlayın.</p>
+                                    <button 
+                                        type="button" 
+                                        className="empty-search-clear-btn"
+                                        onClick={() => setMenuSearch('')}
+                                    >
+                                        Aramayı Temizle
+                                    </button>
+                                </motion.div>
+                            ) : (
+                                <motion.div 
+                                    key={selectedCategory + (menuSearch || '')}
+                                    className="products-grid" 
+                                    style={{ padding: 0 }}
+                                    variants={menuGridVariants}
+                                    initial="initial"
+                                    animate="animate"
+                                >
+                                    {filteredProducts.map(p => (
+                                        <ProductItemCard 
+                                            key={p.id} 
+                                            product={p} 
+                                            inCartCount={cartItemCounts[p.id] || 0}
+                                            onAdd={(e) => handleAddToCart(p, e)} 
+                                        />
+                                    ))}
+                                </motion.div>
+                            )}
+                        </>
+                    )}
                 </div>
             </section>
 
@@ -927,49 +899,49 @@ export default function TableDetailView() {
     );
 }
 
-// 21st / Motion Variants
-const gridVariants = {
-    hidden: { opacity: 0 },
-    show: {
+// Ultra-snappy 21st / Motion Variants (Zero Dead-Delay, Fast Cascade)
+const menuGridVariants = {
+    initial: { opacity: 0 },
+    animate: {
         opacity: 1,
         transition: {
-            staggerChildren: 0.02,
-            delayChildren: 0.01
+            staggerChildren: 0.022,
+            delayChildren: 0
         }
     }
 };
 
-const cardVariants = {
-    hidden: { opacity: 0, y: 10, scale: 0.97 },
-    show: { 
+const menuCardVariants = {
+    initial: { opacity: 0, y: 14, scale: 0.96 },
+    animate: { 
         opacity: 1, 
         y: 0, 
         scale: 1,
         transition: { 
             type: 'spring', 
-            stiffness: 420, 
-            damping: 26 
+            stiffness: 520, 
+            damping: 28,
+            mass: 0.65
         } 
     }
 };
 
-// 21st / Motion Modern Product Card
+// 21st / Motion Modern Product Card (Snappy Cascade Animation & Tactile Tap)
 function ProductItemCard({ product, onAdd, inCartCount = 0 }) {
     const isInstant = isInstantDeliveryCategory(product.category_id, product.name);
     const isOutOfStock = product.active === false;
 
     return (
         <motion.div 
-            variants={cardVariants}
+            variants={menuCardVariants}
             className={`modern-product-card ${isOutOfStock ? 'is-out-of-stock' : ''} ${inCartCount > 0 ? 'has-in-cart' : ''}`} 
             onClick={isOutOfStock ? undefined : onAdd} 
             style={{ 
                 opacity: isOutOfStock ? 0.42 : 1,
                 cursor: isOutOfStock ? 'not-allowed' : 'pointer'
             }}
-            whileHover={isOutOfStock ? {} : { y: -4, scale: 1.018 }}
-            whileTap={isOutOfStock ? {} : { scale: 0.94 }}
-            transition={{ type: 'spring', stiffness: 450, damping: 24 }}
+            whileHover={isOutOfStock ? {} : { y: -3, scale: 1.015 }}
+            whileTap={isOutOfStock ? {} : { scale: 0.95 }}
         >
             {/* 21st.dev Specular Top Highlight Glow */}
             <div className="card-top-glow" />

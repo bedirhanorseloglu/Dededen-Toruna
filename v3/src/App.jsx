@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CheckCircle2, AlertTriangle, AlertCircle, Info, X } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
 import Navbar from './components/Navbar';
 import LoginView from './views/LoginView';
@@ -12,7 +13,15 @@ import { registerServiceWorker, requestNotificationPermission } from './services
 import { unlockAudioContext } from './services/audioService';
 
 function AppContent() {
-    const { currentUser, currentView, selectedTableId, toast, confirmModal } = useApp();
+    const { currentUser, currentView, selectedTableId, toasts = [], hideToast, confirmModal } = useApp();
+    const [isToastHovered, setIsToastHovered] = useState(false);
+    const [isToastManuallyExpanded, setIsToastManuallyExpanded] = useState(false);
+
+    useEffect(() => {
+        if (toasts.length <= 1) {
+            setIsToastManuallyExpanded(false);
+        }
+    }, [toasts.length]);
 
     useEffect(() => {
         registerServiceWorker();
@@ -45,14 +54,34 @@ function AppContent() {
         }
     };
 
-    const getToastBadge = (type) => {
+    const getToastMeta = (type) => {
         switch (type) {
-            case 'warning': return { char: '🔔', className: 'warning' };
+            case 'warning': 
+                return { 
+                    icon: <AlertTriangle size={18} strokeWidth={2.5} />, 
+                    className: 'warning',
+                    color: '#f59e0b'
+                };
             case 'danger':
-            case 'error': return { char: '✕', className: 'danger' };
-            case 'info': return { char: 'ℹ️', className: 'info' };
+            case 'error': 
+                return { 
+                    icon: <AlertCircle size={18} strokeWidth={2.5} />, 
+                    className: 'danger',
+                    color: '#ef4444'
+                };
+            case 'info': 
+                return { 
+                    icon: <Info size={18} strokeWidth={2.5} />, 
+                    className: 'info',
+                    color: '#f97316'
+                };
             case 'success':
-            default: return { char: '✓', className: 'success' };
+            default: 
+                return { 
+                    icon: <CheckCircle2 size={18} strokeWidth={2.5} />, 
+                    className: 'success',
+                    color: '#10b981'
+                };
         }
     };
 
@@ -74,28 +103,96 @@ function AppContent() {
                 </AnimatePresence>
             </main>
 
-            {/* Apple Dynamic Island Floating Glass Toast Notification (Framer Motion) */}
-            <div className="toast-container">
-                <AnimatePresence>
-                    {toast && (
-                        <motion.div 
-                            key={toast.id || toast.message}
-                            className="toast-notification"
-                            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -16, scale: 0.95 }}
-                            transition={{ type: "spring", stiffness: 450, damping: 28 }}
-                        >
-                            <span className={`toast-icon-badge ${getToastBadge(toast.type).className}`}>
-                                {getToastBadge(toast.type).char}
-                            </span>
-                            <span style={{ letterSpacing: '-0.2px', fontWeight: 700 }}>
-                                {toast.message}
-                            </span>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
+            {/* Apple Dynamic Island & 21st.dev Modern Floating Toast Stack (Sonner Style Deck) */}
+            {toasts.length > 0 && (
+                <div className="toast-container">
+                    <div 
+                        className="toast-stack-wrapper"
+                        onMouseEnter={() => setIsToastHovered(true)}
+                        onMouseLeave={() => setIsToastHovered(false)}
+                    >
+                        <AnimatePresence mode="popLayout">
+                            {toasts.slice().reverse().map((t, index) => {
+                                const meta = getToastMeta(t.type);
+                                const isFront = index === 0;
+                                const isExpanded = (isToastHovered || isToastManuallyExpanded) && toasts.length > 1;
+
+                                // Katmanlı deste parametreleri:
+                                // Kapalıyken (collapsed): Arkadaki kartlar alttan 12px ve 23px hafifçe taşar (peeking)
+                                // Açıkken (expanded): Kartlar dikey liste olarak ayrılır (56px aralık)
+                                const y = isExpanded ? index * 56 : index * 12;
+                                const scale = isExpanded ? 1 : Math.max(0.88, 1 - index * 0.045);
+                                const opacity = isExpanded ? 1 : Math.max(0.68, 1 - index * 0.16);
+                                const zIndex = 50 - index;
+
+                                return (
+                                    <motion.div 
+                                        key={t.id}
+                                        layout
+                                        className={`modern-toast-notification ${meta.className}`}
+                                        style={{ zIndex, transformOrigin: 'center top' }}
+                                        initial={{ opacity: 0, y: -24, scale: 0.94 }}
+                                        animate={{ opacity, y, scale }}
+                                        exit={{ opacity: 0, y: -16, scale: 0.92 }}
+                                        transition={{ type: "spring", stiffness: 440, damping: 28, mass: 0.65 }}
+                                        whileHover={isExpanded ? { scale: 1.01 } : undefined}
+                                        onClick={() => {
+                                            if (toasts.length > 1 && !isExpanded) {
+                                                setIsToastManuallyExpanded(true);
+                                            }
+                                        }}
+                                    >
+                                        <div className="toast-specular-edge" />
+                                        <div className={`toast-icon-badge ${meta.className}`}>
+                                            {meta.icon}
+                                        </div>
+                                        <div className="toast-body">
+                                            <span className="toast-text">
+                                                {t.message}
+                                            </span>
+                                        </div>
+
+                                        {/* Birden fazla bildirim varsa öndeki kartta +N rozeti */}
+                                        {isFront && toasts.length > 1 && (
+                                            <span 
+                                                className="toast-stack-count"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setIsToastManuallyExpanded(prev => !prev);
+                                                }}
+                                                title="Tüm bildirimleri aç/kapat"
+                                            >
+                                                +{toasts.length - 1}
+                                            </span>
+                                        )}
+
+                                        <button 
+                                            type="button" 
+                                            className="toast-dismiss-btn" 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                hideToast(t.id);
+                                            }}
+                                            title="Kapat"
+                                        >
+                                            <X size={14} strokeWidth={2.4} />
+                                        </button>
+
+                                        {isFront && (
+                                            <motion.div 
+                                                className={`toast-progress-bar ${meta.className}`}
+                                                initial={{ scaleX: 1 }}
+                                                animate={{ scaleX: 0 }}
+                                                transition={{ duration: (t.duration || 3500) / 1000, ease: 'linear' }}
+                                            />
+                                        )}
+                                    </motion.div>
+                                );
+                            })}
+                        </AnimatePresence>
+                    </div>
+                </div>
+            )}
 
             {/* Modern Evrensel Onay Modalı */}
             {confirmModal && <ConfirmModal {...confirmModal} />}
