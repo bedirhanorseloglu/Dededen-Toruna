@@ -43,7 +43,10 @@ import {
     Receipt,
     Tag,
     Zap,
-    User
+    User,
+    LayoutGrid,
+    ChevronDown,
+    Check
 } from 'lucide-react';
 import DiscountModal from '../components/DiscountModal';
 import QuickAmountModal from '../components/QuickAmountModal';
@@ -75,6 +78,10 @@ export default function TableDetailView() {
     
     // Responsive Mobile Bottom Sheet State
     const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+
+    // Kategori Seçim Modalı & Görünüm Modu (Yana kaydırmasız hızlı sipariş)
+    const [showCategoryModal, setShowCategoryModal] = useState(false);
+    const [categoryViewMode, setCategoryViewMode] = useState('grid');
 
     // Modals
     const [noteModalItemIdx, setNoteModalItemIdx] = useState(null);
@@ -617,8 +624,54 @@ export default function TableDetailView() {
                         )}
                     </div>
 
-                    {/* Modern 21st Minimalist Tab Grid with Border Glow & Underline */}
-                    <div className="modern-category-grid">
+                    {/* Mobilde Yana Kaydırmayı Önleyen Hızlı Kategori Seçim Barı */}
+                    <div className="category-quick-nav-bar">
+                        {/* Kategori Seç Butonu (Tıklayınca tüm kategoriler 3 sütunlu ferah panelde açılır) */}
+                        <button
+                            type="button"
+                            className="category-sheet-trigger-btn"
+                            onClick={() => setShowCategoryModal(true)}
+                            title="Tüm Kategorileri Gör ve Seç"
+                        >
+                            <span className="cat-trigger-icon">
+                                {selectedCategory === 'all' ? '🍽️' : (MENU_CATEGORIES.find(c => c.id === selectedCategory)?.icon || '📂')}
+                            </span>
+                            <span className="cat-trigger-text">
+                                {selectedCategory === 'all' ? 'Tüm Kategoriler' : MENU_CATEGORIES.find(c => c.id === selectedCategory)?.name}
+                            </span>
+                            <span className="cat-trigger-badge">
+                                {selectedCategory === 'all' ? currentProducts.length : (categoryCounts[selectedCategory] || 0)}
+                            </span>
+                            <ChevronDown size={14} className="cat-trigger-arrow" />
+                        </button>
+
+                        {/* Hızlı Tümü Kısayolu */}
+                        <button
+                            type="button"
+                            className={`category-quick-all-btn ${selectedCategory === 'all' ? 'active' : ''}`}
+                            onClick={() => {
+                                setSelectedCategory('all');
+                                setMenuSearch('');
+                            }}
+                        >
+                            <span>🍽️ Tümü</span>
+                            <span className="cat-quick-badge">{currentProducts.length}</span>
+                        </button>
+
+                        {/* Izgara / Kompakt Görünüm Değiştirici */}
+                        <button
+                            type="button"
+                            className={`category-view-toggle-btn ${categoryViewMode === 'grid' ? 'active' : ''}`}
+                            onClick={() => setCategoryViewMode(prev => prev === 'grid' ? 'bar' : 'grid')}
+                            title={categoryViewMode === 'grid' ? "Kategorileri Gizle / Kompakt Çubuk" : "Tüm Kategorileri Izgara Yap"}
+                        >
+                            <LayoutGrid size={13} />
+                            <span>{categoryViewMode === 'grid' ? 'Izgara' : 'Kompakt'}</span>
+                        </button>
+                    </div>
+
+                    {/* Modern Category Grid: Ekranda 4 sütunlu (mobilde 3 sütunlu) ferah yerleşim - ASLA yana kaydırılmaz! */}
+                    <div className={`modern-category-grid ${categoryViewMode === 'grid' ? 'grid-expanded' : 'grid-compact'}`}>
                         <button
                             type="button"
                             className={`modern-cat-pill ${selectedCategory === 'all' ? 'active' : ''}`}
@@ -795,6 +848,95 @@ export default function TableDetailView() {
                 onPrintCustomerBill={handlePrintCustomerBill}
                 onCheckout={handleCheckout}
             />
+
+            {/* KATEGORİ SEÇİM MODALI / SAYFASI (Yana kaydırmasız 1-tıkla kategori seçici) */}
+            <AnimatePresence>
+                {showCategoryModal && (
+                    <div 
+                        className="modal-overlay open" 
+                        style={{ display: 'flex', opacity: 1, zIndex: 2500 }}
+                        onClick={() => setShowCategoryModal(false)}
+                    >
+                        <motion.div 
+                            className="category-sheet-modal"
+                            initial={{ opacity: 0, y: 40, scale: 0.96 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 30, scale: 0.96 }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="category-sheet-header">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div className="cat-sheet-icon-circle">
+                                        <LayoutGrid size={18} />
+                                    </div>
+                                    <div>
+                                        <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
+                                            Kategori Seçin
+                                        </h3>
+                                        <p style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.55)', margin: 0 }}>
+                                            Kaydırmadan tek dokunuşla seçin
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    className="search-clear-btn"
+                                    onClick={() => setShowCategoryModal(false)}
+                                    title="Kapat"
+                                    style={{ width: '32px', height: '32px' }}
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            <div className="category-sheet-grid">
+                                {/* Tümü Seçeneği */}
+                                <button
+                                    type="button"
+                                    className={`category-sheet-card ${selectedCategory === 'all' ? 'active' : ''}`}
+                                    onClick={() => {
+                                        setSelectedCategory('all');
+                                        setMenuSearch('');
+                                        setShowCategoryModal(false);
+                                    }}
+                                >
+                                    <span className="cat-sheet-icon">🍽️</span>
+                                    <span className="cat-sheet-title">Tümü</span>
+                                    <span className="cat-sheet-count">{currentProducts.length} Lezzet</span>
+                                    {selectedCategory === 'all' && (
+                                        <Check size={16} className="cat-sheet-check" />
+                                    )}
+                                </button>
+
+                                {MENU_CATEGORIES.map(cat => {
+                                    const count = categoryCounts[cat.id] || 0;
+                                    const isSelected = selectedCategory === cat.id;
+                                    return (
+                                        <button
+                                            key={cat.id}
+                                            type="button"
+                                            className={`category-sheet-card ${isSelected ? 'active' : ''}`}
+                                            onClick={() => {
+                                                setSelectedCategory(cat.id);
+                                                setMenuSearch('');
+                                                setShowCategoryModal(false);
+                                            }}
+                                        >
+                                            <span className="cat-sheet-icon">{cat.icon}</span>
+                                            <span className="cat-sheet-title">{cat.name}</span>
+                                            <span className="cat-sheet-count">{count} Ürün</span>
+                                            {isSelected && (
+                                                <Check size={16} className="cat-sheet-check" />
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
             {/* MODAL 1: NOTE MODAL */}
             {noteModalItemIdx !== null && (

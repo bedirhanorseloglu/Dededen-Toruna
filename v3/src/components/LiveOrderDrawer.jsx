@@ -95,26 +95,27 @@ export default function LiveOrderDrawer({
             />
 
             {/* Header: CANLI ADİSYON Badge, Masa No, Taşı, Böl, Kapat */}
-            <div style={{
-                padding: '16px 20px',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-                background: 'rgba(255, 255, 255, 0.015)'
-            }}>
+            <div className="receipt-header-unified">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                        <div className="modern-receipt-badge" style={{ marginBottom: '4px' }}>
-                            <span className="live-pulse-dot is-amber" style={{ width: '6px', height: '6px' }} />
-                            <span>CANLI ADİSYON</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <div>
+                            <div className="modern-receipt-badge" style={{ marginBottom: '2px' }}>
+                                <span className="live-pulse-dot is-amber" style={{ width: '6px', height: '6px' }} />
+                                <span>CANLI ADİSYON</span>
+                            </div>
+                            <h2 className="receipt-table-title" style={{ fontSize: '20px', fontWeight: 800, letterSpacing: '-0.4px', margin: 0, color: '#FFFFFF' }}>
+                                Masa {tableNo}
+                            </h2>
                         </div>
-                        <h2 style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.4px', margin: 0, color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            Masa {tableNo}
-                        </h2>
+
+                        {/* Mobile Waiter Inline Badge */}
+                        <div className="receipt-waiter-inline-mobile">
+                            <span className="waiter-mini-avatar">{waiterInitial}</span>
+                            <span className="waiter-mini-name">{cleanWaiterName}</span>
+                        </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         {onMove && (
                             <motion.button
                                 whileHover={{ scale: 1.05 }}
@@ -156,8 +157,8 @@ export default function LiveOrderDrawer({
                     </div>
                 </div>
 
-                {/* Sorumlu Garson Bento Capsule (Reference 1) */}
-                <div className="receipt-waiter-bento">
+                {/* Sorumlu Garson Bento Capsule (Desktop Reference 1) */}
+                <div className="receipt-waiter-bento receipt-waiter-desktop">
                     <div className="receipt-waiter-bento-left">
                         <div className="receipt-waiter-avatar">
                             {waiterInitial}
@@ -652,11 +653,7 @@ export default function LiveOrderDrawer({
                             <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.4px', textTransform: 'uppercase' }}>
                                 GENEL TUTAR
                             </div>
-                            {totalCount > 0 && (
-                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '3px', background: 'rgba(255, 255, 255, 0.05)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', color: '#cbd5e1', fontWeight: 600 }}>
-                                    {items.reduce((s, i) => s + (Number(i.quantity) || 1), 0)} Kalem Sipariş
-                                </div>
-                            )}
+
                         </div>
                         <div style={{ textAlign: 'right' }}>
                             <span className="receipt-total-price-glow">
@@ -666,54 +663,102 @@ export default function LiveOrderDrawer({
                     </div>
                 )}
 
-                {/* Satır 1: Sipariş Ekle & İndirim / İkram (Reference 1) */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                {/* DESKTOP ACTIONS */}
+                <div className="receipt-actions-desktop">
+                    {/* Satır 1: Sipariş Ekle & İndirim / İkram (Reference 1) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                        <motion.button
+                            whileHover={{ scale: 1.02, y: -1 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => {
+                                if (onNavigateToTable) {
+                                    onNavigateToTable(tableNo);
+                                }
+                            }}
+                            className="receipt-btn-add-order"
+                        >
+                            <Plus size={15} />
+                            <span>Sipariş Ekle</span>
+                            <ArrowUpRight size={13} style={{ opacity: 0.7 }} />
+                        </motion.button>
+
+                        {onOpenDiscount && (
+                            <motion.button
+                                whileHover={{ scale: 1.02, y: -1 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={onOpenDiscount}
+                                disabled={totalCount === 0}
+                                style={{ opacity: totalCount === 0 ? 0.45 : 1, cursor: totalCount === 0 ? 'not-allowed' : 'pointer' }}
+                                className={`receipt-btn-discount ${orderDiscount > 0 ? 'active' : ''}`}
+                            >
+                                <Tag size={14} />
+                                <span>{orderDiscount > 0 ? `İndirim (${formatMoney(orderDiscount)})` : 'İndirim / İkram'}</span>
+                            </motion.button>
+                        )}
+                    </div>
+
+                    {/* Satır 2: Mutfak Fişi Yazdır (Reference 1 Thick Bar) */}
+                    {onPrintKitchen && (
+                        <div>
+                            <motion.button
+                                whileHover={{ scale: 1.015, y: -1 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={onPrintKitchen}
+                                disabled={totalCount === 0}
+                                style={{ opacity: totalCount === 0 ? 0.45 : 1, cursor: totalCount === 0 ? 'not-allowed' : 'pointer' }}
+                                className="receipt-btn-kitchen-21"
+                            >
+                                <Printer size={17} />
+                                <span>Mutfak Fişi Yazdır</span>
+                            </motion.button>
+                        </div>
+                    )}
+                </div>
+
+                {/* MOBILE COMPACT ACTIONS (Single Row: Sipariş + İndirim + Mutfak Fişi) */}
+                <div className="receipt-actions-mobile">
                     <motion.button
-                        whileHover={{ scale: 1.02, y: -1 }}
-                        whileTap={{ scale: 0.98 }}
+                        whileTap={{ scale: 0.95 }}
                         onClick={() => {
                             if (onNavigateToTable) {
                                 onNavigateToTable(tableNo);
                             }
                         }}
-                        className="receipt-btn-add-order"
+                        className="receipt-mobile-chip-btn"
+                        title="Sipariş Menüsüne Git / Kapat"
                     >
-                        <Plus size={15} />
-                        <span>Sipariş Ekle</span>
-                        <ArrowUpRight size={13} style={{ opacity: 0.7 }} />
+                        <Plus size={14} />
+                        <span>Sipariş</span>
                     </motion.button>
 
                     {onOpenDiscount && (
                         <motion.button
-                            whileHover={{ scale: 1.02, y: -1 }}
-                            whileTap={{ scale: 0.98 }}
+                            whileTap={{ scale: 0.95 }}
                             onClick={onOpenDiscount}
                             disabled={totalCount === 0}
-                            style={{ opacity: totalCount === 0 ? 0.45 : 1, cursor: totalCount === 0 ? 'not-allowed' : 'pointer' }}
-                            className={`receipt-btn-discount ${orderDiscount > 0 ? 'active' : ''}`}
+                            style={{ opacity: totalCount === 0 ? 0.4 : 1 }}
+                            className={`receipt-mobile-chip-btn ${orderDiscount > 0 ? 'active' : ''}`}
+                            title="İndirim / İkram"
                         >
                             <Tag size={14} />
-                            <span>{orderDiscount > 0 ? `İndirim (${formatMoney(orderDiscount)})` : 'İndirim / İkram'}</span>
+                            <span>{orderDiscount > 0 ? formatMoney(orderDiscount) : 'İndirim'}</span>
+                        </motion.button>
+                    )}
+
+                    {onPrintKitchen && (
+                        <motion.button
+                            whileTap={{ scale: 0.95 }}
+                            onClick={onPrintKitchen}
+                            disabled={totalCount === 0}
+                            style={{ opacity: totalCount === 0 ? 0.4 : 1 }}
+                            className="receipt-mobile-chip-btn"
+                            title="Mutfak Fişi Yazdır"
+                        >
+                            <Printer size={14} />
+                            <span>Mutfak</span>
                         </motion.button>
                     )}
                 </div>
-
-                {/* Satır 2: Mutfak Fişi Yazdır (Reference 1 Thick Bar) */}
-                {onPrintKitchen && (
-                    <div>
-                        <motion.button
-                            whileHover={{ scale: 1.015, y: -1 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={onPrintKitchen}
-                            disabled={totalCount === 0}
-                            style={{ opacity: totalCount === 0 ? 0.45 : 1, cursor: totalCount === 0 ? 'not-allowed' : 'pointer' }}
-                            className="receipt-btn-kitchen-21"
-                        >
-                            <Printer size={17} />
-                            <span>Mutfak Fişi Yazdır</span>
-                        </motion.button>
-                    </div>
-                )}
 
                 {/* Satır 3: 3 Checkout Butonu (Nakit Kapat, Kart Kapat, Hesap Fişi - Reference 1) */}
                 <div className="checkout-actions-3col" style={{ marginTop: '2px' }}>
