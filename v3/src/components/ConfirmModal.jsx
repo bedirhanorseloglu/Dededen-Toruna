@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Trash2, AlertCircle, Info, X } from 'lucide-react';
 
@@ -69,7 +70,7 @@ export default function ConfirmModal({
 
     const cfg = getIconConfig();
 
-    return (
+    const modalContent = (
         <AnimatePresence>
             <div
                 style={{
@@ -78,7 +79,7 @@ export default function ConfirmModal({
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    zIndex: 9999,
+                    zIndex: 10000000,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -284,4 +285,9 @@ export default function ConfirmModal({
             </div>
         </AnimatePresence>
     );
+
+    if (typeof document !== 'undefined') {
+        return createPortal(modalContent, document.body);
+    }
+    return modalContent;
 }

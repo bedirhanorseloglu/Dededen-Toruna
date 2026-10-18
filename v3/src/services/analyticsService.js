@@ -65,7 +65,7 @@ export async function recordCompletedOrder(order, paymentMethod = 'cash') {
 
         let cleanWaiterName = order.waiter_name;
         if (!cleanWaiterName || cleanWaiterName === 'undefined' || cleanWaiterName === 'null') {
-            cleanWaiterName = isManager ? 'Yönetici (Patron)' : 'Garson';
+            cleanWaiterName = isManager ? 'Yönetici' : 'Garson';
         }
 
         const discountAmount = Number(order.discount || 0);

@@ -1,36 +1,28 @@
 import StaffPerformanceModal from './StaffPerformanceModal';
 import React, { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { formatMoney } from '../data/menu';
 import { db, doc, updateDoc } from '../config/firebase';
 import { 
     Users, 
     UserPlus, 
-    Shield, 
-    ChefHat, 
+    ShieldCheck,
+    Crown,
     Smartphone, 
     Search, 
-    Key, 
+    KeyRound,
     Trash2, 
     Eye, 
     EyeOff, 
     LayoutGrid, 
     List, 
     Phone,
-    TrendingUp,
-    UtensilsCrossed,
-    Clock,
-    Calendar,
-    CalendarDays,
-    RotateCcw,
-    X,
     ShoppingBag,
-    Receipt,
-    ChevronRight,
-    CreditCard,
-    Banknote,
     BarChart3,
-    ArrowUpRight,
-    Award
+    Check,
+    Copy,
+    X,
+    Calendar
 } from 'lucide-react';
 
 export default function AdminStaffManagement({
@@ -47,11 +39,12 @@ export default function AdminStaffManagement({
     showConfirm,
     showToast
 }) {
-    // Filtreler: 'all' | 'waiter' | 'kitchen' | 'admin'
+    // Filtreler: 'all' | 'waiter' | 'admin'
     const [selectedRoleFilter, setSelectedRoleFilter] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'table'
     const [revealedPins, setRevealedPins] = useState({}); // { [staffId]: boolean }
+    const [copiedPinId, setCopiedPinId] = useState(null);
 
     // Garson / Personel Performans Modalı State'leri
     const [selectedStaffForPerformance, setSelectedStaffForPerformance] = useState(null);
@@ -63,11 +56,53 @@ export default function AdminStaffManagement({
         setRevealedPins(prev => ({ ...prev, [id]: !prev[id] }));
     };
 
-    // Tüm personelleri tek bir listede birleştir (Mutfak pasifize edildiği için Garsonlar & Yöneticiler)
+    // PIN panoya kopyalama
+    const handleCopyPin = (e, staff) => {
+        e.stopPropagation();
+        if (!staff.pin) return;
+        navigator.clipboard?.writeText(staff.pin);
+        setCopiedPinId(staff.id);
+        if (showToast) showToast(`${staff.name} PIN kodu kopyalandı (${staff.pin})`, 'success');
+        setTimeout(() => setCopiedPinId(null), 2000);
+    };
+
+    // İsimden baş harf türetme (Parantezleri ve Patron yazısını temizler)
+    const getInitials = (name) => {
+        if (!name) return 'P';
+        const clean = name.replace(/\(.*?\)/g, '').trim();
+        const parts = clean.split(/\s+/).filter(Boolean);
+        if (parts.length === 0) return 'P';
+        if (parts.length === 1) return parts[0].slice(0, 2).toLocaleUpperCase('tr-TR');
+        return (parts[0][0] + parts[parts.length - 1][0]).toLocaleUpperCase('tr-TR');
+    };
+
+    // Tüm personelleri tek listede birleştir (Dededen Toruna Sıcak Renk Paleti)
     const allStaff = useMemo(() => {
         const list = [
-            ...managersList.map(m => ({ ...m, role: 'admin', roleLabel: 'Yönetici', icon: '👑', color: '#f59e0b', tagBg: 'rgba(245, 158, 11, 0.15)' })),
-            ...waitersList.map(w => ({ ...w, role: 'waiter', roleLabel: 'Garson', icon: '📱', color: '#10b981', tagBg: 'rgba(16, 185, 129, 0.15)' }))
+            ...managersList.map(m => {
+                const cleanName = String(m.name || '').replace(/\s*\(Patron\)/gi, '').trim() || 'Yönetici';
+                const cleanPhone = (m.phone === '0532 100 20 30' || m.phone === '05321002030') ? '' : (m.phone || '');
+                return { 
+                    ...m, 
+                    name: cleanName,
+                    phone: cleanPhone,
+                    role: 'admin', 
+                    roleLabel: 'Yönetici', 
+                    color: '#f59f00', // Kehribar Sarısı
+                    gradient: 'linear-gradient(135deg, rgba(245, 159, 0, 0.25) 0%, rgba(217, 119, 6, 0.12) 100%)',
+                    borderColor: 'rgba(245, 159, 0, 0.35)',
+                    tagBg: 'rgba(245, 159, 0, 0.12)'
+                };
+            }),
+            ...waitersList.map(w => ({ 
+                ...w, 
+                role: 'waiter', 
+                roleLabel: 'Garson', 
+                color: '#f76707', // Fırın Karamel Turuncusu
+                gradient: 'linear-gradient(135deg, rgba(247, 103, 7, 0.25) 0%, rgba(217, 72, 15, 0.12) 100%)',
+                borderColor: 'rgba(247, 103, 7, 0.35)',
+                tagBg: 'rgba(247, 103, 7, 0.12)'
+            }))
         ];
 
         return list.filter(item => {
@@ -102,7 +137,6 @@ export default function AdminStaffManagement({
         const staffNameLower = String(staff.name || '').trim().toLowerCase();
         const staffIdStr = String(staff.id || '').trim();
 
-        // 1. Personele ait tüm tamamlanan siparişleri filtrele
         const staffOrders = (completedOrders || []).filter(o => {
             const oWaiterId = String(o.waiter_id || '').trim();
             const oWaiterName = String(o.waiter_name || '').trim().toLowerCase();
@@ -113,7 +147,6 @@ export default function AdminStaffManagement({
             return false;
         });
 
-        // 2. Zaman aralığı filtresi
         const now = new Date();
         const y = now.getFullYear();
         const m = now.getMonth();
@@ -138,16 +171,14 @@ export default function AdminStaffManagement({
             if (perfPeriod === 'month') {
                 return (dateStr && dateStr.startsWith(monthStr)) || (t && t >= startOfMonth);
             }
-            return true; // 'all'
+            return true;
         });
 
-        // 3. Metrik hesaplamaları
         let periodRevenue = filteredOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
         let periodOrdersCount = filteredOrders.length;
         let periodCashRevenue = filteredOrders.reduce((sum, o) => sum + (o.payment_method === 'cash' ? (Number(o.total) || 0) : 0), 0);
         let periodCardRevenue = filteredOrders.reduce((sum, o) => sum + (o.payment_method === 'card' ? (Number(o.total) || 0) : 0), 0);
 
-        // Eğer 'all' seçiliyse ve sipariş listesi boşsa, personelin statik sayacını fallback yap
         if (perfPeriod === 'all' && periodOrdersCount === 0) {
             periodRevenue = Number(staff.total_revenue) || 0;
             periodOrdersCount = Number(staff.total_orders_count) || 0;
@@ -155,7 +186,6 @@ export default function AdminStaffManagement({
 
         const avgOrder = periodOrdersCount > 0 ? (periodRevenue / periodOrdersCount) : 0;
 
-        // Ürün bazlı satış analizi
         const productMap = {};
         let totalItemsSold = 0;
         filteredOrders.forEach(o => {
@@ -174,7 +204,6 @@ export default function AdminStaffManagement({
 
         const topProducts = Object.values(productMap).sort((a, b) => b.quantity - a.quantity).slice(0, 10);
 
-        // Siparişleri yeniden eskiye sırala
         const sortedOrders = [...filteredOrders].sort((a, b) => {
             const ta = new Date(a.closed_at || a.created_at || 0).getTime();
             const tb = new Date(b.closed_at || b.created_at || 0).getTime();
@@ -195,12 +224,12 @@ export default function AdminStaffManagement({
         };
     }, [selectedStaffForPerformance, completedOrders, perfPeriod]);
 
-    // Personel Sayaç Sıfırlama (Firestore Document Update)
+    // Personel Sayaç Sıfırlama
     const handleResetStaffStats = async (staff, e) => {
         if (e) e.stopPropagation();
         if (!staff) return;
 
-        const collectionName = staff.role === 'admin' ? 'managers' : (staff.role === 'kitchen' ? 'kitchen_staff' : 'waiters');
+        const collectionName = staff.role === 'admin' ? 'managers' : 'waiters';
 
         const doReset = async () => {
             setIsResettingStats(true);
@@ -216,7 +245,7 @@ export default function AdminStaffManagement({
                     total_orders_count: 0,
                     total_items_sold: 0
                 }) : null);
-                if (showToast) showToast(`${staff.name} isimli personelin ciro ve sipariş sayaçları sıfırlandı!`, 'success');
+                if (showToast) showToast(`${staff.name} sayaçları sıfırlandı!`, 'success');
             } catch (err) {
                 console.error("Staff stats reset error:", err);
                 if (showToast) showToast('Sayaç sıfırlanırken hata oluştu.', 'error');
@@ -227,163 +256,241 @@ export default function AdminStaffManagement({
 
         if (showConfirm) {
             const ok = await showConfirm({
-                title: `${staff.name} Personel Sayacını Sıfırla`,
-                message: `"${staff.name}" adlı personelin toplam ciro ve sipariş adet sayaçları 0,00 ₺ olarak sıfırlanacaktır. Bu işlem geri alınamaz. Onaylıyor musunuz?`,
+                title: `${staff.name} Sayacını Sıfırla`,
+                message: `"${staff.name}" adlı personelin toplam ciro ve sipariş sayaçları 0 olarak sıfırlanacaktır. Bu işlem geri alınamaz. Onaylıyor musunuz?`,
                 confirmText: 'Evet, Sıfırla',
                 cancelText: 'Vazgeç',
                 variant: 'danger'
             });
             if (ok) await doReset();
         } else {
-            if (window.confirm(`${staff.name} personelinin ciro sayacını sıfırlamak istediğinize emin misiniz?`)) {
+            if (window.confirm(`${staff.name} personelinin sayacını sıfırlamak istiyor musunuz?`)) {
                 await doReset();
             }
         }
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
-            {/* Üst Başlık & Aksiyon Butonları */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            {/* 1. ÜST HEADER: Sıcak Karamel & Kehribar Bar */}
             <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 flexWrap: 'wrap',
                 gap: '14px',
-                background: 'var(--bg-surface)',
-                padding: '18px 22px',
-                borderRadius: 'var(--radius-lg)',
-                border: '1px solid var(--border-card)',
-                boxShadow: 'var(--shadow-soft)'
+                background: 'rgba(28, 21, 20, 0.75)',
+                backdropFilter: 'blur(16px)',
+                padding: '16px 20px',
+                borderRadius: '16px',
+                border: '1px solid rgba(245, 159, 0, 0.14)'
             }}>
-                <div>
-                    <h2 style={{ fontSize: '20px', fontWeight: 900, margin: 0, color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ color: 'var(--brand-gold)' }}>👥</span> Personel & Ekip Yönetimi
-                    </h2>
-                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                        Garsonlar, mutfak şefleri ve yöneticilerin sisteme giriş PIN kodları, yetkileri ve performans raporları
-                    </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '12px',
+                        background: 'rgba(247, 103, 7, 0.15)',
+                        border: '1px solid rgba(247, 103, 7, 0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#f76707'
+                    }}>
+                        <Users size={20} />
+                    </div>
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <h2 style={{ 
+                                fontSize: '18px', 
+                                fontWeight: 800, 
+                                margin: 0, 
+                                color: '#fffaf5', 
+                                letterSpacing: '-0.02em',
+                                fontFamily: "'Plus Jakarta Sans', sans-serif"
+                            }}>
+                                Personel & PIN Yönetimi
+                            </h2>
+                            <span style={{
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                color: '#f59f00',
+                                background: 'rgba(245, 159, 0, 0.12)',
+                                border: '1px solid rgba(245, 159, 0, 0.25)',
+                                padding: '2px 8px',
+                                borderRadius: '12px'
+                            }}>
+                                {totalStaffCount} Aktif
+                            </span>
+                        </div>
+                        <p style={{ 
+                            fontSize: '12px', 
+                            color: 'var(--text-secondary, #d1b8af)', 
+                            margin: '2px 0 0 0'
+                        }}>
+                            Çalışan PIN kodları, yetkilendirmeler ve canlı performans raporları
+                        </p>
+                    </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <button 
-                        className="btn-primary" 
-                        style={{ padding: '10px 18px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                        onClick={() => handleOpenAddModal('waiter')}
-                    >
-                        <UserPlus size={16} />
-                        Yeni Personel Ekle
-                    </button>
-                </div>
+                {/* Yeni Personel Ekle Butonu */}
+                <motion.button 
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleOpenAddModal('waiter')}
+                    style={{
+                        padding: '10px 18px',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '7px',
+                        background: 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '10px',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 14px rgba(247, 103, 7, 0.35)'
+                    }}
+                >
+                    <UserPlus size={15} />
+                    <span>Yeni Personel Ekle</span>
+                </motion.button>
             </div>
 
-            {/* 4 ÖZET KPI KARTI */}
+            {/* 2. ZARİF VE MİNİMAL METRİK BAR (Uyumlu Sıcak Tonlar) */}
             <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-                gap: '14px'
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '12px'
             }}>
-                {/* 1. Toplam Ekip */}
-                <div style={{
-                    background: 'var(--bg-surface)',
-                    border: '1px solid var(--border-card)',
-                    borderRadius: 'var(--radius-lg)',
-                    padding: '16px 18px',
-                    boxShadow: 'var(--shadow-soft)'
-                }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Toplam Kadro</span>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(255, 255, 255, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-                            <Users size={17} />
-                        </div>
+                {/* 1. Toplam */}
+                <div 
+                    onClick={() => setSelectedRoleFilter('all')}
+                    style={{
+                        background: selectedRoleFilter === 'all' ? 'rgba(245, 159, 0, 0.12)' : 'rgba(28, 21, 20, 0.6)',
+                        border: selectedRoleFilter === 'all' ? '1px solid rgba(245, 159, 0, 0.4)' : '1px solid rgba(255, 255, 255, 0.06)',
+                        borderRadius: '14px',
+                        padding: '12px 16px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                    }}
+                >
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary, #d1b8af)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Toplam Kadro
                     </div>
-                    <div style={{ fontSize: '26px', fontWeight: 900, color: 'white' }}>{totalStaffCount} Kişi</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Restoran aktif personeli</div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#fffaf5', marginTop: '2px' }}>
+                        {totalStaffCount} <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-muted, #8d736b)' }}>Çalışan</span>
+                    </div>
                 </div>
 
                 {/* 2. Garsonlar */}
                 <div 
                     onClick={() => setSelectedRoleFilter('waiter')}
                     style={{
-                        background: selectedRoleFilter === 'waiter' ? 'rgba(16, 185, 129, 0.08)' : 'var(--bg-surface)',
-                        border: selectedRoleFilter === 'waiter' ? '1px solid #10b981' : '1px solid var(--border-card)',
-                        borderRadius: 'var(--radius-lg)',
-                        padding: '16px 18px',
-                        boxShadow: 'var(--shadow-soft)',
+                        background: selectedRoleFilter === 'waiter' ? 'rgba(247, 103, 7, 0.14)' : 'rgba(28, 21, 20, 0.6)',
+                        border: selectedRoleFilter === 'waiter' ? '1px solid rgba(247, 103, 7, 0.45)' : '1px solid rgba(255, 255, 255, 0.06)',
+                        borderRadius: '14px',
+                        padding: '12px 16px',
                         cursor: 'pointer',
                         transition: 'all 0.15s ease'
                     }}
                 >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Garsonlar</span>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
-                            <Smartphone size={17} />
-                        </div>
+                    <div style={{ fontSize: '11px', color: '#f76707', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Garsonlar
                     </div>
-                    <div style={{ fontSize: '26px', fontWeight: 900, color: '#10b981' }}>{waitersList.length} Garson</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Sipariş & masa servisi</div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#f76707', marginTop: '2px' }}>
+                        {waitersList.length} <span style={{ fontSize: '13px', fontWeight: 500, color: 'rgba(247, 103, 7, 0.7)' }}>Garson</span>
+                    </div>
                 </div>
 
                 {/* 3. Yöneticiler */}
                 <div 
                     onClick={() => setSelectedRoleFilter('admin')}
                     style={{
-                        background: selectedRoleFilter === 'admin' ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-surface)',
-                        border: selectedRoleFilter === 'admin' ? '1px solid var(--brand-gold)' : '1px solid var(--border-card)',
-                        borderRadius: 'var(--radius-lg)',
-                        padding: '16px 18px',
-                        boxShadow: 'var(--shadow-soft)',
+                        background: selectedRoleFilter === 'admin' ? 'rgba(245, 159, 0, 0.14)' : 'rgba(28, 21, 20, 0.6)',
+                        border: selectedRoleFilter === 'admin' ? '1px solid rgba(245, 159, 0, 0.45)' : '1px solid rgba(255, 255, 255, 0.06)',
+                        borderRadius: '14px',
+                        padding: '12px 16px',
                         cursor: 'pointer',
                         transition: 'all 0.15s ease'
                     }}
                 >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--brand-gold)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Yöneticiler</span>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand-gold)' }}>
-                            <Shield size={17} />
-                        </div>
+                    <div style={{ fontSize: '11px', color: '#f59f00', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Yöneticiler
                     </div>
-                    <div style={{ fontSize: '26px', fontWeight: 900, color: 'var(--brand-gold)' }}>{managersList.length} Yönetici</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Kasa & tam yetki</div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#f59f00', marginTop: '2px' }}>
+                        {managersList.length} <span style={{ fontSize: '13px', fontWeight: 500, color: 'rgba(245, 159, 0, 0.7)' }}>Yönetici</span>
+                    </div>
                 </div>
             </div>
 
-            {/* FİLTRE VE ARAMA KONTROL ÇUBUĞU */}
+            {/* 3. FİLTRE VE ARAMA ŞERİDİ */}
             <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 flexWrap: 'wrap',
                 gap: '12px',
-                background: 'var(--bg-surface)',
-                padding: '14px 18px',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border-card)'
+                padding: '2px 4px'
             }}>
-                {/* Sol: Rol Filtre Hapları */}
-                <div className="filter-pill-group" style={{ margin: 0 }}>
+                {/* Sol: Rol Seçiciler (Karamel / Kehribar Tasarım) */}
+                <div style={{ display: 'flex', gap: '6px' }}>
                     <button
-                        className={`filter-pill-btn ${selectedRoleFilter === 'all' ? 'active' : ''}`}
                         onClick={() => setSelectedRoleFilter('all')}
+                        style={{
+                            padding: '7px 14px',
+                            borderRadius: '10px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            border: selectedRoleFilter === 'all' ? '1px solid rgba(247, 103, 7, 0.5)' : '1px solid rgba(255, 255, 255, 0.08)',
+                            background: selectedRoleFilter === 'all' ? 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)' : 'rgba(28, 21, 20, 0.6)',
+                            color: selectedRoleFilter === 'all' ? '#ffffff' : 'var(--text-secondary, #d1b8af)',
+                            cursor: 'pointer',
+                            boxShadow: selectedRoleFilter === 'all' ? '0 2px 8px rgba(247, 103, 7, 0.3)' : 'none',
+                            transition: 'all 0.15s ease'
+                        }}
                     >
                         Tümü ({totalStaffCount})
                     </button>
                     <button
-                        className={`filter-pill-btn ${selectedRoleFilter === 'waiter' ? 'active' : ''}`}
                         onClick={() => setSelectedRoleFilter('waiter')}
+                        style={{
+                            padding: '7px 14px',
+                            borderRadius: '10px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            border: selectedRoleFilter === 'waiter' ? '1px solid rgba(247, 103, 7, 0.5)' : '1px solid rgba(255, 255, 255, 0.08)',
+                            background: selectedRoleFilter === 'waiter' ? 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)' : 'rgba(28, 21, 20, 0.6)',
+                            color: selectedRoleFilter === 'waiter' ? '#ffffff' : 'var(--text-secondary, #d1b8af)',
+                            cursor: 'pointer',
+                            boxShadow: selectedRoleFilter === 'waiter' ? '0 2px 8px rgba(247, 103, 7, 0.3)' : 'none',
+                            transition: 'all 0.15s ease'
+                        }}
                     >
-                        📱 Garsonlar ({waitersList.length})
+                        Garsonlar ({waitersList.length})
                     </button>
                     <button
-                        className={`filter-pill-btn ${selectedRoleFilter === 'admin' ? 'active' : ''}`}
                         onClick={() => setSelectedRoleFilter('admin')}
+                        style={{
+                            padding: '7px 14px',
+                            borderRadius: '10px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            border: selectedRoleFilter === 'admin' ? '1px solid rgba(245, 159, 0, 0.5)' : '1px solid rgba(255, 255, 255, 0.08)',
+                            background: selectedRoleFilter === 'admin' ? 'linear-gradient(135deg, #f59f00 0%, #d97706 100%)' : 'rgba(28, 21, 20, 0.6)',
+                            color: selectedRoleFilter === 'admin' ? '#ffffff' : 'var(--text-secondary, #d1b8af)',
+                            cursor: 'pointer',
+                            boxShadow: selectedRoleFilter === 'admin' ? '0 2px 8px rgba(245, 159, 0, 0.3)' : 'none',
+                            transition: 'all 0.15s ease'
+                        }}
                     >
-                        👑 Yöneticiler ({managersList.length})
+                        Yöneticiler ({managersList.length})
                     </button>
                 </div>
 
-                {/* Sağ: Canlı Arama & Görünüm Seçici */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {/* Sağ: Arama & Görünüm */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div style={{ position: 'relative' }}>
                         <input
                             type="text"
@@ -391,143 +498,148 @@ export default function AdminStaffManagement({
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             style={{
-                                padding: '8px 12px 8px 34px',
-                                background: 'var(--bg-surface-elevated)',
-                                border: '1px solid var(--border-card)',
-                                color: 'white',
-                                borderRadius: 'var(--radius-md)',
-                                fontSize: '13px',
-                                width: '210px'
+                                padding: '7px 28px 7px 30px',
+                                background: 'rgba(28, 21, 20, 0.8)',
+                                border: '1px solid rgba(255, 255, 255, 0.08)',
+                                color: '#fffaf5',
+                                borderRadius: '10px',
+                                fontSize: '12px',
+                                width: '200px',
+                                outline: 'none'
                             }}
                         />
-                        <Search size={14} style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                        <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted, #8d736b)' }} />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery('')}
+                                style={{ position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted, #8d736b)', cursor: 'pointer', padding: '2px' }}
+                            >
+                                <X size={12} />
+                            </button>
+                        )}
                     </div>
 
-                    {/* Grid / Tablo Görünüm Düğmeleri */}
-                    <div style={{ display: 'flex', background: 'var(--bg-surface-elevated)', padding: '3px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-card)' }}>
+                    <div style={{ display: 'flex', background: 'rgba(28, 21, 20, 0.8)', padding: '2px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
                         <button
                             onClick={() => setViewMode('grid')}
-                            title="Kart Görünümü"
                             style={{
-                                padding: '6px 10px',
+                                padding: '5px 8px',
                                 border: 'none',
-                                borderRadius: '6px',
-                                background: viewMode === 'grid' ? 'var(--brand-primary)' : 'transparent',
-                                color: viewMode === 'grid' ? 'white' : 'var(--text-muted)',
+                                borderRadius: '8px',
+                                background: viewMode === 'grid' ? 'rgba(247, 103, 7, 0.25)' : 'transparent',
+                                color: viewMode === 'grid' ? '#f76707' : 'var(--text-muted, #8d736b)',
                                 cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center'
+                                display: 'flex'
                             }}
                         >
-                            <LayoutGrid size={15} />
+                            <LayoutGrid size={14} />
                         </button>
                         <button
                             onClick={() => setViewMode('table')}
-                            title="Tablo Görünümü"
                             style={{
-                                padding: '6px 10px',
+                                padding: '5px 8px',
                                 border: 'none',
-                                borderRadius: '6px',
-                                background: viewMode === 'table' ? 'var(--brand-primary)' : 'transparent',
-                                color: viewMode === 'table' ? 'white' : 'var(--text-muted)',
+                                borderRadius: '8px',
+                                background: viewMode === 'table' ? 'rgba(247, 103, 7, 0.25)' : 'transparent',
+                                color: viewMode === 'table' ? '#f76707' : 'var(--text-muted, #8d736b)',
                                 cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center'
+                                display: 'flex'
                             }}
                         >
-                            <List size={15} />
+                            <List size={14} />
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* PERSONEL İÇERİĞİ: KARTLAR (GRID) VEYA TABLO (TABLE) */}
+            {/* 4. MİNİMALİST LÜKS PERSONEL KARTLARI (Sıcak Brand Teması) */}
             {allStaff.length === 0 ? (
                 <div style={{
-                    background: 'var(--bg-surface)',
-                    borderRadius: 'var(--radius-lg)',
-                    border: '1px solid var(--border-card)',
-                    padding: '48px 20px',
-                    textAlign: 'center'
+                    background: 'rgba(28, 21, 20, 0.6)',
+                    borderRadius: '16px',
+                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                    padding: '40px 20px',
+                    textAlign: 'center',
+                    color: 'var(--text-secondary, #d1b8af)'
                 }}>
-                    <Users size={36} style={{ color: 'var(--text-muted)', margin: '0 auto 12px auto', opacity: 0.5 }} />
-                    <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'white', margin: 0 }}>Personel Bulunamadı</h3>
-                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '4px 0 16px 0' }}>
-                        Arama kriterlerine uyan personel kaydı bulunmuyor.
-                    </p>
-                    <button 
-                        className="btn-primary" 
-                        style={{ padding: '8px 16px', fontSize: '13px' }}
-                        onClick={() => { setSearchQuery(''); setSelectedRoleFilter('all'); }}
-                    >
-                        Filtreleri Temizle
-                    </button>
+                    <Users size={32} style={{ opacity: 0.3, marginBottom: '8px' }} />
+                    <p style={{ margin: 0, fontSize: '13px' }}>Arama kriterlerine uygun personel bulunamadı.</p>
                 </div>
             ) : viewMode === 'grid' ? (
-                /* 1. MODERN RESPONSIVE KARTLAR (GRID MODU) */
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))',
-                    gap: '16px'
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                    gap: '14px'
                 }}>
-                    {allStaff.map(staff => {
+                    {allStaff.map((staff, idx) => {
                         const isPinVisible = !!revealedPins[staff.id];
-                        const displayPin = isPinVisible ? (staff.pin || '------') : '••••••';
+                        const isCopied = copiedPinId === staff.id;
+                        const initials = getInitials(staff.name);
 
                         return (
-                            <div
+                            <motion.div
                                 key={staff.id}
-                                onClick={() => {
-                                    setSelectedStaffForPerformance(staff);
-                                    setPerfPeriod('today');
-                                }}
+                                initial={{ opacity: 0, y: 12 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.2, delay: idx * 0.03 }}
+                                whileHover={{ y: -3 }}
                                 style={{
-                                    background: 'var(--bg-surface)',
-                                    borderRadius: 'var(--radius-lg)',
-                                    border: '1px solid var(--border-card)',
-                                    padding: '20px',
-                                    boxShadow: 'var(--shadow-soft)',
+                                    background: 'linear-gradient(180deg, #1c1514 0%, #140e0d 100%)',
+                                    backdropFilter: 'blur(16px)',
+                                    borderRadius: '18px',
+                                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                                    borderTop: '1px solid rgba(255, 255, 255, 0.16)',
+                                    padding: '20px 22px',
+                                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
                                     display: 'flex',
                                     flexDirection: 'column',
-                                    gap: '14px',
-                                    position: 'relative',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.borderColor = 'var(--brand-gold)';
-                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.35)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.borderColor = 'var(--border-card)';
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                    e.currentTarget.style.boxShadow = 'var(--shadow-soft)';
+                                    gap: '16px',
+                                    position: 'relative'
                                 }}
                             >
-                                {/* Kart Başlığı: Avatar, İsim & Rol Rozeti & Performans İpucu */}
-                                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
+                                {/* Kart Üstü: Yuvarlak Sıcak Avatar, İsim & Rapor Butonu */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                        {/* Renkli Avatar Baş Harfi */}
+                                        {/* Şık Yuvarlak Avatar */}
                                         <div style={{
                                             width: '44px',
                                             height: '44px',
-                                            borderRadius: '12px',
-                                            background: staff.tagBg,
-                                            border: `1px solid ${staff.color}40`,
+                                            borderRadius: '50%',
+                                            background: staff.gradient,
+                                            border: `1.5px solid ${staff.borderColor}`,
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
                                             color: staff.color,
-                                            fontSize: '18px',
-                                            fontWeight: 900
+                                            fontSize: '15px',
+                                            fontWeight: 800,
+                                            boxShadow: `0 0 16px ${staff.role === 'admin' ? 'rgba(245, 159, 0, 0.15)' : 'rgba(247, 103, 7, 0.15)'}`,
+                                            flexShrink: 0
                                         }}>
-                                            {staff.icon}
+                                            {initials}
                                         </div>
+
                                         <div>
-                                            <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: 'white' }}>
-                                                {staff.name}
-                                            </h3>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                                                <h3 style={{ 
+                                                    fontSize: '16px', 
+                                                    fontWeight: 800, 
+                                                    margin: 0, 
+                                                    color: '#fffaf5',
+                                                    letterSpacing: '-0.01em',
+                                                    fontFamily: "'Plus Jakarta Sans', sans-serif"
+                                                }}>
+                                                    {staff.name}
+                                                </h3>
+                                                <span style={{
+                                                    width: '6px',
+                                                    height: '6px',
+                                                    borderRadius: '50%',
+                                                    background: '#10b981',
+                                                    boxShadow: '0 0 6px #10b981'
+                                                }} />
+                                            </div>
+
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
                                                 <span style={{
                                                     fontSize: '10px',
@@ -535,142 +647,151 @@ export default function AdminStaffManagement({
                                                     color: staff.color,
                                                     background: staff.tagBg,
                                                     padding: '2px 7px',
-                                                    borderRadius: '4px',
-                                                    textTransform: 'uppercase'
+                                                    borderRadius: '5px',
+                                                    textTransform: 'uppercase',
+                                                    letterSpacing: '0.04em'
                                                 }}>
                                                     {staff.roleLabel}
                                                 </span>
-                                                <span style={{ fontSize: '11px', color: 'var(--success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
-                                                    Aktif
-                                                </span>
+                                                {staff.hire_date && (
+                                                    <span style={{ fontSize: '11px', color: 'var(--text-muted, #8d736b)' }}>
+                                                        • {new Date(staff.hire_date).getFullYear()}
+                                                    </span>
+                                                )}
                                             </div>
-                                            {staff.hire_date && (
-                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                    <span>📅</span>
-                                                    <span>İşe Giriş: {new Date(staff.hire_date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
 
-                                    {/* Performans İncele Rozeti */}
-                                    <div style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '4px',
-                                        fontSize: '11px',
-                                        fontWeight: 800,
-                                        color: 'var(--brand-gold)',
-                                        background: 'rgba(245, 158, 11, 0.1)',
-                                        border: '1px solid rgba(245, 158, 11, 0.25)',
-                                        padding: '4px 8px',
-                                        borderRadius: '6px'
-                                    }}>
-                                        <BarChart3 size={13} />
-                                        <span>Performans</span>
-                                        <ChevronRight size={13} />
-                                    </div>
-                                </div>
-
-                                {/* Orta Kısım: PIN Kodu Kutusu (Göz ikonuyla açıp kapatılabilir) */}
-                                <div 
-                                    onClick={(e) => e.stopPropagation()}
-                                    style={{
-                                        background: 'var(--bg-surface-elevated)',
-                                        borderRadius: '10px',
-                                        padding: '10px 14px',
-                                        border: '1px solid var(--border-subtle)',
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center'
-                                    }}
-                                >
-                                    <div>
-                                        <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Giriş PIN Kodu</div>
-                                        <div style={{ fontSize: '16px', fontWeight: 900, color: 'white', fontFamily: 'monospace', letterSpacing: isPinVisible ? '2px' : '3px' }}>
-                                            {displayPin}
-                                        </div>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            toggleRevealPin(staff.id);
+                                    {/* Zarif Rapor Butonu */}
+                                    <motion.button
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={() => {
+                                            setSelectedStaffForPerformance(staff);
+                                            setPerfPeriod('today');
                                         }}
+                                        title="Performans Raporunu İncele"
                                         style={{
+                                            padding: '6px 12px',
+                                            borderRadius: '9px',
                                             background: 'rgba(255, 255, 255, 0.05)',
-                                            border: 'none',
-                                            borderRadius: '6px',
-                                            padding: '6px 8px',
-                                            color: 'var(--text-muted)',
-                                            cursor: 'pointer',
+                                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                                            color: '#fffaf5',
+                                            fontSize: '12px',
+                                            fontWeight: 700,
                                             display: 'flex',
-                                            alignItems: 'center'
+                                            alignItems: 'center',
+                                            gap: '5px',
+                                            cursor: 'pointer'
                                         }}
-                                        title={isPinVisible ? "PIN'i Gizle" : "PIN'i Göster"}
                                     >
-                                        {isPinVisible ? <EyeOff size={15} /> : <Eye size={15} />}
-                                    </button>
+                                        <BarChart3 size={13} color="#f59f00" />
+                                        <span>Rapor</span>
+                                    </motion.button>
                                 </div>
 
-                                {/* Alt Metrikler */}
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
+                                {/* Orta Kısım: Sade, Şık PIN Kapsülü */}
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '10px 14px',
+                                    borderRadius: '12px',
+                                    background: 'rgba(0, 0, 0, 0.25)',
+                                    border: '1px solid rgba(255, 255, 255, 0.06)'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <KeyRound size={14} color="#f59f00" style={{ opacity: 0.85 }} />
+                                        <span style={{ fontSize: '11px', color: 'var(--text-secondary, #d1b8af)', fontWeight: 600 }}>Giriş PIN:</span>
+                                        <span style={{
+                                            fontSize: '14px',
+                                            fontWeight: 800,
+                                            color: '#fffaf5',
+                                            letterSpacing: isPinVisible ? '2px' : '4px',
+                                            fontFamily: "'Plus Jakarta Sans', sans-serif"
+                                        }}>
+                                            {isPinVisible ? (staff.pin || '------') : '••••••'}
+                                        </span>
+                                    </div>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <button
+                                            onClick={() => toggleRevealPin(staff.id)}
+                                            style={{
+                                                background: 'transparent',
+                                                border: 'none',
+                                                color: isPinVisible ? '#f59f00' : 'var(--text-secondary, #d1b8af)',
+                                                cursor: 'pointer',
+                                                padding: '4px 6px',
+                                                borderRadius: '6px',
+                                                display: 'flex',
+                                                alignItems: 'center'
+                                            }}
+                                            title={isPinVisible ? "Gizle" : "Göster"}
+                                        >
+                                            {isPinVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+                                        </button>
+
+                                        <button
+                                            onClick={(e) => handleCopyPin(e, staff)}
+                                            style={{
+                                                background: 'transparent',
+                                                border: 'none',
+                                                color: isCopied ? '#10b981' : 'var(--text-secondary, #d1b8af)',
+                                                cursor: 'pointer',
+                                                padding: '4px 6px',
+                                                borderRadius: '6px',
+                                                display: 'flex',
+                                                alignItems: 'center'
+                                            }}
+                                            title="Kopyala"
+                                        >
+                                            {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Bilgi Satırı: Tek Satır, Kutusuz ve Ferah */}
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '2px 4px',
+                                    fontSize: '12px'
+                                }}>
                                     {staff.role === 'waiter' ? (
                                         <>
-                                            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                                                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Alınan Sipariş</div>
-                                                <div style={{ fontWeight: 800, color: 'white', fontSize: '13px', marginTop: '2px' }}>
-                                                    {staff.total_orders_count || 0} Adet
-                                                </div>
-                                            </div>
-                                            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                                                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Toplam Ciro</div>
-                                                <div style={{ fontWeight: 800, color: '#ffd43b', fontSize: '13px', marginTop: '2px' }}>
-                                                    {formatMoney(staff.total_revenue || 0)}
-                                                </div>
-                                            </div>
-                                        </>
-                                    ) : staff.role === 'kitchen' ? (
-                                        <>
-                                            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                                                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Hazırlanan Kalem</div>
-                                                <div style={{ fontWeight: 800, color: '#f97316', fontSize: '13px', marginTop: '2px' }}>
-                                                    {staff.total_items_prepared || 0} Kalem
-                                                </div>
-                                            </div>
-                                            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                                                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Görev Yeri</div>
-                                                <div style={{ fontWeight: 800, color: 'white', fontSize: '13px', marginTop: '2px' }}>
-                                                    {staff.section || 'Fırın & Servis'}
-                                                </div>
-                                            </div>
+                                            <span style={{ color: 'var(--text-secondary, #d1b8af)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <ShoppingBag size={13} style={{ opacity: 0.7 }} />
+                                                <span>{staff.total_orders_count || 0} Sipariş</span>
+                                            </span>
+                                            <span style={{ fontWeight: 800, color: '#f59f00', fontSize: '13px' }}>
+                                                {formatMoney(staff.total_revenue || 0)}
+                                            </span>
                                         </>
                                     ) : (
                                         <>
-                                            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                                                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>İletişim No</div>
-                                                <div style={{ fontWeight: 800, color: 'white', fontSize: '12px', marginTop: '2px' }}>
-                                                    {staff.phone || '0532 100 20 30'}
-                                                </div>
-                                            </div>
-                                            <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                                                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Yetki</div>
-                                                <div style={{ fontWeight: 800, color: 'var(--brand-gold)', fontSize: '12px', marginTop: '2px' }}>
-                                                    👑 Tam Yetkili
-                                                </div>
-                                            </div>
+                                            <span style={{ color: 'var(--text-secondary, #d1b8af)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <ShieldCheck size={13} style={{ color: '#f59f00' }} />
+                                                <span>Kasa & Sistem Erişimi</span>
+                                            </span>
+                                            <span style={{ fontWeight: 700, color: '#f59f00', fontSize: '11px', background: 'rgba(245, 159, 0, 0.12)', border: '1px solid rgba(245, 159, 0, 0.25)', padding: '2px 8px', borderRadius: '6px' }}>
+                                                Tam Yetkili
+                                            </span>
                                         </>
                                     )}
                                 </div>
 
-                                {/* Aksiyon Butonları */}
-                                <div 
-                                    onClick={(e) => e.stopPropagation()}
-                                    style={{ display: 'flex', gap: '8px', marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border-card)' }}
-                                >
-                                    <button
-                                        type="button"
+                                {/* Alt Butonlar */}
+                                <div style={{ 
+                                    display: 'flex', 
+                                    gap: '8px', 
+                                    paddingTop: '12px', 
+                                    borderTop: '1px solid rgba(255, 255, 255, 0.06)' 
+                                }}>
+                                    <motion.button
+                                        whileHover={{ scale: 1.01 }}
+                                        whileTap={{ scale: 0.98 }}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setEditingStaffPin(staff);
@@ -680,191 +801,157 @@ export default function AdminStaffManagement({
                                         style={{
                                             flex: 1,
                                             padding: '8px 12px',
-                                            background: 'rgba(245, 158, 11, 0.1)',
-                                            border: '1px solid rgba(245, 158, 11, 0.3)',
-                                            borderRadius: '8px',
-                                            color: 'var(--brand-gold)',
+                                            background: 'rgba(245, 159, 0, 0.1)',
+                                            border: '1px solid rgba(245, 159, 0, 0.25)',
+                                            borderRadius: '9px',
+                                            color: '#f59f00',
                                             fontSize: '12px',
-                                            fontWeight: 800,
+                                            fontWeight: 700,
                                             cursor: 'pointer',
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            gap: '5px',
-                                            transition: 'all 0.15s ease'
+                                            gap: '6px'
                                         }}
                                     >
-                                        <Key size={13} />
-                                        PIN Güncelle
-                                    </button>
+                                        <KeyRound size={13} />
+                                        <span>PIN Değiştir</span>
+                                    </motion.button>
 
-                                    <button
-                                        type="button"
+                                    <motion.button
+                                        whileHover={{ scale: 1.04, backgroundColor: 'rgba(239, 68, 68, 0.15)' }}
+                                        whileTap={{ scale: 0.96 }}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handleDeleteStaff(staff.id, staff.role, staff.name);
                                         }}
                                         style={{
                                             padding: '8px 12px',
-                                            background: 'rgba(239, 68, 68, 0.08)',
-                                            border: '1px solid rgba(239, 68, 68, 0.25)',
-                                            borderRadius: '8px',
-                                            color: '#f87171',
-                                            fontSize: '12px',
-                                            fontWeight: 800,
+                                            background: 'rgba(255, 255, 255, 0.03)',
+                                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                                            borderRadius: '9px',
+                                            color: 'rgba(255, 255, 255, 0.45)',
                                             cursor: 'pointer',
                                             display: 'flex',
                                             alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '4px',
-                                            transition: 'all 0.15s ease'
+                                            justifyContent: 'center'
                                         }}
-                                        title={`${staff.name} isimli çalışanı sil`}
+                                        title="Personeli Sil"
                                     >
                                         <Trash2 size={13} />
-                                        Sil
-                                    </button>
+                                    </motion.button>
                                 </div>
-                            </div>
+                            </motion.div>
                         );
                     })}
                 </div>
             ) : (
-                /* 2. DETAYLI VE MODERN TABLO GÖRÜNÜMÜ (TABLE MODU) */
+                /* TABLO GÖRÜNÜMÜ */
                 <div style={{
-                    background: 'var(--bg-surface)',
-                    borderRadius: 'var(--radius-lg)',
-                    border: '1px solid var(--border-card)',
-                    padding: '20px',
-                    boxShadow: 'var(--shadow-soft)',
+                    background: 'rgba(28, 21, 20, 0.75)',
+                    borderRadius: '16px',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    padding: '16px',
                     overflowX: 'auto'
                 }}>
-                    <table style={{ width: '100%', minWidth: '760px', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <table style={{ width: '100%', minWidth: '700px', borderCollapse: 'collapse', fontSize: '13px' }}>
                         <thead>
-                            <tr style={{ textAlign: 'left', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-card)' }}>
-                                <th style={{ padding: '12px 10px' }}>Personel Adı</th>
-                                <th style={{ padding: '12px 10px' }}>Görevi</th>
-                                <th style={{ padding: '12px 10px' }}>Giriş PIN</th>
-                                <th style={{ padding: '12px 10px' }}>Sipariş / Kalem</th>
-                                <th style={{ padding: '12px 10px' }}>Toplam Ciro</th>
-                                <th style={{ padding: '12px 10px' }}>Durum</th>
-                                <th style={{ padding: '12px 10px', textAlign: 'right' }}>İşlemler</th>
+                            <tr style={{ textAlign: 'left', color: 'var(--text-muted, #8d736b)', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                                <th style={{ padding: '10px 12px', fontSize: '11px', textTransform: 'uppercase' }}>Personel</th>
+                                <th style={{ padding: '10px 12px', fontSize: '11px', textTransform: 'uppercase' }}>Rol</th>
+                                <th style={{ padding: '10px 12px', fontSize: '11px', textTransform: 'uppercase' }}>Giriş PIN</th>
+                                <th style={{ padding: '10px 12px', fontSize: '11px', textTransform: 'uppercase' }}>Sipariş</th>
+                                <th style={{ padding: '10px 12px', fontSize: '11px', textTransform: 'uppercase' }}>Toplam Ciro</th>
+                                <th style={{ padding: '10px 12px', fontSize: '11px', textTransform: 'uppercase', textAlign: 'right' }}>İşlem</th>
                             </tr>
                         </thead>
                         <tbody>
                             {allStaff.map(staff => {
                                 const isPinVisible = !!revealedPins[staff.id];
-                                const displayPin = isPinVisible ? (staff.pin || '------') : '••••••';
+                                const initials = getInitials(staff.name);
 
                                 return (
                                     <tr 
                                         key={staff.id} 
-                                        onClick={() => {
-                                            setSelectedStaffForPerformance(staff);
-                                            setPerfPeriod('today');
-                                        }}
-                                        style={{ borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer' }}
+                                        style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}
                                     >
-                                        <td style={{ padding: '14px 10px', fontWeight: 800, color: 'white' }}>
+                                        <td style={{ padding: '12px' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                <span style={{ fontSize: '16px' }}>{staff.icon}</span>
-                                                <div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        {staff.name}
-                                                        <span style={{ fontSize: '11px', color: 'var(--brand-gold)' }}>📊</span>
-                                                    </div>
-                                                    {staff.hire_date && (
-                                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500, marginTop: '2px' }}>
-                                                            📅 İşe Giriş: {new Date(staff.hire_date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                                        </div>
-                                                    )}
+                                                <div style={{
+                                                    width: '30px',
+                                                    height: '30px',
+                                                    borderRadius: '50%',
+                                                    background: staff.gradient,
+                                                    border: `1px solid ${staff.borderColor}`,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    color: staff.color,
+                                                    fontSize: '11px',
+                                                    fontWeight: 800
+                                                }}>
+                                                    {initials}
                                                 </div>
+                                                <span style={{ fontWeight: 700, color: '#fffaf5' }}>{staff.name}</span>
                                             </div>
                                         </td>
-                                        <td style={{ padding: '14px 10px' }}>
+                                        <td style={{ padding: '12px' }}>
                                             <span style={{
                                                 fontSize: '11px',
                                                 fontWeight: 800,
                                                 color: staff.color,
                                                 background: staff.tagBg,
-                                                padding: '3px 8px',
-                                                borderRadius: '4px'
+                                                padding: '2px 8px',
+                                                borderRadius: '5px'
                                             }}>
                                                 {staff.roleLabel}
                                             </span>
                                         </td>
-                                        <td style={{ padding: '14px 10px' }}>
-                                            <div 
-                                                onClick={(e) => e.stopPropagation()}
-                                                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                                            >
-                                                <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '14px', color: 'white', letterSpacing: isPinVisible ? '1px' : '2px' }}>
-                                                    {displayPin}
+                                        <td style={{ padding: '12px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <span style={{ fontWeight: 800, color: '#fffaf5', letterSpacing: isPinVisible ? '1px' : '3px' }}>
+                                                    {isPinVisible ? staff.pin : '••••••'}
                                                 </span>
                                                 <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        toggleRevealPin(staff.id);
-                                                    }}
-                                                    style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+                                                    onClick={() => toggleRevealPin(staff.id)}
+                                                    style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary, #d1b8af)', cursor: 'pointer', padding: '2px' }}
                                                 >
-                                                    {isPinVisible ? <EyeOff size={13} /> : <Eye size={13} />}
+                                                    {isPinVisible ? <EyeOff size={12} /> : <Eye size={12} />}
                                                 </button>
                                             </div>
                                         </td>
-                                        <td style={{ padding: '14px 10px', color: 'var(--text-secondary)' }}>
-                                            {staff.role === 'waiter' 
-                                                ? `${staff.total_orders_count || 0} Adet`
-                                                : staff.role === 'kitchen' 
-                                                    ? `${staff.total_items_prepared || 0} Kalem` 
-                                                    : 'Tam Yetki'}
+                                        <td style={{ padding: '12px', color: 'var(--text-secondary, #d1b8af)' }}>
+                                            {staff.role === 'waiter' ? `${staff.total_orders_count || 0} Adet` : '—'}
                                         </td>
-                                        <td style={{ padding: '14px 10px', fontWeight: 800, color: '#ffd43b' }}>
+                                        <td style={{ padding: '12px', fontWeight: 800, color: '#f59f00' }}>
                                             {staff.role === 'waiter' ? formatMoney(staff.total_revenue || 0) : '—'}
                                         </td>
-                                        <td style={{ padding: '14px 10px' }}>
-                                            <span style={{ color: 'var(--success)', fontSize: '12px', fontWeight: 700, background: 'rgba(16,185,129,0.1)', padding: '3px 8px', borderRadius: '4px' }}>
-                                                ● Aktif
-                                            </span>
-                                        </td>
-                                        <td style={{ padding: '14px 10px', textAlign: 'right' }}>
-                                            <div 
-                                                onClick={(e) => e.stopPropagation()}
-                                                style={{ display: 'inline-flex', gap: '6px' }}
-                                            >
+                                        <td style={{ padding: '12px', textAlign: 'right' }}>
+                                            <div style={{ display: 'inline-flex', gap: '6px' }}>
                                                 <button
-                                                    className="btn-outline"
-                                                    style={{ padding: '5px 10px', fontSize: '12px', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
+                                                    style={{ padding: '5px 8px', fontSize: '11px', fontWeight: 700, color: '#fffaf5', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                    onClick={() => {
                                                         setSelectedStaffForPerformance(staff);
                                                         setPerfPeriod('today');
                                                     }}
-                                                    title="Performansı İncele"
                                                 >
-                                                    <BarChart3 size={13} /> Performans
+                                                    <BarChart3 size={12} color="#f59f00" /> Rapor
                                                 </button>
                                                 <button
-                                                    className="btn-outline"
-                                                    style={{ padding: '5px 10px', fontSize: '12px', color: 'var(--brand-gold)', borderColor: 'rgba(245,159,0,0.4)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
+                                                    style={{ padding: '5px 8px', fontSize: '11px', fontWeight: 700, color: '#f59f00', background: 'rgba(245,159,0,0.1)', border: '1px solid rgba(245,159,0,0.25)', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                                    onClick={() => {
                                                         setEditingStaffPin(staff);
                                                         setNewPinInput('');
                                                         setShowPinModal(true);
                                                     }}
                                                 >
-                                                    <Key size={13} /> PIN
+                                                    <KeyRound size={12} /> PIN
                                                 </button>
                                                 <button
-                                                    className="btn-outline"
-                                                    style={{ padding: '5px 10px', fontSize: '12px', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.4)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleDeleteStaff(staff.id, staff.role, staff.name);
-                                                    }}
+                                                    style={{ padding: '5px 8px', fontSize: '11px', color: 'rgba(255,255,255,0.4)', background: 'transparent', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+                                                    onClick={() => handleDeleteStaff(staff.id, staff.role, staff.name)}
                                                 >
-                                                    <Trash2 size={13} /> Sil
+                                                    <Trash2 size={12} />
                                                 </button>
                                             </div>
                                         </td>
@@ -876,7 +963,7 @@ export default function AdminStaffManagement({
                 </div>
             )}
 
-                        {/* GARSON & PERSONEL PERFORMANS MODALI */}
+            {/* GARSON & PERSONEL PERFORMANS MODALI */}
             <StaffPerformanceModal
                 staff={selectedStaffForPerformance}
                 data={staffPerformanceData}
@@ -889,4 +976,3 @@ export default function AdminStaffManagement({
         </div>
     );
 }
-

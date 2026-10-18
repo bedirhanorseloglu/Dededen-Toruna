@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../context/AppContext';
 import { formatMoney, MENU_PRODUCTS } from '../data/menu';
@@ -25,11 +26,13 @@ import {
     Banknote,
     Receipt,
     Users,
+    UserPlus,
     Calendar,
     CalendarDays,
     Search,
     Plus,
     Key,
+    KeyRound,
     Trash2,
     X,
     ChefHat,
@@ -41,9 +44,14 @@ import {
     Minus,
     MessageSquare,
     CheckCircle2,
+    Check,
     Clock,
     Tag,
-    Zap
+    Zap,
+    Smartphone,
+    Sparkles,
+    User,
+    Phone
 } from 'lucide-react';
 import TableCardGrid from '../components/TableCardGrid';
 import DiscountModal from '../components/DiscountModal';
@@ -261,16 +269,16 @@ export default function AdminView() {
                 // Hayalet/Geçersiz Garson Tespiti:
                 // id 'undefined', 'null', 'mgr-' olan veya ismi boş/'undefined' olanlar temizlenir
                 if (
-                    docId === 'undefined' || 
-                    docId === 'null' || 
-                    docId === '' || 
-                    docId.startsWith('mgr') || 
+                    docId === 'undefined' ||
+                    docId === 'null' ||
+                    docId === '' ||
+                    docId.startsWith('mgr') ||
                     docId.startsWith('admin') ||
-                    !waiterName || 
-                    waiterName.toLowerCase() === 'undefined' || 
+                    !waiterName ||
+                    waiterName.toLowerCase() === 'undefined' ||
                     waiterName.toLowerCase() === 'null'
                 ) {
-                    deleteDoc(doc(db, "waiters", d.id)).catch(() => {});
+                    deleteDoc(doc(db, "waiters", d.id)).catch(() => { });
                     return;
                 }
 
@@ -287,7 +295,7 @@ export default function AdminView() {
         const unsubManagers = onSnapshot(collection(db, "managers"), snap => {
             const list = snap.docs.map(d => ({ id: d.id, ...d.data(), role: 'admin' }));
             setManagersList(list.length > 0 ? list : [
-                { id: "mgr-1", name: "Yönetici (Patron)", role: "admin", pin: "197300", phone: "0532 100 20 30", last_login_at: new Date().toISOString() }
+                { id: "mgr-1", name: "Yönetici", role: "admin", pin: "197300", phone: "", last_login_at: new Date().toISOString() }
             ]);
         }, () => { });
 
@@ -472,7 +480,7 @@ export default function AdminView() {
             discount_reason: order.discount_reason || (discount > 0 ? 'İndirim/İkram' : ''),
             total,
             waiter_id: order.waiter_id || currentUser?.id || 'mgr-1',
-            waiter_name: order.waiter_name || currentUser?.name || 'Yönetici (Patron)'
+            waiter_name: order.waiter_name || currentUser?.name || 'Yönetici'
         };
 
         // 1. Bildirim ve sesi ANINDA ver (0 ms gecikme, tam eş zamanlı)
@@ -1092,301 +1100,731 @@ export default function AdminView() {
                     transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                     style={{ width: '100%' }}
                 >
-            {currentActiveTab === 'menu' && (
-                <AdminMenuManagement
-                    menuProducts={menuProducts}
-                    categories={categories}
-                    saveMenuItem={saveMenuItem}
-                    toggleMenuItemAvailability={toggleMenuItemAvailability}
-                    deleteMenuItem={deleteMenuItem}
-                    seedDefaultMenu={seedDefaultMenu}
-                    showConfirm={showConfirm}
-                    showToast={showToast}
-                />
-            )}
-
-            {/* ============================================================== */}
-            {/* GİDERLER & ÖDEMELER SEKMESİ                                    */}
-            {/* ============================================================== */}
-            {currentActiveTab === 'expenses' && (
-                <AdminExpenses
-                    expenses={expenses}
-                    addExpense={addExpense}
-                    updateExpense={updateExpense}
-                    deleteExpense={deleteExpense}
-                    completedOrders={completedOrders}
-                    totalRevenue={currentPeriodRevenue}
-                    currentPeriod={currentPeriod}
-                    setCurrentPeriod={setCurrentPeriod}
-                    showConfirm={showConfirm}
-                    showToast={showToast}
-                />
-            )}
-
-            {/* ============================================================== */}
-            {/* 1. SEKME: CİRO & SATIŞ ANALİZİ + HAFTALIK & AYLIK TABLOLAR      */}
-            {/* ============================================================== */}
-            {currentActiveTab === 'analytics' && (
-                <AdminAnalyticsDashboard
-                    completedOrders={completedOrders}
-                    expenses={expenses}
-                    addExpense={addExpense}
-                    updateExpense={updateExpense}
-                    deleteExpense={deleteExpense}
-                    onNavigateToExpenses={() => setCurrentActiveTab('expenses')}
-                    currentPeriod={currentPeriod}
-                    setCurrentPeriod={setCurrentPeriod}
-                    weeklyDayStats={weeklyDayStats}
-                    monthlyDayStats={monthlyDayStats}
-                    productStats={productStats}
-                    waiterStats={waiterStats}
-                    productSearch={productSearch}
-                    setProductSearch={setProductSearch}
-                    handleResetAnalytics={handleResetAnalytics}
-                />
-            )}
-
-            {/* ============================================================== */}
-            {/* 2. SEKME: CANLI MASALAR & KASA (KASADAN ÖDEME ALMA VE YÖNETİM) */}
-            {/* ============================================================== */}
-            {currentActiveTab === 'tables' && (
-                <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-                        <div>
-                            <h2 style={{ fontSize: '20px', fontWeight: 800, margin: 0 }}>🪑 Canlı Masa & Kasa Yönetimi</h2>
-                            <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>Masaların canlı durumu, ilgilenen garsonlar ve kasadan ödeme alma</p>
-                        </div>
-                        <div style={{ fontSize: '14px', color: 'var(--brand-gold)', fontWeight: 700, background: 'var(--bg-surface)', padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-card)' }}>
-                            Açık Masalar Toplamı: <strong style={{ color: 'white', fontSize: '16px' }}>{formatMoney(openTotal)}</strong>
-                        </div>
-                    </div>
-
-                    {/* CANLI GARSON TAKİP VE FİLTRELEME BARI */}
-                    <div style={{ background: 'var(--bg-surface)', padding: '12px 16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-card)', marginBottom: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--brand-gold)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <Users size={16} /> Garson Takibi:
-                            </span>
-                            <button
-                                className={`btn-outline ${selectedWaiterFilter === 'all' ? 'active' : ''}`}
-                                style={{
-                                    padding: '5px 12px',
-                                    fontSize: '12px',
-                                    fontWeight: 700,
-                                    borderRadius: '999px',
-                                    background: selectedWaiterFilter === 'all' ? 'var(--brand-primary)' : 'transparent',
-                                    borderColor: selectedWaiterFilter === 'all' ? 'var(--brand-primary)' : 'var(--border-card)',
-                                    color: selectedWaiterFilter === 'all' ? '#fff' : 'var(--text-secondary)'
-                                }}
-                                onClick={() => setSelectedWaiterFilter('all')}
-                            >
-                                Tüm Masalar ({tables.length})
-                            </button>
-                            {liveWaiterStats.map(w => (
-                                <button
-                                    key={w.name}
-                                    className={`btn-outline ${selectedWaiterFilter === w.name ? 'active' : ''}`}
-                                    style={{
-                                        padding: '5px 12px',
-                                        fontSize: '12px',
-                                        fontWeight: 700,
-                                        borderRadius: '999px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        background: selectedWaiterFilter === w.name ? 'var(--brand-primary)' : 'rgba(255,255,255,0.04)',
-                                        borderColor: selectedWaiterFilter === w.name ? 'var(--brand-primary)' : 'var(--border-card)',
-                                        color: selectedWaiterFilter === w.name ? '#fff' : 'var(--text-primary)'
-                                    }}
-                                    onClick={() => setSelectedWaiterFilter(selectedWaiterFilter === w.name ? 'all' : w.name)}
-                                    title={`Aktif Masaları: ${w.tableNos.map(n => `Masa ${n}`).join(', ')}`}
-                                >
-                                    <span>👤 {w.name}</span>
-                                    <span style={{ background: 'rgba(0,0,0,0.3)', padding: '1px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 800, color: selectedWaiterFilter === w.name ? '#fff' : 'var(--brand-gold)' }}>
-                                        {w.tableNos.length} Masa • {formatMoney(w.totalBalance)}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                            {selectedWaiterFilter !== 'all' ? `👤 ${selectedWaiterFilter} masaları gösteriliyor` : `Toplam ${openOrdersList.length} açık adisyon`}
-                        </div>
-                    </div>
-
-                    {/* Paylaşılan Ortak Masa Grid Bileşeni (Garson Ekranı ile 1-e-1 Birebir Aynı) */}
-                    <div style={{ marginBottom: '24px' }}>
-                        <TableCardGrid
-                            onSelectTableForReceipt={(tableNum) => setSelectedDrawerTable(tableNum)}
-                            onOpenTableOrder={(tableNum) => navigateTo('table', tableNum)}
-                            selectedWaiterFilter={selectedWaiterFilter}
-                            showControls={false}
+                    {currentActiveTab === 'menu' && (
+                        <AdminMenuManagement
+                            menuProducts={menuProducts}
+                            categories={categories}
+                            saveMenuItem={saveMenuItem}
+                            toggleMenuItemAvailability={toggleMenuItemAvailability}
+                            deleteMenuItem={deleteMenuItem}
+                            seedDefaultMenu={seedDefaultMenu}
+                            showConfirm={showConfirm}
+                            showToast={showToast}
                         />
-                    </div>
-                </div>
-            )}
+                    )}
 
-            {/* ============================================================== */}
-            {/* 3. SEKME: PERSONEL & PIN YÖNETİMİ (FIRESTORE 3 TABLO CRUD)      */}
-            {/* ============================================================== */}
-            {currentActiveTab === 'staff' && (
-                <AdminStaffManagement
-                    waitersList={waitersList}
-                    kitchenList={kitchenList}
-                    managersList={managersList}
-                    completedOrders={completedOrders}
-                    setStaffModalRole={setStaffModalRole}
-                    setShowStaffModal={setShowStaffModal}
-                    setEditingStaffPin={setEditingStaffPin}
-                    setNewPinInput={setNewPinInput}
-                    setShowPinModal={setShowPinModal}
-                    handleDeleteStaff={handleDeleteStaff}
-                    showConfirm={showConfirm}
-                    showToast={showToast}
-                />
-            )}
+                    {/* ============================================================== */}
+                    {/* GİDERLER & ÖDEMELER SEKMESİ                                    */}
+                    {/* ============================================================== */}
+                    {currentActiveTab === 'expenses' && (
+                        <AdminExpenses
+                            expenses={expenses}
+                            addExpense={addExpense}
+                            updateExpense={updateExpense}
+                            deleteExpense={deleteExpense}
+                            completedOrders={completedOrders}
+                            totalRevenue={currentPeriodRevenue}
+                            currentPeriod={currentPeriod}
+                            setCurrentPeriod={setCurrentPeriod}
+                            showConfirm={showConfirm}
+                            showToast={showToast}
+                        />
+                    )}
 
-            {/* MODAL: YENİ PERSONEL İŞE AL MODALI */}
-            {showStaffModal && (
-                <div className="modal-overlay open" style={{ display: 'flex', opacity: 1 }}>
-                    <div className="modal-content open modal-responsive-card" style={{ maxWidth: '480px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                            <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'white', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span>💼</span> Yeni Personel İşe Al
-                            </h3>
-                            <button onClick={() => setShowStaffModal(false)} className="btn-logout" style={{ width: '28px', height: '28px' }}>
-                                <X size={15} />
-                            </button>
-                        </div>
+                    {/* ============================================================== */}
+                    {/* 1. SEKME: CİRO & SATIŞ ANALİZİ + HAFTALIK & AYLIK TABLOLAR      */}
+                    {/* ============================================================== */}
+                    {currentActiveTab === 'analytics' && (
+                        <AdminAnalyticsDashboard
+                            completedOrders={completedOrders}
+                            expenses={expenses}
+                            addExpense={addExpense}
+                            updateExpense={updateExpense}
+                            deleteExpense={deleteExpense}
+                            onNavigateToExpenses={() => setCurrentActiveTab('expenses')}
+                            currentPeriod={currentPeriod}
+                            setCurrentPeriod={setCurrentPeriod}
+                            weeklyDayStats={weeklyDayStats}
+                            monthlyDayStats={monthlyDayStats}
+                            productStats={productStats}
+                            waiterStats={waiterStats}
+                            productSearch={productSearch}
+                            setProductSearch={setProductSearch}
+                            handleResetAnalytics={handleResetAnalytics}
+                        />
+                    )}
 
-                        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                            Personelin rolünü ve sisteme giriş yapacağı <strong>6 haneli şifreyi (PIN)</strong> belirleyiniz.
-                        </p>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <div>
-                                <label style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '4px' }}>Ad Soyad:</label>
-                                <input
-                                    type="text"
-                                    value={staffNameInput}
-                                    onChange={(e) => setStaffNameInput(e.target.value)}
-                                    placeholder="Örn: Burak Kaya"
-                                    style={{ width: '100%', padding: '12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: 'white', borderRadius: 'var(--radius-md)', fontSize: '14px' }}
-                                />
-                            </div>
-
-                            <div>
-                                <label style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '4px' }}>Görevi / Rolü:</label>
-                                <select
-                                    value={staffModalRole}
-                                    onChange={(e) => setStaffModalRole(e.target.value)}
-                                    style={{ width: '100%', padding: '12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: 'white', borderRadius: 'var(--radius-md)', fontWeight: 700, fontSize: '14px' }}
-                                >
-                                    <option value="waiter">📱 Garson (Sipariş & Masa Servisi)</option>
-                                    <option value="admin">👑 Yönetici (Kasa & Tam Denetim)</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '4px' }}>İşe Giriş Tarihi (İsteğe Bağlı):</label>
-                                <ModernDatePicker
-                                    value={staffHireDateInput}
-                                    onChange={setStaffHireDateInput}
-                                    placeholder="Tarih Seçiniz"
-                                />
-                            </div>
-
-                            <div>
-                                <label style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 700, display: 'block', marginBottom: '4px' }}>Telefon (İsteğe Bağlı):</label>
-                                <input
-                                    type="tel"
-                                    value={staffPhoneInput}
-                                    onChange={(e) => setStaffPhoneInput(e.target.value)}
-                                    placeholder="Örn: 0542 000 00 00"
-                                    style={{ width: '100%', padding: '12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: 'white', borderRadius: 'var(--radius-md)', fontSize: '14px' }}
-                                />
-                            </div>
-
-                            <div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                    <label style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 700 }}>6 Haneli Giriş PIN'i:</label>
-                                    <button
-                                        type="button"
-                                        onClick={() => setStaffPinInput(String(Math.floor(100000 + Math.random() * 900000)))}
-                                        className="btn-outline"
-                                        style={{ padding: '2px 8px', fontSize: '11px', color: 'var(--brand-gold)', borderColor: 'var(--brand-gold)' }}
-                                    >
-                                        🎲 Rastgele PIN
-                                    </button>
+                    {/* ============================================================== */}
+                    {/* 2. SEKME: CANLI MASALAR & KASA (KASADAN ÖDEME ALMA VE YÖNETİM) */}
+                    {/* ============================================================== */}
+                    {currentActiveTab === 'tables' && (
+                        <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                                <div>
+                                    <h2 style={{ fontSize: '20px', fontWeight: 800, margin: 0 }}>🪑 Canlı Masa & Kasa Yönetimi</h2>
+                                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>Masaların canlı durumu, ilgilenen garsonlar ve kasadan ödeme alma</p>
                                 </div>
-                                <input
-                                    type="text"
-                                    maxLength={6}
-                                    value={staffPinInput}
-                                    onChange={(e) => setStaffPinInput(e.target.value)}
-                                    placeholder="6 Haneli PIN (örn: 543210)"
-                                    style={{ width: '100%', padding: '12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: '#ffd43b', fontWeight: 800, fontSize: '16px', borderRadius: 'var(--radius-md)', fontFamily: 'monospace', letterSpacing: '4px' }}
+                                <div style={{ fontSize: '14px', color: 'var(--brand-gold)', fontWeight: 700, background: 'var(--bg-surface)', padding: '8px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-card)' }}>
+                                    Açık Masalar Toplamı: <strong style={{ color: 'white', fontSize: '16px' }}>{formatMoney(openTotal)}</strong>
+                                </div>
+                            </div>
+
+                            {/* CANLI GARSON TAKİP VE FİLTRELEME BARI */}
+                            <div style={{ background: 'var(--bg-surface)', padding: '12px 16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-card)', marginBottom: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                    <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--brand-gold)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <Users size={16} /> Garson Takibi:
+                                    </span>
+                                    <button
+                                        className={`btn-outline ${selectedWaiterFilter === 'all' ? 'active' : ''}`}
+                                        style={{
+                                            padding: '5px 12px',
+                                            fontSize: '12px',
+                                            fontWeight: 700,
+                                            borderRadius: '999px',
+                                            background: selectedWaiterFilter === 'all' ? 'var(--brand-primary)' : 'transparent',
+                                            borderColor: selectedWaiterFilter === 'all' ? 'var(--brand-primary)' : 'var(--border-card)',
+                                            color: selectedWaiterFilter === 'all' ? '#fff' : 'var(--text-secondary)'
+                                        }}
+                                        onClick={() => setSelectedWaiterFilter('all')}
+                                    >
+                                        Tüm Masalar ({tables.length})
+                                    </button>
+                                    {liveWaiterStats.map(w => (
+                                        <button
+                                            key={w.name}
+                                            className={`btn-outline ${selectedWaiterFilter === w.name ? 'active' : ''}`}
+                                            style={{
+                                                padding: '5px 12px',
+                                                fontSize: '12px',
+                                                fontWeight: 700,
+                                                borderRadius: '999px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                background: selectedWaiterFilter === w.name ? 'var(--brand-primary)' : 'rgba(255,255,255,0.04)',
+                                                borderColor: selectedWaiterFilter === w.name ? 'var(--brand-primary)' : 'var(--border-card)',
+                                                color: selectedWaiterFilter === w.name ? '#fff' : 'var(--text-primary)'
+                                            }}
+                                            onClick={() => setSelectedWaiterFilter(selectedWaiterFilter === w.name ? 'all' : w.name)}
+                                            title={`Aktif Masaları: ${w.tableNos.map(n => `Masa ${n}`).join(', ')}`}
+                                        >
+                                            <span>👤 {w.name}</span>
+                                            <span style={{ background: 'rgba(0,0,0,0.3)', padding: '1px 6px', borderRadius: '4px', fontSize: '11px', fontWeight: 800, color: selectedWaiterFilter === w.name ? '#fff' : 'var(--brand-gold)' }}>
+                                                {w.tableNos.length} Masa • {formatMoney(w.totalBalance)}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                                    {selectedWaiterFilter !== 'all' ? `👤 ${selectedWaiterFilter} masaları gösteriliyor` : `Toplam ${openOrdersList.length} açık adisyon`}
+                                </div>
+                            </div>
+
+                            {/* Paylaşılan Ortak Masa Grid Bileşeni (Garson Ekranı ile 1-e-1 Birebir Aynı) */}
+                            <div style={{ marginBottom: '24px' }}>
+                                <TableCardGrid
+                                    onSelectTableForReceipt={(tableNum) => setSelectedDrawerTable(tableNum)}
+                                    onOpenTableOrder={(tableNum) => navigateTo('table', tableNum)}
+                                    selectedWaiterFilter={selectedWaiterFilter}
+                                    showControls={false}
                                 />
                             </div>
                         </div>
+                    )}
 
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                            <button onClick={() => setShowStaffModal(false)} className="btn-outline">Vazgeç</button>
-                            <button onClick={handleSaveNewStaff} className="btn-primary" style={{ padding: '10px 22px' }}>✓ İşe Al & Kaydet</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+                    {/* ============================================================== */}
+                    {/* 3. SEKME: PERSONEL & PIN YÖNETİMİ (FIRESTORE 3 TABLO CRUD)      */}
+                    {/* ============================================================== */}
+                    {currentActiveTab === 'staff' && (
+                        <AdminStaffManagement
+                            waitersList={waitersList}
+                            kitchenList={kitchenList}
+                            managersList={managersList}
+                            completedOrders={completedOrders}
+                            setStaffModalRole={setStaffModalRole}
+                            setShowStaffModal={setShowStaffModal}
+                            setEditingStaffPin={setEditingStaffPin}
+                            setNewPinInput={setNewPinInput}
+                            setShowPinModal={setShowPinModal}
+                            handleDeleteStaff={handleDeleteStaff}
+                            showConfirm={showConfirm}
+                            showToast={showToast}
+                        />
+                    )}
 
-            {/* MODAL: PIN DEĞİŞTİRME */}
-            {showPinModal && editingStaffPin && (
-                <div className="modal-overlay open" style={{ display: 'flex', opacity: 1 }}>
-                    <div className="modal-content open modal-responsive-card" style={{ maxWidth: '400px' }}>
-                        <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'white', marginBottom: '6px' }}>🔑 PIN Güncelle</h3>
-                        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '14px' }}>
-                            {editingStaffPin.name} için yeni 6 haneli giriş şifresi belirleyin.
-                        </p>
-
-                        <div style={{ marginBottom: '16px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                <label style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 700 }}>Yeni 6 Haneli PIN:</label>
-                                <button
-                                    type="button"
-                                    onClick={() => setNewPinInput(String(Math.floor(100000 + Math.random() * 900000)))}
-                                    className="btn-outline"
-                                    style={{ padding: '2px 8px', fontSize: '11px', color: 'var(--brand-gold)', borderColor: 'var(--brand-gold)' }}
+                    {/* MODAL: YENİ PERSONEL İŞE AL MODALI (21st.dev & Framer Motion Luxury Standard) */}
+                    {showStaffModal && typeof document !== 'undefined' && createPortal(
+                        <AnimatePresence>
+                            <div 
+                                style={{ 
+                                    position: 'fixed',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    width: '100vw',
+                                    height: '100vh',
+                                    zIndex: 999999,
+                                    display: 'flex', 
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '20px 16px',
+                                    backgroundColor: 'rgba(8, 6, 5, 0.85)',
+                                    backdropFilter: 'blur(16px)',
+                                    WebkitBackdropFilter: 'blur(16px)',
+                                    overflowY: 'auto'
+                                }} 
+                                onClick={() => setShowStaffModal(false)}
+                            >
+                                <motion.div 
+                                    initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                                    style={{ 
+                                        maxWidth: '520px', 
+                                        width: '100%', 
+                                        margin: 'auto',
+                                        padding: '24px 28px',
+                                        background: 'linear-gradient(180deg, #1c1514 0%, #140e0d 100%)',
+                                        border: '1px solid rgba(245, 159, 0, 0.25)',
+                                        borderTop: '1px solid rgba(255, 255, 255, 0.25)',
+                                        borderRadius: '24px',
+                                        boxShadow: '0 25px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(247, 103, 7, 0.08)',
+                                        position: 'relative'
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
                                 >
-                                    🎲 Üret
-                                </button>
+                                    {/* Header */}
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                            <div style={{
+                                                width: '42px',
+                                                height: '42px',
+                                                borderRadius: '12px',
+                                                background: 'rgba(247, 103, 7, 0.15)',
+                                                border: '1px solid rgba(247, 103, 7, 0.35)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                color: '#f76707',
+                                                boxShadow: '0 0 16px rgba(247, 103, 7, 0.2)'
+                                            }}>
+                                                <UserPlus size={20} />
+                                            </div>
+                                            <div>
+                                                <h3 style={{ 
+                                                    fontSize: '18px', 
+                                                    fontWeight: 800, 
+                                                    color: '#fffaf5', 
+                                                    margin: 0,
+                                                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                                    letterSpacing: '-0.02em'
+                                                }}>
+                                                    Yeni Personel Ekle
+                                                </h3>
+                                                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-secondary, #d1b8af)' }}>
+                                                    Kadroya yeni garson veya yönetici kaydı oluşturun
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setShowStaffModal(false)}
+                                            style={{
+                                                background: 'rgba(255, 255, 255, 0.06)',
+                                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                color: 'rgba(255, 255, 255, 0.7)',
+                                                width: '32px',
+                                                height: '32px',
+                                                borderRadius: '10px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                        {/* Rol Seçici: Modern Segmented Kartlar */}
+                                        <div>
+                                            <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary, #d1b8af)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '8px' }}>
+                                                Görevi / Yetki Rolü
+                                            </label>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setStaffModalRole('waiter')}
+                                                    style={{
+                                                        padding: '12px 14px',
+                                                        borderRadius: '14px',
+                                                        border: staffModalRole === 'waiter' 
+                                                            ? '1.5px solid #f76707' 
+                                                            : '1px solid rgba(255, 255, 255, 0.08)',
+                                                        background: staffModalRole === 'waiter'
+                                                            ? 'linear-gradient(135deg, rgba(247, 103, 7, 0.22) 0%, rgba(217, 72, 15, 0.1) 100%)'
+                                                            : 'rgba(255, 255, 255, 0.03)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '10px',
+                                                        cursor: 'pointer',
+                                                        textAlign: 'left',
+                                                        transition: 'all 0.18s ease'
+                                                    }}
+                                                >
+                                                    <div style={{
+                                                        width: '34px',
+                                                        height: '34px',
+                                                        borderRadius: '10px',
+                                                        background: staffModalRole === 'waiter' ? 'rgba(247, 103, 7, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                                                        color: staffModalRole === 'waiter' ? '#f76707' : 'rgba(255, 255, 255, 0.5)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        flexShrink: 0
+                                                    }}>
+                                                        <Smartphone size={17} />
+                                                    </div>
+                                                    <div style={{ minWidth: 0 }}>
+                                                        <div style={{ fontSize: '13px', fontWeight: 800, color: staffModalRole === 'waiter' ? '#fffaf5' : 'rgba(255, 255, 255, 0.8)' }}>
+                                                            Garson
+                                                        </div>
+                                                        <div style={{ fontSize: '10.5px', color: 'var(--text-secondary, #d1b8af)', marginTop: '1px' }}>
+                                                            Sipariş & Servis
+                                                        </div>
+                                                    </div>
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setStaffModalRole('admin')}
+                                                    style={{
+                                                        padding: '12px 14px',
+                                                        borderRadius: '14px',
+                                                        border: staffModalRole === 'admin' 
+                                                            ? '1.5px solid #f59f00' 
+                                                            : '1px solid rgba(255, 255, 255, 0.08)',
+                                                        background: staffModalRole === 'admin'
+                                                            ? 'linear-gradient(135deg, rgba(245, 159, 0, 0.22) 0%, rgba(217, 119, 6, 0.1) 100%)'
+                                                            : 'rgba(255, 255, 255, 0.03)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '10px',
+                                                        cursor: 'pointer',
+                                                        textAlign: 'left',
+                                                        transition: 'all 0.18s ease'
+                                                    }}
+                                                >
+                                                    <div style={{
+                                                        width: '34px',
+                                                        height: '34px',
+                                                        borderRadius: '10px',
+                                                        background: staffModalRole === 'admin' ? 'rgba(245, 159, 0, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                                                        color: staffModalRole === 'admin' ? '#f59f00' : 'rgba(255, 255, 255, 0.5)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        flexShrink: 0
+                                                    }}>
+                                                        <ShieldCheck size={17} />
+                                                    </div>
+                                                    <div style={{ minWidth: 0 }}>
+                                                        <div style={{ fontSize: '13px', fontWeight: 800, color: staffModalRole === 'admin' ? '#fffaf5' : 'rgba(255, 255, 255, 0.8)' }}>
+                                                            Yönetici
+                                                        </div>
+                                                        <div style={{ fontSize: '10.5px', color: 'var(--text-secondary, #d1b8af)', marginTop: '1px' }}>
+                                                            Kasa & Tam Yetki
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Ad Soyad */}
+                                        <div>
+                                            <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary, #d1b8af)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
+                                                <User size={12} color="#f76707" />
+                                                <span>Ad Soyad</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={staffNameInput}
+                                                onChange={(e) => setStaffNameInput(e.target.value)}
+                                                placeholder="Örn: Burak Kaya"
+                                                style={{ 
+                                                    width: '100%', 
+                                                    boxSizing: 'border-box',
+                                                    padding: '12px 14px', 
+                                                    background: 'rgba(255, 255, 255, 0.04)', 
+                                                    border: '1px solid rgba(255, 255, 255, 0.1)', 
+                                                    color: '#fffaf5', 
+                                                    borderRadius: '12px', 
+                                                    fontSize: '14px',
+                                                    outline: 'none',
+                                                    fontFamily: "'Plus Jakarta Sans', sans-serif"
+                                                }}
+                                            />
+                                        </div>
+
+                                        {/* İki Kolon: Telefon & İşe Giriş Tarihi */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '12px' }}>
+                                            <div>
+                                                <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary, #d1b8af)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
+                                                    <Phone size={12} color="#f76707" />
+                                                    <span>Telefon (İsteğe Bağlı)</span>
+                                                </label>
+                                                <input
+                                                    type="tel"
+                                                    value={staffPhoneInput}
+                                                    onChange={(e) => setStaffPhoneInput(e.target.value)}
+                                                    placeholder="Örn: 0542 000 00 00"
+                                                    style={{ 
+                                                        width: '100%', 
+                                                        boxSizing: 'border-box',
+                                                        padding: '12px 14px', 
+                                                        background: 'rgba(255, 255, 255, 0.04)', 
+                                                        border: '1px solid rgba(255, 255, 255, 0.1)', 
+                                                        color: '#fffaf5', 
+                                                        borderRadius: '12px', 
+                                                        fontSize: '14px',
+                                                        outline: 'none',
+                                                        fontFamily: "'Plus Jakarta Sans', sans-serif"
+                                                    }}
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary, #d1b8af)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
+                                                    <Calendar size={12} color="#f59f00" />
+                                                    <span>İşe Giriş Tarihi</span>
+                                                </label>
+                                                <ModernDatePicker
+                                                    value={staffHireDateInput}
+                                                    onChange={setStaffHireDateInput}
+                                                    placeholder="Tarih Seçiniz"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* 6 Haneli Giriş PIN'i (Lüks Kapsül) */}
+                                        <div style={{
+                                            padding: '14px 16px',
+                                            background: 'rgba(245, 159, 0, 0.04)',
+                                            border: '1px solid rgba(245, 159, 0, 0.18)',
+                                            borderRadius: '16px'
+                                        }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                <label style={{ fontSize: '11px', fontWeight: 800, color: '#f59f00', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                    <KeyRound size={13} color="#f59f00" />
+                                                    <span>6 Haneli Terminal PIN'i</span>
+                                                </label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setStaffPinInput(String(Math.floor(100000 + Math.random() * 900000)))}
+                                                    style={{ 
+                                                        padding: '4px 10px', 
+                                                        fontSize: '11px', 
+                                                        fontWeight: 700,
+                                                        color: '#f59f00', 
+                                                        background: 'rgba(245, 159, 0, 0.12)',
+                                                        border: '1px solid rgba(245, 159, 0, 0.3)',
+                                                        borderRadius: '8px',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '5px'
+                                                    }}
+                                                >
+                                                    <Sparkles size={12} />
+                                                    <span>Rastgele Üret</span>
+                                                </button>
+                                            </div>
+                                            <input
+                                                type="text"
+                                                maxLength={6}
+                                                value={staffPinInput}
+                                                onChange={(e) => setStaffPinInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                                placeholder="••••••"
+                                                style={{ 
+                                                    width: '100%', 
+                                                    boxSizing: 'border-box',
+                                                    padding: '12px 14px', 
+                                                    background: 'rgba(0, 0, 0, 0.35)', 
+                                                    border: '1px solid rgba(245, 159, 0, 0.3)', 
+                                                    color: '#f59f00', 
+                                                    fontWeight: 800, 
+                                                    fontSize: '20px', 
+                                                    borderRadius: '12px', 
+                                                    letterSpacing: '8px',
+                                                    textAlign: 'center',
+                                                    outline: 'none',
+                                                    fontFamily: "'Plus Jakarta Sans', sans-serif"
+                                                }}
+                                            />
+                                            <div style={{ fontSize: '11px', color: 'var(--text-muted, #8d736b)', marginTop: '6px', textAlign: 'center' }}>
+                                                Personel bu 6 haneli şifreyle masalara ve panele giriş yapacaktır.
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Alt Aksiyon Butonları */}
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '22px' }}>
+                                        <motion.button 
+                                            type="button"
+                                            whileHover={{ scale: 1.02 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            onClick={() => setShowStaffModal(false)} 
+                                            style={{
+                                                padding: '10px 18px',
+                                                background: 'rgba(255, 255, 255, 0.05)',
+                                                border: '1px solid rgba(255, 255, 255, 0.12)',
+                                                borderRadius: '12px',
+                                                color: 'var(--text-secondary, #d1b8af)',
+                                                fontSize: '13px',
+                                                fontWeight: 700,
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            Vazgeç
+                                        </motion.button>
+                                        <motion.button 
+                                            type="button"
+                                            whileHover={{ scale: 1.02 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            onClick={handleSaveNewStaff} 
+                                            style={{
+                                                padding: '10px 24px',
+                                                background: 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)',
+                                                border: 'none',
+                                                borderRadius: '12px',
+                                                color: '#ffffff',
+                                                fontSize: '13px',
+                                                fontWeight: 800,
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '7px',
+                                                boxShadow: '0 4px 18px rgba(247, 103, 7, 0.4)'
+                                            }}
+                                        >
+                                            <Check size={16} />
+                                            <span>Personeli Kaydet</span>
+                                        </motion.button>
+                                    </div>
+                                </motion.div>
                             </div>
-                            <input
-                                type="text"
-                                maxLength={6}
-                                value={newPinInput}
-                                onChange={(e) => setNewPinInput(e.target.value)}
-                                placeholder="Yeni PIN"
-                                style={{ width: '100%', padding: '12px', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-card)', color: '#ffd43b', fontWeight: 800, fontSize: '16px', borderRadius: 'var(--radius-md)', fontFamily: 'monospace', letterSpacing: '4px' }}
-                            />
-                        </div>
+                        </AnimatePresence>,
+                        document.body
+                    )}
 
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                            <button onClick={() => setShowPinModal(false)} className="btn-outline">Vazgeç</button>
-                            <button onClick={handleSavePin} className="btn-primary" style={{ padding: '8px 20px' }}>Şifreyi Güncelle</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+                    {/* MODAL: PIN DEĞİŞTİRME (21st.dev & Framer Motion Luxury Standard) */}
+                    {showPinModal && editingStaffPin && typeof document !== 'undefined' && createPortal(
+                        <AnimatePresence>
+                            <div 
+                                style={{ 
+                                    position: 'fixed',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    width: '100vw',
+                                    height: '100vh',
+                                    zIndex: 999999,
+                                    display: 'flex', 
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '20px 16px',
+                                    backgroundColor: 'rgba(8, 6, 5, 0.85)',
+                                    backdropFilter: 'blur(16px)',
+                                    WebkitBackdropFilter: 'blur(16px)',
+                                    overflowY: 'auto'
+                                }} 
+                                onClick={() => setShowPinModal(false)}
+                            >
+                                <motion.div 
+                                    initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                                    style={{ 
+                                        maxWidth: '420px', 
+                                        width: '100%', 
+                                        margin: 'auto',
+                                        padding: '24px',
+                                        background: 'linear-gradient(180deg, #1c1514 0%, #140e0d 100%)',
+                                        border: '1px solid rgba(245, 159, 0, 0.25)',
+                                        borderTop: '1px solid rgba(255, 255, 255, 0.25)',
+                                        borderRadius: '24px',
+                                        boxShadow: '0 25px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(247, 103, 7, 0.08)',
+                                        position: 'relative'
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    {/* Header */}
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <div style={{
+                                                width: '38px',
+                                                height: '38px',
+                                                borderRadius: '11px',
+                                                background: 'rgba(245, 159, 0, 0.15)',
+                                                border: '1px solid rgba(245, 159, 0, 0.35)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                color: '#f59f00'
+                                            }}>
+                                                <KeyRound size={18} />
+                                            </div>
+                                            <div>
+                                                <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#fffaf5', margin: 0, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                                                    PIN Güncelle
+                                                </h3>
+                                                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-secondary, #d1b8af)' }}>
+                                                    {editingStaffPin.name} için yeni şifre belirleyin
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setShowPinModal(false)}
+                                            style={{
+                                                background: 'rgba(255, 255, 255, 0.06)',
+                                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                color: 'rgba(255, 255, 255, 0.7)',
+                                                width: '30px',
+                                                height: '30px',
+                                                borderRadius: '9px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            <X size={15} />
+                                        </button>
+                                    </div>
 
-            {/* ============================================================== */}
-            {/* 4. SEKME: YAZICI AYARLARI (MERKEZİ MUTFAK & KASA AĞ ENTEGRASYONU) */}
-            {/* ============================================================== */}
-            {currentActiveTab === 'printer' && (
-                <AdminPrinterSettings
-                    printerSettings={printerSettings}
-                    savePrinterSettings={savePrinterSettings}
-                    handleTestPrintTicket={handleTestPrintTicket}
-                    showToast={showToast}
-                />
-            )}
+                                    <div style={{
+                                        padding: '14px 16px',
+                                        background: 'rgba(245, 159, 0, 0.04)',
+                                        border: '1px solid rgba(245, 159, 0, 0.18)',
+                                        borderRadius: '16px',
+                                        marginBottom: '20px'
+                                    }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                            <label style={{ fontSize: '11px', fontWeight: 800, color: '#f59f00', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                                Yeni 6 Haneli PIN:
+                                            </label>
+                                            <button
+                                                type="button"
+                                                onClick={() => setNewPinInput(String(Math.floor(100000 + Math.random() * 900000)))}
+                                                style={{ 
+                                                    padding: '3px 8px', 
+                                                    fontSize: '11px', 
+                                                    fontWeight: 700,
+                                                    color: '#f59f00', 
+                                                    background: 'rgba(245, 159, 0, 0.12)',
+                                                    border: '1px solid rgba(245, 159, 0, 0.3)',
+                                                    borderRadius: '7px',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '4px'
+                                                }}
+                                            >
+                                                <Sparkles size={11} />
+                                                <span>Üret</span>
+                                            </button>
+                                        </div>
+                                        <input
+                                            type="text"
+                                            maxLength={6}
+                                            value={newPinInput}
+                                            onChange={(e) => setNewPinInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                            placeholder="••••••"
+                                            style={{ 
+                                                width: '100%', 
+                                                boxSizing: 'border-box',
+                                                padding: '12px 14px', 
+                                                background: 'rgba(0, 0, 0, 0.35)', 
+                                                border: '1px solid rgba(245, 159, 0, 0.3)', 
+                                                color: '#f59f00', 
+                                                fontWeight: 800, 
+                                                fontSize: '20px', 
+                                                borderRadius: '12px', 
+                                                letterSpacing: '8px',
+                                                textAlign: 'center',
+                                                outline: 'none',
+                                                fontFamily: "'Plus Jakarta Sans', sans-serif"
+                                            }}
+                                        />
+                                    </div>
+
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                        <motion.button 
+                                            type="button"
+                                            whileHover={{ scale: 1.02 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            onClick={() => setShowPinModal(false)} 
+                                            style={{
+                                                padding: '9px 16px',
+                                                background: 'rgba(255, 255, 255, 0.05)',
+                                                border: '1px solid rgba(255, 255, 255, 0.12)',
+                                                borderRadius: '10px',
+                                                color: 'var(--text-secondary, #d1b8af)',
+                                                fontSize: '13px',
+                                                fontWeight: 700,
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            Vazgeç
+                                        </motion.button>
+                                        <motion.button 
+                                            type="button"
+                                            whileHover={{ scale: 1.02 }}
+                                            whileTap={{ scale: 0.98 }}
+                                            onClick={handleSavePin} 
+                                            style={{
+                                                padding: '9px 20px',
+                                                background: 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)',
+                                                border: 'none',
+                                                borderRadius: '10px',
+                                                color: '#ffffff',
+                                                fontSize: '13px',
+                                                fontWeight: 800,
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                boxShadow: '0 4px 16px rgba(247, 103, 7, 0.35)'
+                                            }}
+                                        >
+                                            <Check size={15} />
+                                            <span>Şifreyi Güncelle</span>
+                                        </motion.button>
+                                    </div>
+                                </motion.div>
+                            </div>
+                        </AnimatePresence>,
+                        document.body
+                    )}
+
+                    {/* ============================================================== */}
+                    {/* 4. SEKME: YAZICI AYARLARI (MERKEZİ MUTFAK & KASA AĞ ENTEGRASYONU) */}
+                    {/* ============================================================== */}
+                    {currentActiveTab === 'printer' && (
+                        <AdminPrinterSettings
+                            printerSettings={printerSettings}
+                            savePrinterSettings={savePrinterSettings}
+                            handleTestPrintTicket={handleTestPrintTicket}
+                            showToast={showToast}
+                        />
+                    )}
                 </motion.div>
             </AnimatePresence>
 

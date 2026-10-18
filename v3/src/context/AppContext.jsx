@@ -74,7 +74,7 @@ function exitFullscreen() {
 }
 
 export const DEFAULT_USERS = [
-    { id: "mgr-1", name: "Yönetici (Patron)", role: "admin", pin: "197300", phone: "0532 100 20 30" }
+    { id: "mgr-1", name: "Yönetici", role: "admin", pin: "197300", phone: "" }
 ];
 
 export function AppProvider({ children }) {

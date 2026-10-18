@@ -130,7 +130,7 @@ export default function TableDetailView() {
             table_no: tableNo,
             table_id: tableNo,
             waiter_id: existingOrder?.waiter_id || (currentUser?.role === 'admin' ? (currentUser?.id || 'mgr-1') : (currentUser?.id || 'wtr-1')),
-            waiter_name: existingOrder?.waiter_name || (currentUser?.role === 'admin' ? (currentUser?.name || 'Yönetici (Patron)') : (currentUser?.name || 'Garson')),
+            waiter_name: existingOrder?.waiter_name || (currentUser?.role === 'admin' ? (currentUser?.name || 'Yönetici') : (currentUser?.name || 'Garson')),
             items: items,
             items_count: items.reduce((s, i) => s + (Number(i.quantity) || 1), 0),
             subtotal: subtotal,
@@ -304,7 +304,7 @@ export default function TableDetailView() {
         const orderToClose = {
             table_no: tableNo,
             waiter_id: existingOrder?.waiter_id || (currentUser?.role === 'admin' ? (currentUser?.id || 'mgr-1') : (currentUser?.id || 'wtr-1')),
-            waiter_name: existingOrder?.waiter_name || (currentUser?.role === 'admin' ? (currentUser?.name || 'Yönetici (Patron)') : (currentUser?.name || 'Garson')),
+            waiter_name: existingOrder?.waiter_name || (currentUser?.role === 'admin' ? (currentUser?.name || 'Yönetici') : (currentUser?.name || 'Garson')),
             items: cartItems,
             subtotal: orderSubtotal,
             discount: finalDiscount,
@@ -480,7 +480,7 @@ export default function TableDetailView() {
             const partialOrderRecord = {
                 table_no: tableNo,
                 waiter_id: existingOrder?.waiter_id || (currentUser?.role === 'admin' ? (currentUser?.id || 'mgr-1') : (currentUser?.id || 'wtr-1')),
-                waiter_name: existingOrder?.waiter_name || (currentUser?.role === 'admin' ? (currentUser?.name || 'Yönetici (Patron)') : (currentUser?.name || 'Garson')),
+                waiter_name: existingOrder?.waiter_name || (currentUser?.role === 'admin' ? (currentUser?.name || 'Yönetici') : (currentUser?.name || 'Garson')),
                 items: payingItems,
                 subtotal: payingSubtotal,
                 total: payingSubtotal,
