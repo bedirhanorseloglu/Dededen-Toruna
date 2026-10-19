@@ -286,7 +286,7 @@ export default function DailyClosingModal({
     const dateFormatted = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`;
     const timeFormatted = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-    // Kayıtlı raporları yükle (Local Storage + Firestore)
+    // Kayıtlı raporları yükle (Local Storage + Firestore çift yönlü senkronizasyon)
     useEffect(() => {
         const fetchReports = async () => {
             let localList = [];
@@ -297,33 +297,60 @@ export default function DailyClosingModal({
                 console.warn("Local storage parse error:", e);
             }
 
+            const map = new Map();
+            (Array.isArray(localList) ? localList : []).forEach(r => {
+                if (r) map.set(r.docId || r.reportNo, r);
+            });
+
+            const remoteDocIds = new Set();
+
+            // 1. daily_reports koleksiyonunu çek
             try {
                 const snap = await getDocs(collection(db, "daily_reports"));
-                if (!snap.empty) {
-                    const remoteList = snap.docs.map(d => ({ docId: d.id, ...d.data() }));
-                    const map = new Map();
-                    (Array.isArray(localList) ? localList : []).forEach(r => map.set(r.docId || r.reportNo, r));
-                    remoteList.forEach(r => map.set(r.docId || r.reportNo, r));
-                    const merged = Array.from(map.values()).sort((a, b) => {
-                        const tA = new Date(a.savedAt || a.date || 0).getTime();
-                        const tB = new Date(b.savedAt || b.date || 0).getTime();
-                        return tB - tA;
-                    });
-                    setSavedReports(merged);
-                    localStorage.setItem('cafe_saved_daily_reports', JSON.stringify(merged));
-                    return;
-                }
+                snap.docs.forEach(d => {
+                    remoteDocIds.add(d.id);
+                    const data = { docId: d.id, ...d.data() };
+                    map.set(d.id || data.reportNo, data);
+                });
             } catch (err) {
-                console.warn("Firestore reports fetch fallback:", err);
+                console.warn("daily_reports fetch warning:", err);
             }
 
-            if (Array.isArray(localList)) {
-                localList.sort((a, b) => {
-                    const tA = new Date(a.savedAt || a.date || 0).getTime();
-                    const tB = new Date(b.savedAt || b.date || 0).getTime();
-                    return tB - tA;
+            // 2. daily_closings koleksiyonunu da çek (uyumluluk için)
+            try {
+                const snap2 = await getDocs(collection(db, "daily_closings"));
+                snap2.docs.forEach(d => {
+                    remoteDocIds.add(d.id);
+                    const data = { docId: d.id, ...d.data() };
+                    map.set(d.id || data.reportNo, data);
                 });
-                setSavedReports(localList);
+            } catch (err2) {
+                // opsiyonel
+            }
+
+            const merged = Array.from(map.values()).sort((a, b) => {
+                const tA = new Date(a.savedAt || a.date || 0).getTime();
+                const tB = new Date(b.savedAt || b.date || 0).getTime();
+                return tB - tA;
+            });
+
+            setSavedReports(merged);
+            try {
+                localStorage.setItem('cafe_saved_daily_reports', JSON.stringify(merged));
+            } catch (e) { }
+
+            // 3. Yerelde olup Firestore'da olmayan raporları (örn. bilgisayarda kalan manuel özetleri) buluta eşitle
+            if (Array.isArray(localList)) {
+                localList.forEach(async (locRep) => {
+                    const id = locRep.docId || locRep.reportNo;
+                    if (id && !remoteDocIds.has(id)) {
+                        try {
+                            await setDoc(doc(db, "daily_reports", id), locRep);
+                        } catch (syncErr) {
+                            console.warn("Cloud sync error for report:", id, syncErr);
+                        }
+                    }
+                });
             }
         };
 
