@@ -286,77 +286,35 @@ export default function DailyClosingModal({
     const dateFormatted = `${String(now.getDate()).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`;
     const timeFormatted = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-    // Kayıtlı raporları yükle (Local Storage + Firestore çift yönlü senkronizasyon)
+    // Kayıtlı raporları yükle (Firestore + Çevrimdışı Önbellek)
     useEffect(() => {
+        if (!isOpen) return;
+
         const fetchReports = async () => {
-            let localList = [];
-            try {
-                const raw = localStorage.getItem('cafe_saved_daily_reports');
-                if (raw) localList = JSON.parse(raw);
-            } catch (e) {
-                console.warn("Local storage parse error:", e);
-            }
-
-            const map = new Map();
-            (Array.isArray(localList) ? localList : []).forEach(r => {
-                if (r) map.set(r.docId || r.reportNo, r);
-            });
-
-            const remoteDocIds = new Set();
-
-            // 1. daily_reports koleksiyonunu çek
             try {
                 const snap = await getDocs(collection(db, "daily_reports"));
-                snap.docs.forEach(d => {
-                    remoteDocIds.add(d.id);
-                    const data = { docId: d.id, ...d.data() };
-                    map.set(d.id || data.reportNo, data);
-                });
+                if (!snap.empty) {
+                    const list = snap.docs
+                        .map(d => ({ docId: d.id, ...d.data() }))
+                        .sort((a, b) => new Date(b.savedAt || b.date || 0) - new Date(a.savedAt || a.date || 0));
+                    setSavedReports(list);
+                    localStorage.setItem('cafe_saved_daily_reports', JSON.stringify(list));
+                    return;
+                }
             } catch (err) {
-                console.warn("daily_reports fetch warning:", err);
+                console.warn("Firestore reports fetch fallback:", err);
             }
 
-            // 2. daily_closings koleksiyonunu da çek (uyumluluk için)
+            // Çevrimdışı durumunda yerel önbellekten oku
             try {
-                const snap2 = await getDocs(collection(db, "daily_closings"));
-                snap2.docs.forEach(d => {
-                    remoteDocIds.add(d.id);
-                    const data = { docId: d.id, ...d.data() };
-                    map.set(d.id || data.reportNo, data);
-                });
-            } catch (err2) {
-                // opsiyonel
-            }
-
-            const merged = Array.from(map.values()).sort((a, b) => {
-                const tA = new Date(a.savedAt || a.date || 0).getTime();
-                const tB = new Date(b.savedAt || b.date || 0).getTime();
-                return tB - tA;
-            });
-
-            setSavedReports(merged);
-            try {
-                localStorage.setItem('cafe_saved_daily_reports', JSON.stringify(merged));
-            } catch (e) { }
-
-            // 3. Yerelde olup Firestore'da olmayan raporları (örn. bilgisayarda kalan manuel özetleri) buluta eşitle
-            if (Array.isArray(localList)) {
-                localList.forEach(async (locRep) => {
-                    const id = locRep.docId || locRep.reportNo;
-                    if (id && !remoteDocIds.has(id)) {
-                        try {
-                            await setDoc(doc(db, "daily_reports", id), locRep);
-                        } catch (syncErr) {
-                            console.warn("Cloud sync error for report:", id, syncErr);
-                        }
-                    }
-                });
+                const cached = JSON.parse(localStorage.getItem('cafe_saved_daily_reports') || '[]');
+                setSavedReports(Array.isArray(cached) ? cached : []);
+            } catch (e) {
+                setSavedReports([]);
             }
         };
 
-        if (isOpen) {
-            fetchReports();
-        }
+        fetchReports();
     }, [isOpen]);
 
     const handleSaveClosing = async () => {
