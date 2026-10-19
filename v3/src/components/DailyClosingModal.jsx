@@ -22,7 +22,8 @@ import {
     Clock,
     Calendar,
     Users,
-    Check
+    Check,
+    Tag
 } from 'lucide-react';
 import { 
     ResponsiveContainer, 
