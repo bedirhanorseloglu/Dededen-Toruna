@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 import { formatMoney } from '../data/menu';
 import { recordCompletedOrder } from '../services/analyticsService';
 import { printCustomerReceipt, printKitchenOrderTicket } from '../services/printService';
-import { playChimeSound, playDeliveryAlertSound } from '../services/audioService';
+import { playChimeSound, playDeliveryAlertSound, playNotificationSound } from '../services/audioService';
 import { db, doc, deleteDoc, updateDoc, setDoc } from '../config/firebase';
 import { 
     Search, 
@@ -379,6 +379,8 @@ export default function WaiterView() {
         try {
             await updateDoc(doc(db, "orders", docId), {
                 items: updated,
+                kitchen_status: 'pending',
+                all_delivered: false,
                 updated_at: now
             });
             printKitchenOrderTicket({
@@ -386,6 +388,7 @@ export default function WaiterView() {
                 waiter_name: receiptOrder?.waiter_name || currentUser?.name || 'Garson',
                 items: updated
             }, printerSettings);
+            playNotificationSound();
             showToast(`🍳 ${unsent.length} yeni ürün mutfağa iletildi!`, 'success');
         } catch (e) {
             console.error("Mutfak iletim hatası:", e);
@@ -557,6 +560,7 @@ export default function WaiterView() {
             showToast('Parçalı ödeme alınırken hata oluştu.', 'danger');
         }
     };
+
 
     return (
         <div className="waiter-page-container">

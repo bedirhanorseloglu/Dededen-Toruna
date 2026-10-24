@@ -19,7 +19,7 @@ import {
 } from '../config/firebase';
 import { recordCompletedOrder } from '../services/analyticsService';
 import { printCustomerReceipt, printKitchenOrderTicket } from '../services/printService';
-import { playChimeSound, playDeliveryAlertSound } from '../services/audioService';
+import { playChimeSound, playDeliveryAlertSound, playNotificationSound } from '../services/audioService';
 import {
     TrendingUp,
     CreditCard,
@@ -597,6 +597,53 @@ export default function AdminView() {
         }
     };
 
+    // Çekmeceden bekleyen sıcak mutfak ürünlerini mutfağa gönderme
+    const handleSendDrawerToKitchen = async () => {
+        if (!drawerOrder || !drawerOrder.items) return;
+        const unsentItems = drawerOrder.items.filter(i => i.status === 'cooking' && i.kitchen_sent === false);
+        if (unsentItems.length === 0) {
+            showToast('Mutfağa iletilecek yeni sipariş bulunmuyor.', 'info');
+            return;
+        }
+
+        const now = new Date().toISOString();
+        const updatedItems = drawerOrder.items.map(item => {
+            if (item.status === 'cooking' && item.kitchen_sent === false) {
+                return {
+                    ...item,
+                    kitchen_sent: true,
+                    kitchen_sent_at: now
+                };
+            }
+            return item;
+        });
+
+        try {
+            const docId = drawerOrder.id || `table_${selectedDrawerTable}`;
+            await updateDoc(doc(db, "orders", docId), {
+                items: updatedItems,
+                kitchen_status: 'pending',
+                all_delivered: false,
+                updated_at: now
+            });
+
+            // Mutfak Fişi Yazdır (eğer mutfak fişi açıksa)
+            try {
+                printKitchenOrderTicket({
+                    table_no: selectedDrawerTable,
+                    waiter_name: drawerOrder.waiter_name || currentUser?.name || 'Yönetici',
+                    items: updatedItems
+                }, printerSettings);
+            } catch (e) {}
+
+            playNotificationSound();
+            showToast(`🍳 Masa ${selectedDrawerTable} için ${unsentItems.length} ürün mutfağa gönderildi!`, 'success');
+        } catch (e) {
+            console.error("handleSendDrawerToKitchen error:", e);
+            showToast("Mutfak siparişi gönderilirken hata oluştu.", "danger");
+        }
+    };
+
     // Çekmeceden ürün adet artırma / azaltma / silme
     const handleUpdateDrawerQuantity = async (index, delta) => {
         if (!drawerOrder || !drawerOrder.items) return;
@@ -746,45 +793,6 @@ export default function AdminView() {
         showToast(`Masa ${selectedDrawerTable} adisyon fişi yazdırılıyor.`, "info");
     };
 
-    // Çekmeceden bekleyen sıcak mutfak ürünlerini mutfağa gönder
-    const handleSendDrawerToKitchen = async () => {
-        if (!drawerOrder || !selectedDrawerTable) return;
-        const items = drawerOrder.items || [];
-        const unsent = items.filter(i => i.status === 'cooking' && i.kitchen_sent === false);
-        if (unsent.length === 0) {
-            showToast('Mutfağa iletilecek yeni sipariş bulunmuyor.', 'info');
-            return;
-        }
-
-        const now = new Date().toISOString();
-        const updated = items.map(item => {
-            if (item.status === 'cooking' && item.kitchen_sent === false) {
-                return {
-                    ...item,
-                    kitchen_sent: true,
-                    kitchen_sent_at: now
-                };
-            }
-            return item;
-        });
-
-        const docId = drawerOrder.id || `table_${selectedDrawerTable}`;
-        try {
-            await updateDoc(doc(db, "orders", docId), {
-                items: updated,
-                updated_at: now
-            });
-            printKitchenOrderTicket({
-                table_no: selectedDrawerTable,
-                waiter_name: drawerOrder?.waiter_name || currentUser?.name || 'Yönetici',
-                items: updated
-            }, printerSettings);
-            showToast(`🍳 ${unsent.length} yeni ürün mutfağa iletildi!`, 'success');
-        } catch (e) {
-            console.error("Mutfak iletim hatası:", e);
-            showToast('Mutfağa iletilirken hata oluştu.', 'danger');
-        }
-    };
 
     // Çekmeceden mutfak fişi yazdır (tatlı, içecekler ve teslim edilenler hariç)
     const handlePrintDrawerKitchenTicket = () => {

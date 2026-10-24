@@ -133,7 +133,7 @@ export default function TableDetailView() {
     }, [cartItems]);
 
     // Save to Firestore
-    const persistOrder = useCallback(async (items, customDiscount = discount, customReason = discountReason) => {
+    const persistOrder = useCallback(async (items, customDiscount = discount, customReason = discountReason, kitchenStatusOverride = null) => {
         const orderRef = doc(db, "orders", `table_${tableNo}`);
         const subtotal = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity || 1)), 0);
         const dAmount = Math.min(subtotal, Math.max(0, Number(customDiscount) || 0));
@@ -143,6 +143,11 @@ export default function TableDetailView() {
             await closeTableOrder(tableNo, existingOrder?.id);
             return;
         }
+
+        const hasCookingSent = items.some(i => i.status === 'cooking' && i.kitchen_sent !== false);
+        const resolvedKitchenStatus = kitchenStatusOverride
+            ? kitchenStatusOverride
+            : (hasCookingSent ? 'pending' : (existingOrder?.kitchen_status || 'pending'));
 
         const payload = {
             table_no: tableNo,
@@ -156,6 +161,8 @@ export default function TableDetailView() {
             discount_reason: customReason || '',
             total: total,
             status: "open",
+            kitchen_status: resolvedKitchenStatus,
+            all_delivered: !hasCookingSent && items.length > 0 && items.every(i => i.status === 'delivered'),
             updated_at: new Date().toISOString()
         };
 
@@ -228,7 +235,7 @@ export default function TableDetailView() {
         });
 
         setCartItems(updated);
-        await persistOrder(updated);
+        await persistOrder(updated, discount, discountReason, 'pending');
 
         // Mutfak Fişi Yazdır (eğer mutfak fişi açıksa)
         try {

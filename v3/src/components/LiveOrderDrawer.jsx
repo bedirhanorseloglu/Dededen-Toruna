@@ -703,7 +703,7 @@ export default function LiveOrderDrawer({
                             <button
                                 type="button"
                                 onClick={() => {
-                                    if (effectiveUnsentCount > 0) {
+                                    if (effectiveUnsentCount > 0 && typeof onSendToKitchen === 'function') {
                                         onSendToKitchen();
                                     }
                                 }}
@@ -989,9 +989,17 @@ export default function LiveOrderDrawer({
     // Sidebar modunda ise doğrudan aside döner (TableDetailView)
     if (mode === 'sidebar') {
         return (
-            <aside className={`receipt-side ${isOpen ? 'mobile-open' : ''}`}>
-                {drawerContent}
-            </aside>
+            <>
+                {isOpen && (
+                    <div 
+                        className="receipt-mobile-backdrop"
+                        onClick={onClose}
+                    />
+                )}
+                <aside className={`receipt-side ${isOpen ? 'mobile-open' : ''}`}>
+                    {drawerContent}
+                </aside>
+            </>
         );
     }
 

@@ -223,9 +223,10 @@ export default function KitchenView() {
             .filter(ord => {
                 const items = ord.items || [];
                 if (items.length === 0) return false;
-                // Tek tıkla tamamlanıp kaldırılan masalar ('dismissed') mutfak canlı panosunda görünmez!
-                if (ord.kitchen_status === 'dismissed') return false;
                 const hasCooking = items.some(i => i.status === 'cooking' && i.kitchen_sent !== false);
+                // Tek tıkla tamamlanıp kaldırılan masalar ('dismissed') mutfak canlı panosunda görünmez,
+                // ANCAK: Masada şu an pişmekte olan bir sipariş varsa kesinlikle mutfakta görünmelidir:
+                if (ord.kitchen_status === 'dismissed' && !hasCooking) return false;
                 const hasAnySent = items.some(i => i.kitchen_sent !== false);
                 return hasCooking || hasAnySent;
             })

@@ -41,11 +41,15 @@ function isStandaloneApp() {
 }
 
 function wantsFullscreen() {
-    return localStorage.getItem(FS_PREF_KEY) !== '0';
+    return localStorage.getItem(FS_PREF_KEY) === '1';
 }
 
 function setWantsFullscreen(value) {
-    localStorage.setItem(FS_PREF_KEY, value ? '1' : '0');
+    if (value) {
+        localStorage.setItem(FS_PREF_KEY, '1');
+    } else {
+        localStorage.removeItem(FS_PREF_KEY);
+    }
 }
 
 function enterFullscreen() {
@@ -150,19 +154,6 @@ export function AppProvider({ children }) {
         };
     }, []);
 
-    // "Yapışkan" tam ekran: Kullanıcı isteyerek tam ekrandan çıkmadığı sürece (wantsFullscreen() !== false)
-    // tam ekran düşerse kullanıcı ilk ekrana dokunduğunda otomatik tam ekrana geçer.
-    useEffect(() => {
-        const reenter = (e) => {
-            // Butonlara ve navigasyon kontrollerine dokunulduğunda tetiklenme
-            if (e?.target?.closest?.('.header-controls') || e?.target?.closest?.('button')) return;
-            if (wantsFullscreen() && !getFullscreenElement() && !isStandaloneApp()) {
-                enterFullscreen();
-            }
-        };
-        document.addEventListener('pointerup', reenter, true);
-        return () => document.removeEventListener('pointerup', reenter, true);
-    }, []);
 
     // Real-time Firestore Listener for Active Orders
     useEffect(() => {
@@ -538,10 +529,6 @@ export function AppProvider({ children }) {
         else if (user.role === 'kitchen') setCurrentView('kitchen');
         else setCurrentView('waiter');
         showToast(`Hoş geldiniz, ${user.name}!`, 'success');
-
-        // Otomatik tam ekrana geç (Müşteri İsteği: Siteye girildiği an tam ekrana geçsin)
-        setWantsFullscreen(true);
-        enterFullscreen();
     };
 
     const logout = () => {
