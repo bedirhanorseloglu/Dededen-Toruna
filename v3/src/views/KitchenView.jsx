@@ -35,6 +35,39 @@ import {
     ChevronRight
 } from 'lucide-react';
 
+// Tabletlerde kasma ve donmayı önlemek için saniyede 1 çalışan dijital saati izole memo bileşeni yapıyoruz
+const KitchenClock = React.memo(function KitchenClock() {
+    const [time, setTime] = useState('');
+    useEffect(() => {
+        const update = () => {
+            const now = new Date();
+            setTime(now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        };
+        update();
+        const id = setInterval(update, 1000);
+        return () => clearInterval(id);
+    }, []);
+
+    return (
+        <div style={{
+            fontVariantNumeric: 'tabular-nums',
+            fontWeight: 800,
+            color: 'var(--brand-gold, #fbbf24)',
+            fontSize: '12.5px',
+            background: 'rgba(251, 191, 36, 0.08)',
+            border: '1px solid rgba(251, 191, 36, 0.25)',
+            padding: '4px 8px',
+            borderRadius: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px'
+        }}>
+            <Clock size={12} />
+            {time}
+        </div>
+    );
+});
+
 export default function KitchenView() {
     const {
         activeOrders,
@@ -48,7 +81,6 @@ export default function KitchenView() {
         logout
     } = useApp();
 
-    const [clock, setClock] = useState('');
     const [currentFilter, setCurrentFilter] = useState('all'); // 'all' | 'cooking' | 'ready'
     const [selectedTableNo, setSelectedTableNo] = useState(null);
     const [layoutMode, setLayoutMode] = useState(() => {
@@ -68,17 +100,6 @@ export default function KitchenView() {
 
     const prevOrdersRef = useRef({});
     const isFirstLoadRef = useRef(true);
-
-    // Canlı dijital mutfak saati
-    useEffect(() => {
-        const update = () => {
-            const now = new Date();
-            setClock(now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-        };
-        update();
-        const id = setInterval(update, 1000);
-        return () => clearInterval(id);
-    }, []);
 
     // Tablet ekranının mutfakta açık kalmasını sağlayan Screen Wake Lock API ve ilk dokunuş aktivasyonu
     useEffect(() => {
@@ -527,23 +548,8 @@ export default function KitchenView() {
                         </button>
                     </div>
 
-                    {/* Canlı Dijital Saat */}
-                    <div style={{
-                        fontVariantNumeric: 'tabular-nums',
-                        fontWeight: 800,
-                        color: 'var(--brand-gold, #fbbf24)',
-                        fontSize: '12.5px',
-                        background: 'rgba(251, 191, 36, 0.08)',
-                        border: '1px solid rgba(251, 191, 36, 0.25)',
-                        padding: '4px 8px',
-                        borderRadius: '8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '5px'
-                    }}>
-                        <Clock size={12} />
-                        {clock}
-                    </div>
+                    {/* Canlı Dijital Saat (İzole, sayfayı kasmayan) */}
+                    <KitchenClock />
 
                     {/* Ses Aç / Kapat & Ses Testi */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -651,7 +657,7 @@ export default function KitchenView() {
                     overflowY: 'auto'
                 }}
             >
-                <AnimatePresence mode="popLayout">
+                <AnimatePresence>
                     {filteredOrders.length === 0 ? (
                         <motion.div
                             key="empty-state"
@@ -735,11 +741,10 @@ export default function KitchenView() {
                             return (
                                 <motion.div
                                     key={ord.id || ord.table_no}
-                                    layout
-                                    initial={{ opacity: 0, y: 10, scale: 0.97 }}
-                                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.2 } }}
-                                    transition={{ type: 'spring', stiffness: 450, damping: 28 }}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.12 }}
                                     style={layoutMode === 'horizontal' ? {
                                         width: 'fit-content',
                                         minWidth: '240px',
@@ -759,7 +764,8 @@ export default function KitchenView() {
                                             ? '0 0 20px rgba(239, 68, 68, 0.25), 0 6px 16px rgba(0, 0, 0, 0.5)' 
                                             : '0 4px 16px rgba(0, 0, 0, 0.45)',
                                         position: 'relative',
-                                        boxSizing: 'border-box'
+                                        boxSizing: 'border-box',
+                                        willChange: 'opacity'
                                     } : {
                                         background: allDelivered ? 'rgba(16, 185, 129, 0.08)' : 'rgba(28, 21, 20, 0.94)',
                                         border: allDelivered
@@ -1010,11 +1016,9 @@ export default function KitchenView() {
                                     {/* Kart Altı Aksiyon Butonları */}
                                     <div style={{ marginTop: '4px', paddingTop: '2px', flexShrink: 0 }}>
                                         {allDelivered ? (
-                                            <motion.button
+                                            <button
                                                 type="button"
                                                 onClick={() => handleDismissOrder(ord)}
-                                                whileHover={{ scale: 1.015 }}
-                                                whileTap={{ scale: 0.97 }}
                                                 style={{
                                                     width: '100%',
                                                     padding: '7px 10px',
@@ -1030,18 +1034,17 @@ export default function KitchenView() {
                                                     justifyContent: 'center',
                                                     gap: '4px',
                                                     cursor: 'pointer',
-                                                    boxShadow: '0 2px 10px rgba(16, 185, 129, 0.35)'
+                                                    boxShadow: '0 2px 10px rgba(16, 185, 129, 0.35)',
+                                                    touchAction: 'manipulation'
                                                 }}
                                             >
                                                 <CheckCheck size={14} strokeWidth={2.6} />
                                                 Garsona Teslim Edildi (Kaldır)
-                                            </motion.button>
+                                            </button>
                                         ) : (
-                                            <motion.button
+                                            <button
                                                 type="button"
                                                 onClick={() => handleDeliverAllOrderItems(ord)}
-                                                whileHover={{ scale: 1.015 }}
-                                                whileTap={{ scale: 0.97 }}
                                                 style={{
                                                     width: '100%',
                                                     padding: '7px 10px',
@@ -1057,12 +1060,13 @@ export default function KitchenView() {
                                                     justifyContent: 'center',
                                                     gap: '4px',
                                                     cursor: 'pointer',
-                                                    boxShadow: '0 2px 10px rgba(247, 103, 7, 0.35)'
+                                                    boxShadow: '0 2px 10px rgba(247, 103, 7, 0.35)',
+                                                    touchAction: 'manipulation'
                                                 }}
                                             >
                                                 <Send size={13} strokeWidth={2.4} />
                                                 {isExtraOrder ? '✓ Ek Siparişi Tamamla' : '✓ Masayı Tamamla (Bildir)'}
-                                            </motion.button>
+                                            </button>
                                         )}
                                     </div>
                                 </motion.div>
