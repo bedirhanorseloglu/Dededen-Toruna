@@ -638,6 +638,8 @@ export default function AdminView() {
 
             playNotificationSound();
             showToast(`🍳 Masa ${selectedDrawerTable} için ${unsentItems.length} ürün mutfağa gönderildi!`, 'success');
+            // Otomatik masalar ekranına dön (çekmeceyi kapat)
+            setSelectedDrawerTable(null);
         } catch (e) {
             console.error("handleSendDrawerToKitchen error:", e);
             showToast("Mutfak siparişi gönderilirken hata oluştu.", "danger");

@@ -390,6 +390,8 @@ export default function WaiterView() {
             }, printerSettings);
             playNotificationSound();
             showToast(`🍳 ${unsent.length} yeni ürün mutfağa iletildi!`, 'success');
+            // Otomatik masalar ekranına dön (çekmeceyi kapat)
+            setSelectedTableForReceipt(null);
         } catch (e) {
             console.error("Mutfak iletim hatası:", e);
             showToast('Mutfağa iletilirken hata oluştu.', 'danger');

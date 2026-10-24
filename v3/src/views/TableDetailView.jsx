@@ -248,7 +248,15 @@ export default function TableDetailView() {
 
         playNotificationSound();
         showToast(`🍳 Masa ${tableNo} için ${unsentItems.length} ürün mutfağa gönderildi!`, 'success');
-    }, [cartItems, persistOrder, tableNo, existingOrder, currentUser, printerSettings, showToast]);
+
+        // Mutfağa gönderdikten sonra otomatik masalar ekranına dön
+        setIsMobileCartOpen(false);
+        if (currentUser?.role === 'admin') {
+            navigateTo('admin');
+        } else {
+            navigateTo('waiter');
+        }
+    }, [cartItems, persistOrder, tableNo, existingOrder, currentUser, printerSettings, showToast, navigateTo]);
 
     // Update quantity
     const handleUpdateQuantity = async (index, delta) => {
