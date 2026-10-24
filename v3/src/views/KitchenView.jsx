@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useApp } from '../context/AppContext';
-import { db, doc, updateDoc } from '../config/firebase';
+import { db, doc, updateDoc, collection, addDoc, setDoc, onSnapshot, query, where, limit } from '../config/firebase';
 import {
     playNotificationSound,
     playOrderReadySound,
@@ -32,7 +31,9 @@ import {
     LayoutGrid,
     Columns,
     X,
-    ChevronRight
+    ChevronRight,
+    History,
+    RotateCcw
 } from 'lucide-react';
 
 // Tabletlerde kasma ve donmayı önlemek için saniyede 1 çalışan dijital saati izole memo bileşeni yapıyoruz
@@ -100,6 +101,33 @@ export default function KitchenView() {
 
     const prevOrdersRef = useRef({});
     const isFirstLoadRef = useRef(true);
+
+    // Günlük tamamlanan sipariş geçmişi paneli state'i
+    const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
+    const [kitchenHistory, setKitchenHistory] = useState([]);
+
+    // Bugün tamamlanan mutfak siparişlerini gerçek zamanlı dinle
+    useEffect(() => {
+        const todayStr = new Date().toISOString().split('T')[0];
+        try {
+            const q = query(
+                collection(db, "kitchen_history"),
+                where("date_str", "==", todayStr),
+                limit(60)
+            );
+            const unsub = onSnapshot(q, (snap) => {
+                const list = [];
+                snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+                list.sort((a, b) => new Date(b.completed_at || 0) - new Date(a.completed_at || 0));
+                setKitchenHistory(list);
+            }, (err) => {
+                console.warn("kitchen_history listener error:", err);
+            });
+            return () => unsub();
+        } catch (e) {
+            console.error("kitchen_history setup error:", e);
+        }
+    }, []);
 
     // Tablet ekranının mutfakta açık kalmasını sağlayan Screen Wake Lock API ve ilk dokunuş aktivasyonu
     useEffect(() => {
@@ -185,17 +213,17 @@ export default function KitchenView() {
         return `${diffHours} sa ${diffMins % 60} dk`;
     };
 
-    // Tüm açık mutfak siparişleri (Yalnızca mutfağa gönderilmiş ürünler)
+    // Tüm açık mutfak siparişleri (Yalnızca mutfağa gönderilmiş ve henüz dismiss edilmemiş olanlar)
     const kitchenOrders = useMemo(() => {
         return Object.values(activeOrders)
             .filter(ord => {
                 const items = ord.items || [];
                 if (items.length === 0) return false;
-                // Ekranda gösterilecekler: En az 1 mutfağa iletilmiş pişiyor olmalı ya da mutfak henüz dismiss edilmemiş hazır masa olmalı
+                // Tek tıkla tamamlanıp kaldırılan masalar ('dismissed') mutfak canlı panosunda görünmez!
+                if (ord.kitchen_status === 'dismissed') return false;
                 const hasCooking = items.some(i => i.status === 'cooking' && i.kitchen_sent !== false);
                 const hasAnySent = items.some(i => i.kitchen_sent !== false);
-                const isReady = hasAnySent && items.every(i => i.status === 'delivered' || i.kitchen_sent === false) && ord.kitchen_status !== 'dismissed';
-                return hasCooking || isReady;
+                return hasCooking || hasAnySent;
             })
             .sort((a, b) => {
                 // Öncelik: Pişenler önce, sonra eskiden yeniye doğru
@@ -294,7 +322,34 @@ export default function KitchenView() {
         }
     };
 
-    // Tüm masadaki yemekleri hazırlandı yapma (Garsona bildir)
+    // Birleşik günlük mutfak geçmişi (Firestore + aktif dismissed masalar)
+    const combinedHistory = useMemo(() => {
+        const map = new Map();
+        kitchenHistory.forEach(item => {
+            const key = item.order_doc_id || item.id;
+            map.set(key, item);
+        });
+        Object.values(activeOrders).forEach(ord => {
+            if (ord.kitchen_status === 'dismissed' && ord.kitchen_delivered_at) {
+                const docId = ord.id || `table_${ord.table_no}`;
+                if (!map.has(docId)) {
+                    map.set(docId, {
+                        id: `active_${docId}`,
+                        table_no: Number(ord.table_no),
+                        waiter_name: ord.waiter_name || 'Personel',
+                        items: (ord.items || []).filter(i => i.kitchen_sent !== false),
+                        completed_at: ord.kitchen_delivered_at,
+                        completed_time_str: new Date(ord.kitchen_delivered_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+                        date_str: new Date(ord.kitchen_delivered_at).toISOString().split('T')[0],
+                        order_doc_id: docId
+                    });
+                }
+            }
+        });
+        return Array.from(map.values()).sort((a, b) => new Date(b.completed_at || 0) - new Date(a.completed_at || 0));
+    }, [kitchenHistory, activeOrders]);
+
+    // TEK TIKLA MASAYI TAMAMLAMA (Garsona anında bildirim gider ve ekrandan kalkar)
     const handleDeliverAllOrderItems = async (order) => {
         playKeypadBeep();
         const items = (order.items || []).map(i => ({ ...i, status: 'delivered' }));
@@ -303,35 +358,75 @@ export default function KitchenView() {
         const nowTime = Date.now();
 
         try {
+            // 1. Masayı Firestore'da 'delivered' ve 'dismissed' yap (TEK TIKLA EKRANDAN KALKAR)
             await updateDoc(doc(db, "orders", docId), {
                 items,
                 all_delivered: true,
-                kitchen_status: 'completed',
+                kitchen_status: 'dismissed',
                 kitchen_delivered_at: nowIso,
                 kitchen_notified_at: nowTime,
+                kitchen_completed_by: currentUser?.name || 'Mutfak',
                 updated_at: nowIso
             });
 
+            // 2. Günlük geçmişe kaydet
+            try {
+                await addDoc(collection(db, "kitchen_history"), {
+                    table_no: Number(order.table_no),
+                    waiter_name: order.waiter_name || 'Personel',
+                    items: items.filter(i => i.kitchen_sent !== false),
+                    completed_at: nowIso,
+                    completed_time_str: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+                    date_str: nowIso.split('T')[0],
+                    order_doc_id: docId
+                });
+            } catch (e) {
+                console.error("kitchen_history addDoc error:", e);
+            }
+
             playOrderReadySound();
-            showToast(`Masa ${order.table_no} tüm ürünleri hazırlandı! Garsona bildirildi.`, 'success');
+            showToast(`✓ Masa ${order.table_no} hazırlandı ve garsona bildirildi!`, 'success');
         } catch (err) {
             console.error("handleDeliverAllOrderItems error:", err);
             showToast("Teslimat onaylanırken hata oluştu.", "danger");
         }
     };
 
-    // Tamamlanmış masayı ekrandan kaldırma
-    const handleDismissOrder = async (order) => {
+    // Yanlışlıkla butona basıldıysa siparişi tekrar mutfak panosuna geri alma
+    const handleRestoreOrder = async (historyItem) => {
         playKeypadBeep();
-        const docId = order.id || `table_${order.table_no}`;
+        const docId = historyItem.order_doc_id || `table_${historyItem.table_no}`;
+        const nowIso = new Date().toISOString();
         try {
-            await updateDoc(doc(db, "orders", docId), {
-                kitchen_status: 'dismissed',
-                updated_at: new Date().toISOString()
-            });
-            showToast(`Masa ${order.table_no} mutfak panosundan kaldırıldı.`, 'info');
+            const currentActive = activeOrders[String(historyItem.table_no)];
+            if (currentActive) {
+                const revertedItems = (currentActive.items || []).map(i => ({
+                    ...i,
+                    status: i.kitchen_sent !== false ? 'cooking' : i.status
+                }));
+                await updateDoc(doc(db, "orders", docId), {
+                    items: revertedItems,
+                    all_delivered: false,
+                    kitchen_status: 'pending',
+                    kitchen_notified_at: null,
+                    updated_at: nowIso
+                });
+            } else {
+                await setDoc(doc(db, "orders", docId), {
+                    table_no: Number(historyItem.table_no),
+                    waiter_name: historyItem.waiter_name || 'Personel',
+                    items: (historyItem.items || []).map(i => ({ ...i, status: 'cooking' })),
+                    all_delivered: false,
+                    status: 'open',
+                    kitchen_status: 'pending',
+                    created_at: historyItem.completed_at || nowIso,
+                    updated_at: nowIso
+                }, { merge: true });
+            }
+            showToast(`↺ Masa ${historyItem.table_no} tekrar mutfak panosuna geri alındı!`, 'info');
         } catch (err) {
-            console.error("handleDismissOrder error:", err);
+            console.error("handleRestoreOrder error:", err);
+            showToast("Sipariş geri alınamadı.", "danger");
         }
     };
 
@@ -599,6 +694,42 @@ export default function KitchenView() {
                             </button>
                         )}
                     </div>
+
+                    {/* Günlük Sipariş Geçmişi Butonu */}
+                    <button
+                        type="button"
+                        onClick={() => setShowHistoryDrawer(true)}
+                        className="btn-outline"
+                        title="Bugün tamamlanan siparişlerin geçmişini aç"
+                        style={{
+                            padding: '5px 9px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            borderRadius: '8px',
+                            color: '#fffaf5',
+                            background: showHistoryDrawer ? 'rgba(247, 103, 7, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                            borderColor: 'rgba(247, 103, 7, 0.4)',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <History size={13} color="var(--brand-primary, #f76707)" />
+                        <span>Geçmiş</span>
+                        {combinedHistory.length > 0 && (
+                            <span style={{
+                                background: 'var(--brand-primary, #f76707)',
+                                color: 'white',
+                                borderRadius: '10px',
+                                padding: '1px 5px',
+                                fontSize: '9.5px',
+                                fontWeight: 900
+                            }}>
+                                {combinedHistory.length}
+                            </span>
+                        )}
+                    </button>
 
                     {/* Tam Ekran */}
                     <button
@@ -1013,61 +1144,33 @@ export default function KitchenView() {
                                         )}
                                     </div>
 
-                                    {/* Kart Altı Aksiyon Butonları */}
+                                    {/* Kart Altı Aksiyon Butonu - TEK TIKLA GARSONA BİLDİR VE EKRANDAN KALDIR */}
                                     <div style={{ marginTop: '4px', paddingTop: '2px', flexShrink: 0 }}>
-                                        {allDelivered ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => handleDismissOrder(ord)}
-                                                style={{
-                                                    width: '100%',
-                                                    padding: '7px 10px',
-                                                    borderRadius: '8px',
-                                                    border: 'none',
-                                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                                    color: 'white',
-                                                    fontWeight: 800,
-                                                    fontSize: '11.5px',
-                                                    whiteSpace: 'nowrap',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    gap: '4px',
-                                                    cursor: 'pointer',
-                                                    boxShadow: '0 2px 10px rgba(16, 185, 129, 0.35)',
-                                                    touchAction: 'manipulation'
-                                                }}
-                                            >
-                                                <CheckCheck size={14} strokeWidth={2.6} />
-                                                Garsona Teslim Edildi (Kaldır)
-                                            </button>
-                                        ) : (
-                                            <button
-                                                type="button"
-                                                onClick={() => handleDeliverAllOrderItems(ord)}
-                                                style={{
-                                                    width: '100%',
-                                                    padding: '7px 10px',
-                                                    borderRadius: '8px',
-                                                    border: 'none',
-                                                    background: 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)',
-                                                    color: 'white',
-                                                    fontWeight: 800,
-                                                    fontSize: '11.5px',
-                                                    whiteSpace: 'nowrap',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    gap: '4px',
-                                                    cursor: 'pointer',
-                                                    boxShadow: '0 2px 10px rgba(247, 103, 7, 0.35)',
-                                                    touchAction: 'manipulation'
-                                                }}
-                                            >
-                                                <Send size={13} strokeWidth={2.4} />
-                                                {isExtraOrder ? '✓ Ek Siparişi Tamamla' : '✓ Masayı Tamamla (Bildir)'}
-                                            </button>
-                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeliverAllOrderItems(ord)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '7px 10px',
+                                                borderRadius: '8px',
+                                                border: 'none',
+                                                background: 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)',
+                                                color: 'white',
+                                                fontWeight: 800,
+                                                fontSize: '11.5px',
+                                                whiteSpace: 'nowrap',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '4px',
+                                                cursor: 'pointer',
+                                                boxShadow: '0 2px 10px rgba(247, 103, 7, 0.35)',
+                                                touchAction: 'manipulation'
+                                            }}
+                                        >
+                                            <Send size={13} strokeWidth={2.4} />
+                                            {isExtraOrder ? '✓ Ek Siparişi Tamamla (Garsona Bildir)' : '✓ Masayı Tamamla (Garsona Bildir)'}
+                                        </button>
                                     </div>
                                 </motion.div>
                             );
@@ -1404,6 +1507,201 @@ export default function KitchenView() {
                                         <Send size={15} strokeWidth={2.4} />
                                         <span>Tüm Masayı Hazırla (Garsona Bildir)</span>
                                     </button>
+                                )}
+                            </div>
+                        </motion.aside>
+                    </>
+                )}
+            </AnimatePresence>
+
+            {/* ============================================================== */}
+            {/* 4. SAĞDAN AÇILAN GÜNLÜK MUTFAK GEÇMİŞİ (HISTORY DRAWER)        */}
+            {/* ============================================================== */}
+            <AnimatePresence>
+                {showHistoryDrawer && (
+                    <>
+                        {/* Karartma Katmanı */}
+                        <motion.div
+                            key="history-backdrop"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setShowHistoryDrawer(false)}
+                            style={{
+                                position: 'fixed',
+                                inset: 0,
+                                background: 'rgba(0, 0, 0, 0.65)',
+                                backdropFilter: 'blur(4px)',
+                                WebkitBackdropFilter: 'blur(4px)',
+                                zIndex: 998
+                            }}
+                        />
+
+                        {/* Yana Açılan Geçmiş Paneli */}
+                        <motion.aside
+                            key="history-panel"
+                            initial={{ x: '100%' }}
+                            animate={{ x: 0 }}
+                            exit={{ x: '100%' }}
+                            transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+                            style={{
+                                position: 'fixed',
+                                top: 0,
+                                right: 0,
+                                bottom: 0,
+                                width: 'min(480px, 94vw)',
+                                background: 'linear-gradient(180deg, #221a18 0%, #171110 100%)',
+                                borderLeft: '2px solid rgba(247, 103, 7, 0.45)',
+                                boxShadow: '-12px 0 45px rgba(0, 0, 0, 0.85)',
+                                zIndex: 999,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                padding: '16px',
+                                boxSizing: 'border-box'
+                            }}
+                        >
+                            {/* Panel Üst Başlığı */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '12px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <div style={{
+                                        background: 'rgba(247, 103, 7, 0.15)',
+                                        color: 'var(--brand-primary, #f76707)',
+                                        padding: '6px',
+                                        borderRadius: '8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                    }}>
+                                        <History size={18} strokeWidth={2.4} />
+                                    </div>
+                                    <div>
+                                        <h3 style={{ margin: 0, fontWeight: 900, fontSize: '18px', color: '#fffaf5' }}>
+                                            Günlük Sipariş Geçmişi
+                                        </h3>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted, #8d736b)' }}>
+                                            Bugün tamamlanan {combinedHistory.length} masa
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setShowHistoryDrawer(false)}
+                                    className="btn-outline"
+                                    style={{
+                                        padding: '5px',
+                                        borderRadius: '8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'var(--text-muted)'
+                                    }}
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            {/* Liste */}
+                            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {combinedHistory.length === 0 ? (
+                                    <div style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--text-muted)' }}>
+                                        <CheckCircle2 size={36} style={{ margin: '0 auto 10px', opacity: 0.4 }} />
+                                        <div style={{ fontSize: '14px', fontWeight: 700, color: '#fffaf5' }}>Henüz Tamamlanan Masa Yok</div>
+                                        <div style={{ fontSize: '12px', marginTop: '4px' }}>Mutfaktan tamamlanan siparişler burada listelenecektir.</div>
+                                    </div>
+                                ) : (
+                                    combinedHistory.map((item, idx) => (
+                                        <div
+                                            key={item.id || idx}
+                                            style={{
+                                                background: 'rgba(0, 0, 0, 0.35)',
+                                                border: '1px solid rgba(255, 255, 255, 0.08)',
+                                                borderRadius: '10px',
+                                                padding: '10px 12px',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '6px'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <span style={{ fontWeight: 900, fontSize: '15px', color: '#fffaf5' }}>
+                                                        Masa {item.table_no}
+                                                    </span>
+                                                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                                                        • Garson: <strong style={{ color: '#fffaf5' }}>{item.waiter_name}</strong>
+                                                    </span>
+                                                </div>
+
+                                                <span style={{
+                                                    fontSize: '11px',
+                                                    color: 'var(--brand-gold, #fbbf24)',
+                                                    background: 'rgba(251, 191, 36, 0.1)',
+                                                    border: '1px solid rgba(251, 191, 36, 0.25)',
+                                                    padding: '2px 6px',
+                                                    borderRadius: '5px',
+                                                    fontWeight: 700,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '3px'
+                                                }}>
+                                                    <Clock size={11} />
+                                                    {item.completed_time_str || formatElapsedTime(item.completed_at)}
+                                                </span>
+                                            </div>
+
+                                            {/* Kalemler */}
+                                            <div style={{
+                                                display: 'flex',
+                                                flexWrap: 'wrap',
+                                                gap: '4px',
+                                                marginTop: '2px'
+                                            }}>
+                                                {(item.items || []).map((it, iIdx) => (
+                                                    <span
+                                                        key={iIdx}
+                                                        style={{
+                                                            background: 'rgba(16, 185, 129, 0.12)',
+                                                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                                                            color: '#34d399',
+                                                            fontSize: '11px',
+                                                            fontWeight: 700,
+                                                            padding: '2px 6px',
+                                                            borderRadius: '5px'
+                                                        }}
+                                                    >
+                                                        {it.quantity}x {it.name}
+                                                    </span>
+                                                ))}
+                                            </div>
+
+                                            {/* Yanlışlıkla Tıklandı - Panoya Geri Al Butonu */}
+                                            <div style={{ marginTop: '4px', display: 'flex', justifyContent: 'flex-end' }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRestoreOrder(item)}
+                                                    className="btn-outline"
+                                                    style={{
+                                                        padding: '4px 8px',
+                                                        borderRadius: '6px',
+                                                        fontSize: '10.5px',
+                                                        fontWeight: 800,
+                                                        color: 'var(--brand-gold, #fbbf24)',
+                                                        background: 'rgba(251, 191, 36, 0.08)',
+                                                        borderColor: 'rgba(251, 191, 36, 0.35)',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
+                                                    }}
+                                                    title="Yanlışlıkla tıklandıysa siparişi tekrar mutfak panosuna geri gönder"
+                                                >
+                                                    <RotateCcw size={12} />
+                                                    <span>Panoya Geri Al (Yanlışlıkla Tıklandı)</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
                                 )}
                             </div>
                         </motion.aside>
