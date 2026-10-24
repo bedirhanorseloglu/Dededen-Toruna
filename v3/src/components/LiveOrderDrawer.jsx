@@ -303,10 +303,6 @@ export default function LiveOrderDrawer({
                         {/* Teslim Durumu Telemetri Özeti & Hızlı Toplu Teslim */}
                         <div className="receipt-telemetry-card">
                             <div className="receipt-telemetry-row">
-                                <div className="receipt-status-chip is-cooking" title={`${cookingCount} ürün mutfakta hazırlanıyor`}>
-                                    <Clock size={11} style={{ flexShrink: 0 }} />
-                                    <span><strong>{cookingCount}</strong> Hazırlanıyor</span>
-                                </div>
                                 <div className="receipt-status-chip is-delivered" title={`${deliveredCount} ürün masaya teslim edildi`}>
                                     <CheckCircle2 size={11} style={{ flexShrink: 0 }} />
                                     <span><strong>{deliveredCount}</strong> Teslim</span>
