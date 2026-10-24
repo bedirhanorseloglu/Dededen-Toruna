@@ -73,6 +73,7 @@ const KitchenClock = React.memo(function KitchenClock() {
 export default function KitchenView() {
     const {
         activeOrders,
+        loadingOrders,
         navigateTo,
         currentUser,
         soundEnabled,
@@ -103,6 +104,7 @@ export default function KitchenView() {
 
     const prevOrdersRef = useRef({});
     const isFirstLoadRef = useRef(true);
+    const mountTimeRef = useRef(Date.now());
 
     // Günlük tamamlanan sipariş geçmişi paneli state'i
     const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
@@ -168,10 +170,25 @@ export default function KitchenView() {
     }, []);
 
     // Yeni gelen siparişleri veya ek siparişleri algılayıp sesli ve kalem kalem anonslu uyarı verme
+    // (Sayfa yenilendiğinde veya ilk açılışta eski mevcut siparişleri asla yeni sipariş gibi okumaz)
     useEffect(() => {
+        // 1. Firestore ilk yüklemesi tamamlanana kadar bekle
+        if (loadingOrders) {
+            return;
+        }
+
+        // 2. İlk yüklemede veya sayfa yenilendiğinde mevcut açık masaları referansa al, bildirim/anons çalma
         if (isFirstLoadRef.current) {
             prevOrdersRef.current = { ...activeOrders };
             isFirstLoadRef.current = false;
+            return;
+        }
+
+        const now = Date.now();
+        // Sayfa açılışından sonraki ilk 2.5 saniyede gelebilecek gecikmeli ilk paketleri güvenlik olarak filtrele
+        const isGracePeriod = (now - mountTimeRef.current) < 2500;
+        if (isGracePeriod) {
+            prevOrdersRef.current = { ...activeOrders };
             return;
         }
 
@@ -181,7 +198,16 @@ export default function KitchenView() {
             const sentCookingItems = (order.items || []).filter(i => i.status === 'cooking' && i.kitchen_sent !== false);
             const prevSentCookingCount = (prevOrder?.items || []).filter(i => i.status === 'cooking' && i.kitchen_sent !== false).length;
 
+            // Yeni gelen siparişin gerçekten son 45 saniye içinde mi oluşturulduğunu/güncellendiğini doğrula
+            const orderTime = new Date(order.updated_at || order.created_at || 0).getTime();
+            const isFreshOrder = (now - orderTime) < 45000;
+
             if (sentCookingItems.length > 0 && (!prevOrder || sentCookingItems.length > prevSentCookingCount)) {
+                // Eğer masa referansta yoktu ama sipariş eski bir zamandan kalmaysa (yenileme/gecikme) anons etme
+                if (!prevOrder && !isFreshOrder) {
+                    return;
+                }
+
                 // Yeni sipariş geldiğinde ekranı otomatik 'Tümü'ne al ki aşçı anında görsün
                 setCurrentFilter('all');
 
@@ -202,7 +228,7 @@ export default function KitchenView() {
         });
 
         prevOrdersRef.current = { ...activeOrders };
-    }, [activeOrders, soundEnabled, showToast]);
+    }, [activeOrders, loadingOrders, soundEnabled, showToast]);
 
     // Format elapsed time
     const formatElapsedTime = (isoString) => {
@@ -535,98 +561,59 @@ export default function KitchenView() {
                 boxShadow: '0 4px 16px rgba(0, 0, 0, 0.45)',
                 flexShrink: 0
             }}>
-                {/* Sol: Logo, Başlık ve Canlı İstatistikler */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {/* Sol: Logo, Başlık ve Canlı İstatistik */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                     <div style={{
                         background: 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)',
                         color: 'white',
-                        padding: '5px',
+                        width: '28px',
+                        height: '28px',
                         borderRadius: '8px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        flexShrink: 0,
                         boxShadow: '0 2px 8px rgba(247, 103, 7, 0.4)'
                     }}>
                         <ChefHat size={16} strokeWidth={2.4} />
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontWeight: 900, fontSize: '14.5px', color: '#fffaf5', letterSpacing: '-0.02em' }}>
-                            DEDEDEN TORUNA • MUTFAK
-                        </span>
-                        <span style={{
-                            background: 'rgba(247, 103, 7, 0.15)',
-                            border: '1px solid rgba(247, 103, 7, 0.35)',
-                            color: 'var(--brand-primary)',
-                            fontSize: '10px',
-                            fontWeight: 800,
-                            padding: '1px 6px',
-                            borderRadius: '999px'
-                        }}>
-                            {currentUser?.name || 'Mutfak'}
-                        </span>
-                        <span style={{
-                            background: 'rgba(16, 185, 129, 0.15)',
-                            border: '1px solid rgba(16, 185, 129, 0.4)',
-                            color: '#10b981',
-                            fontSize: '9px',
-                            fontWeight: 800,
-                            padding: '1px 5px',
-                            borderRadius: '999px',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '3px'
-                        }}>
-                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#10b981', animation: 'pulse 1.8s infinite' }} />
-                            CANLI
-                        </span>
-                    </div>
+                    <span style={{ fontWeight: 900, fontSize: '15px', color: '#fffaf5', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>
+                        MUTFAK
+                    </span>
 
-                    {/* Canlı Metrik Rozetleri */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '4px' }}>
-                        <div style={{
-                            background: cookingOrdersCount > 0 ? 'rgba(247, 103, 7, 0.18)' : 'rgba(255, 255, 255, 0.05)',
-                            border: cookingOrdersCount > 0 ? '1px solid rgba(247, 103, 7, 0.45)' : '1px solid rgba(255, 255, 255, 0.08)',
-                            borderRadius: '8px',
-                            padding: '3px 8px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            color: cookingOrdersCount > 0 ? '#f76707' : 'var(--text-muted)'
-                        }}>
-                            <Flame size={13} color={cookingOrdersCount > 0 ? '#f76707' : '#888'} />
-                            <span>{cookingOrdersCount} Masa</span>
-                        </div>
-
-                        <div style={{
-                            background: totalPendingItemsCount > 0 ? 'rgba(245, 159, 0, 0.18)' : 'rgba(255, 255, 255, 0.05)',
-                            border: totalPendingItemsCount > 0 ? '1px solid rgba(245, 159, 0, 0.45)' : '1px solid rgba(255, 255, 255, 0.08)',
-                            borderRadius: '8px',
-                            padding: '3px 8px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            color: totalPendingItemsCount > 0 ? '#f59f00' : 'var(--text-muted)'
-                        }}>
-                            <span>🍽️</span>
-                            <span>{totalPendingItemsCount} Kalem</span>
-                        </div>
+                    {/* Canlı Metrik Hapı (Kompakt Tek Rozet) */}
+                    <div style={{
+                        background: cookingOrdersCount > 0 ? 'rgba(247, 103, 7, 0.16)' : 'rgba(255, 255, 255, 0.05)',
+                        border: cookingOrdersCount > 0 ? '1px solid rgba(247, 103, 7, 0.35)' : '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: '999px',
+                        padding: '3px 9px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: cookingOrdersCount > 0 ? '#fb923c' : 'var(--text-muted, #94a3b8)',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0
+                    }}>
+                        <Flame size={12} color={cookingOrdersCount > 0 ? '#f97316' : '#888'} />
+                        <span><strong>{cookingOrdersCount}</strong> Masa</span>
+                        <span style={{ opacity: 0.4 }}>•</span>
+                        <span><strong>{totalPendingItemsCount}</strong> Kalem</span>
                     </div>
                 </div>
 
                 {/* Sağ: Filtre Sekmeleri, Görünüm Modu, Saat ve Kontroller */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
 
                     {/* Hızlı Filtre Butonları */}
                     <div style={{ display: 'flex', background: 'rgba(0, 0, 0, 0.35)', borderRadius: '9px', padding: '2px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
                         <button
+                            type="button"
                             onClick={() => setCurrentFilter('all')}
                             style={{
-                                padding: '4px 9px',
+                                padding: '4px 8px',
                                 borderRadius: '7px',
                                 fontSize: '11px',
                                 fontWeight: 700,
@@ -639,9 +626,10 @@ export default function KitchenView() {
                             Tümü ({kitchenOrders.length})
                         </button>
                         <button
+                            type="button"
                             onClick={() => setCurrentFilter('cooking')}
                             style={{
-                                padding: '4px 9px',
+                                padding: '4px 8px',
                                 borderRadius: '7px',
                                 fontSize: '11px',
                                 fontWeight: 700,
@@ -655,9 +643,10 @@ export default function KitchenView() {
                         </button>
                         {urgentOrdersCount > 0 && (
                             <button
+                                type="button"
                                 onClick={() => setCurrentFilter('urgent')}
                                 style={{
-                                    padding: '4px 9px',
+                                    padding: '4px 8px',
                                     borderRadius: '7px',
                                     fontSize: '11px',
                                     fontWeight: 800,
@@ -674,9 +663,10 @@ export default function KitchenView() {
                             </button>
                         )}
                         <button
+                            type="button"
                             onClick={() => setCurrentFilter('ready')}
                             style={{
-                                padding: '4px 9px',
+                                padding: '4px 8px',
                                 borderRadius: '7px',
                                 fontSize: '11px',
                                 fontWeight: 700,
@@ -690,113 +680,78 @@ export default function KitchenView() {
                         </button>
                     </div>
 
-                    {/* Görünüm Modu: Yatay Şerit (Tablet) vs Izgara */}
-                    <div style={{ display: 'flex', background: 'rgba(0, 0, 0, 0.35)', borderRadius: '9px', padding: '2px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                    {/* Görünüm Modu: Kompakt İkon Segmenti */}
+                    <div style={{ display: 'flex', background: 'rgba(0, 0, 0, 0.35)', borderRadius: '8px', padding: '2px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
                         <button
+                            type="button"
                             onClick={() => handleToggleLayoutMode('horizontal')}
-                            title="Yatay KDS Şerit Modu (Tablette aşağı kaydırmadan tüm masaları yan yana gösterir)"
+                            title="Yatay KDS Şerit Modu"
                             style={{
-                                padding: '4px 8px',
-                                borderRadius: '7px',
-                                fontSize: '10.5px',
-                                fontWeight: 700,
+                                padding: '4px 7px',
+                                borderRadius: '6px',
                                 border: 'none',
                                 background: layoutMode === 'horizontal' ? 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)' : 'transparent',
                                 color: layoutMode === 'horizontal' ? '#fff' : 'var(--text-secondary, #d1b8af)',
                                 cursor: 'pointer',
                                 display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px'
+                                alignItems: 'center'
                             }}
                         >
-                            <Columns size={12} />
-                            <span>Yatay KDS</span>
+                            <Columns size={13} />
                         </button>
                         <button
+                            type="button"
                             onClick={() => handleToggleLayoutMode('grid')}
-                            title="Izgara Modu (Kart ızgarası)"
+                            title="Izgara Modu"
                             style={{
-                                padding: '4px 8px',
-                                borderRadius: '7px',
-                                fontSize: '10.5px',
-                                fontWeight: 700,
+                                padding: '4px 7px',
+                                borderRadius: '6px',
                                 border: 'none',
                                 background: layoutMode === 'grid' ? 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)' : 'transparent',
                                 color: layoutMode === 'grid' ? '#fff' : 'var(--text-secondary, #d1b8af)',
                                 cursor: 'pointer',
                                 display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px'
+                                alignItems: 'center'
                             }}
                         >
-                            <LayoutGrid size={12} />
-                            <span>Izgara</span>
+                            <LayoutGrid size={13} />
                         </button>
                     </div>
 
-                    {/* Canlı Dijital Saat (İzole, sayfayı kasmayan) */}
+                    {/* Canlı Dijital Saat */}
                     <KitchenClock />
 
-                    {/* Ses Aç / Kapat & Ses Testi */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <button
-                            onClick={toggleSound}
-                            className="btn-outline"
-                            title={soundEnabled ? "Sesi Kapat" : "Sesi Aç"}
-                            style={{
-                                padding: '5px 8px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                fontSize: '11px',
-                                fontWeight: 700,
-                                borderRadius: '8px',
-                                color: soundEnabled ? 'var(--brand-gold)' : 'var(--text-muted)'
-                            }}
-                        >
-                            {soundEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
-                            <span>{soundEnabled ? 'Sesli' : 'Sessiz'}</span>
-                        </button>
-
-                        {soundEnabled && (
-                            <button
-                                onClick={() => {
-                                    warmUpAudio();
-                                    testVoiceAnnouncement();
-                                    showToast("🔊 Mutfak ses ve anons testi yapılıyor...", "info");
-                                }}
-                                className="btn-outline"
-                                title="Anons ve Ses Testi Yap"
-                                style={{
-                                    padding: '5px 8px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    fontSize: '10.5px',
-                                    fontWeight: 700,
-                                    borderRadius: '8px',
-                                    background: 'rgba(247, 103, 7, 0.08)',
-                                    borderColor: 'rgba(247, 103, 7, 0.3)',
-                                    color: 'var(--brand-primary)'
-                                }}
-                            >
-                                <Sparkles size={11} />
-                                <span>Ses Testi</span>
-                            </button>
-                        )}
-                    </div>
+                    {/* Ses Aç / Kapat İkon Butonu */}
+                    <button
+                        type="button"
+                        onClick={toggleSound}
+                        className="btn-outline"
+                        title={soundEnabled ? "Sesi Kapat" : "Sesi Aç"}
+                        style={{
+                            padding: '5px 7px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            borderRadius: '8px',
+                            color: soundEnabled ? 'var(--brand-gold, #fbbf24)' : 'var(--text-muted, #94a3b8)',
+                            background: soundEnabled ? 'rgba(251, 191, 36, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+                            border: soundEnabled ? '1px solid rgba(251, 191, 36, 0.3)' : '1px solid rgba(255, 255, 255, 0.1)',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        {soundEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
+                    </button>
 
                     {/* Günlük Sipariş Geçmişi Butonu */}
                     <button
                         type="button"
                         onClick={() => setShowHistoryDrawer(true)}
                         className="btn-outline"
-                        title="Bugün tamamlanan siparişlerin geçmişini aç"
+                        title="Bugün tamamlanan sipariş geçmişi"
                         style={{
-                            padding: '5px 9px',
+                            padding: '5px 8px',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '5px',
+                            gap: '4px',
                             fontSize: '11px',
                             fontWeight: 800,
                             borderRadius: '8px',
@@ -824,14 +779,16 @@ export default function KitchenView() {
 
                     {/* Tam Ekran */}
                     <button
+                        type="button"
                         onClick={toggleFullscreen}
                         className="btn-outline"
                         title="Tam Ekran"
                         style={{
-                            padding: '5px 8px',
+                            padding: '5px 7px',
                             display: 'flex',
                             alignItems: 'center',
-                            borderRadius: '8px'
+                            borderRadius: '8px',
+                            cursor: 'pointer'
                         }}
                     >
                         {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
@@ -839,6 +796,7 @@ export default function KitchenView() {
 
                     {/* Geri Dön / Çıkış */}
                     <button
+                        type="button"
                         onClick={() => {
                             if (currentUser?.role === 'kitchen') {
                                 logout();
@@ -847,7 +805,7 @@ export default function KitchenView() {
                             }
                         }}
                         className="btn-outline"
-                        style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', borderRadius: '8px', padding: '5px 9px' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', borderRadius: '8px', padding: '5px 8px', cursor: 'pointer' }}
                     >
                         <ArrowLeft size={13} />
                         <span>{currentUser?.role === 'kitchen' ? 'Çıkış' : 'Masalar'}</span>
