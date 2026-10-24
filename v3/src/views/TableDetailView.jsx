@@ -830,50 +830,56 @@ export default function TableDetailView() {
                 </div>
             </section>
 
-            {/* YÜZEN MOBİL SEPET BARI (FLOATING QUICK CART BAR FOR TABLETS/MOBILES) */}
+            {/* YÜZEN MOBİL SEPET BARI (FLOATING QUICK CART BAR FOR MOBILES) */}
             <div className="mobile-cart-bar">
                 <div 
                     className="mobile-cart-info" 
                     onClick={() => setIsMobileCartOpen(true)}
-                    style={{ flex: 1, cursor: 'pointer' }}
+                    title="Adisyonu Gör"
                 >
                     <span className="mobile-cart-badge">{totalItemCount}</span>
-                    <div>
-                        <div className="mobile-cart-title">Masa {tableNo} Adisyonu</div>
+                    <div style={{ minWidth: 0 }}>
+                        <div className="mobile-cart-title">Masa {tableNo}</div>
                         <div className="mobile-cart-total">{formatMoney(orderSubtotal)}</div>
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {unsentKitchenItemsCount > 0 && (
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation();
+                <div className="mobile-cart-actions-row">
+                    {/* MUTFAĞA GÖNDER BUTONU (HER ZAMAN YANINDA) */}
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (unsentKitchenItemsCount > 0) {
                                 handleSendToKitchen();
-                            }}
-                            className="mobile-cart-btn"
-                            style={{
-                                background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
-                                color: '#ffffff',
-                                border: '1px solid rgba(255, 255, 255, 0.35)',
-                                boxShadow: '0 4px 14px rgba(234, 88, 12, 0.45)',
-                                fontWeight: 800,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px'
-                            }}
-                        >
-                            <ChefHat size={15} />
-                            <span>Mutfağa Gönder ({unsentKitchenItemsCount})</span>
-                        </button>
-                    )}
+                            } else {
+                                showToast('Mutfağa iletilecek yeni sipariş bulunmuyor.', 'info');
+                            }
+                        }}
+                        className={`mobile-cart-btn ${unsentKitchenItemsCount > 0 ? 'kitchen-active' : 'kitchen-idle'}`}
+                        title={unsentKitchenItemsCount > 0 ? `${unsentKitchenItemsCount} yeni ürünü mutfağa ilet` : 'Mutfak siparişleri güncel'}
+                    >
+                        <ChefHat size={14} />
+                        <span className="mobile-btn-text-full">Mutfağa Gönder</span>
+                        <span className="mobile-btn-text-short">Mutfağa</span>
+                        {unsentKitchenItemsCount > 0 && (
+                            <span className="mobile-kitchen-pill">{unsentKitchenItemsCount}</span>
+                        )}
+                    </button>
+
+                    {/* ADİSYONU AÇ BUTONU */}
                     <button 
                         type="button"
-                        className="mobile-cart-btn"
-                        onClick={() => setIsMobileCartOpen(true)}
+                        className="mobile-cart-btn cart-open"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setIsMobileCartOpen(true);
+                        }}
+                        title="Canlı Adisyonu Aç"
                     >
-                        Adisyonu Aç ↗
+                        <Receipt size={14} />
+                        <span className="mobile-btn-text-full">Adisyonu Aç ↗</span>
+                        <span className="mobile-btn-text-short">Adisyon ↗</span>
                     </button>
                 </div>
             </div>
