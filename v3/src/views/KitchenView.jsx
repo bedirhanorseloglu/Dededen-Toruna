@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useApp } from '../context/AppContext';
 import { db, doc, updateDoc, collection, addDoc, setDoc, onSnapshot, query, where, limit } from '../config/firebase';
 import {
     playNotificationSound,
