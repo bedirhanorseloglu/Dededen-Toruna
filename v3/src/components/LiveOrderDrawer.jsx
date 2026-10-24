@@ -19,7 +19,8 @@ import {
     Banknote,
     CreditCard,
     Receipt,
-    ArrowUpRight
+    ArrowUpRight,
+    ChefHat
 } from 'lucide-react';
 import { formatMoney } from '../data/menu';
 
@@ -36,6 +37,8 @@ export default function LiveOrderDrawer({
     order = null,
     currentUser = null,
     isTableDetail = false,
+    unsentKitchenCount = 0,
+    onSendToKitchen,
     onClose,
     onMove,
     onSplit,
@@ -117,42 +120,36 @@ export default function LiveOrderDrawer({
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         {onMove && (
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
+                            <button
                                 className="receipt-action-btn"
                                 onClick={onMove}
                                 title="Masayı Başka Masaya Taşı"
                             >
                                 <MoveHorizontal size={13} />
                                 <span>Taşı</span>
-                            </motion.button>
+                            </button>
                         )}
 
 
                         {onSplit && (
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
+                            <button
                                 className="receipt-action-btn"
                                 onClick={onSplit}
                                 title="Hesabı Parçalı / Ayrı Böl"
                             >
                                 <Scissors size={13} />
                                 <span>Böl</span>
-                            </motion.button>
+                            </button>
                         )}
 
                         {onClose && (
-                            <motion.button
-                                whileHover={{ rotate: 90, scale: 1.08 }}
-                                whileTap={{ scale: 0.92 }}
+                            <button
                                 className="receipt-close-btn"
                                 onClick={onClose}
                                 title="Adisyonu Kapat (ESC)"
                             >
                                 <X size={16} />
-                            </motion.button>
+                            </button>
                         )}
                     </div>
                 </div>
@@ -222,9 +219,7 @@ export default function LiveOrderDrawer({
 
                         {/* Masa Genel Görünümünden açıldıysa: Masaya Git ve Sipariş Aç butonu */}
                         {!isTableDetail && onNavigateToTable && (
-                            <motion.button
-                                whileHover={{ scale: 1.025, y: -1 }}
-                                whileTap={{ scale: 0.97 }}
+                            <button
                                 style={{
                                     width: '100%',
                                     maxWidth: '300px',
@@ -248,14 +243,12 @@ export default function LiveOrderDrawer({
                             >
                                 <span>Masaya Git ve Sipariş Aç</span>
                                 <ArrowUpRight size={16} />
-                            </motion.button>
+                            </button>
                         )}
 
                         {/* Hızlı Ödeme Al (21st Amber Frosted Glass) */}
                         {onQuickAmount && (
-                            <motion.button
-                                whileHover={{ scale: 1.02, y: -1 }}
-                                whileTap={{ scale: 0.97 }}
+                            <button
                                 onClick={onQuickAmount}
                                 style={{
                                     width: '100%',
@@ -278,7 +271,7 @@ export default function LiveOrderDrawer({
                             >
                                 <Zap size={15} />
                                 <span>Hızlı Ödeme Al</span>
-                            </motion.button>
+                            </button>
                         )}
 
                         {/* 21st Shortcut Tip Card */}
@@ -315,31 +308,28 @@ export default function LiveOrderDrawer({
                                 </div>
 
                                 {cookingCount > 0 && onDeliverAll && (
-                                    <motion.button
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
+                                    <button
                                         onClick={onDeliverAll}
                                         className="receipt-telemetry-deliver-btn"
                                         title="Tüm hazırlananları tek tıkla teslim edildi yap"
                                     >
                                         <Check size={11} style={{ flexShrink: 0 }} />
                                         <span>Tümünü Teslim</span>
-                                    </motion.button>
+                                    </button>
                                 )}
                             </div>
 
                             {/* Teslimat İlerleme Çubuğu */}
                             <div style={{ width: '100%', height: '5px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '999px', overflow: 'hidden' }}>
-                                <motion.div
+                                <div
                                     style={{
                                         height: '100%',
                                         background: 'linear-gradient(90deg, #f59e0b, #10b981)',
                                         borderRadius: '999px',
-                                        boxShadow: '0 0 10px rgba(16, 185, 129, 0.5)'
+                                        boxShadow: '0 0 10px rgba(16, 185, 129, 0.5)',
+                                        width: `${progressPct}%`,
+                                        transition: 'width 0.2s ease'
                                     }}
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${progressPct}%` }}
-                                    transition={{ duration: 0.35, ease: 'easeOut' }}
                                 />
                             </div>
                         </div>
@@ -354,11 +344,8 @@ export default function LiveOrderDrawer({
                                 {items.map((item, idx) => {
                                     if (item.status === 'delivered') return null;
                                     return (
-                                        <motion.div
+                                        <div
                                             key={item.id || idx}
-                                            layout
-                                            initial={{ opacity: 0, y: 6 }}
-                                            animate={{ opacity: 1, y: 0 }}
                                             className="receipt-item-card-21 pending"
                                         >
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
@@ -377,18 +364,35 @@ export default function LiveOrderDrawer({
                                                     </div>
                                                 </div>
 
-                                                {onToggleItemStatus && (
-                                                    <motion.button
-                                                        whileHover={{ scale: 1.05 }}
-                                                        whileTap={{ scale: 0.95 }}
-                                                        onClick={() => onToggleItemStatus(idx)}
-                                                        className="receipt-status-chip is-cooking cursor-pointer"
-                                                        style={{ border: '1px solid rgba(245, 158, 11, 0.35)', cursor: 'pointer', flexShrink: 0 }}
-                                                        title="Teslim Edildi Olarak İşaretle"
+                                                {item.kitchen_sent === false ? (
+                                                    <span
+                                                        className="receipt-status-chip"
+                                                        style={{
+                                                            background: 'rgba(245, 158, 11, 0.15)',
+                                                            border: '1px solid rgba(245, 158, 11, 0.4)',
+                                                            color: '#fbbf24',
+                                                            fontSize: '11px',
+                                                            fontWeight: 800,
+                                                            padding: '3px 8px',
+                                                            borderRadius: '6px',
+                                                            flexShrink: 0
+                                                        }}
+                                                        title="Henüz mutfağa iletilmedi (Taslak)"
                                                     >
-                                                        <Clock size={12} />
-                                                        <span>Hazırlanıyor</span>
-                                                    </motion.button>
+                                                        ⏳ Gönderilmedi
+                                                    </span>
+                                                ) : (
+                                                    onToggleItemStatus && (
+                                                        <button
+                                                            onClick={() => onToggleItemStatus(idx)}
+                                                            className="receipt-status-chip is-cooking cursor-pointer"
+                                                            style={{ border: '1px solid rgba(245, 158, 11, 0.35)', cursor: 'pointer', flexShrink: 0 }}
+                                                            title="Teslim Edildi Olarak İşaretle"
+                                                        >
+                                                            <Clock size={12} />
+                                                            <span>Hazırlanıyor</span>
+                                                        </button>
+                                                    )
                                                 )}
                                             </div>
 
@@ -462,7 +466,7 @@ export default function LiveOrderDrawer({
                                                     )}
                                                 </div>
                                             </div>
-                                        </motion.div>
+                                        </div>
                                     );
                                 })}
                             </div>
@@ -478,11 +482,8 @@ export default function LiveOrderDrawer({
                                 {items.map((item, idx) => {
                                     if (item.status !== 'delivered') return null;
                                     return (
-                                        <motion.div
+                                        <div
                                             key={item.id || idx}
-                                            layout
-                                            initial={{ opacity: 0, y: 6 }}
-                                            animate={{ opacity: 1, y: 0 }}
                                             className="receipt-item-card-21 delivered"
                                         >
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
@@ -502,9 +503,7 @@ export default function LiveOrderDrawer({
                                                 </div>
 
                                                 {onToggleItemStatus && (
-                                                    <motion.button
-                                                        whileHover={{ scale: 1.05 }}
-                                                        whileTap={{ scale: 0.95 }}
+                                                    <button
                                                         onClick={() => onToggleItemStatus(idx)}
                                                         className="receipt-status-chip is-delivered cursor-pointer"
                                                         style={{ border: '1px solid rgba(16, 185, 129, 0.35)', cursor: 'pointer', flexShrink: 0 }}
@@ -512,7 +511,7 @@ export default function LiveOrderDrawer({
                                                     >
                                                         <CheckCircle2 size={12} />
                                                         <span>Masada</span>
-                                                    </motion.button>
+                                                    </button>
                                                 )}
                                             </div>
 
@@ -586,7 +585,7 @@ export default function LiveOrderDrawer({
                                                     )}
                                                 </div>
                                             </div>
-                                        </motion.div>
+                                        </div>
                                     );
                                 })}
                             </div>
@@ -665,11 +664,27 @@ export default function LiveOrderDrawer({
 
                 {/* DESKTOP ACTIONS */}
                 <div className="receipt-actions-desktop">
+                    {/* Satır 0: MUTFAĞA GÖNDER BUTONU */}
+                    {onSendToKitchen && (
+                        <div style={{ marginBottom: '8px' }}>
+                            <button
+                                onClick={onSendToKitchen}
+                                disabled={unsentKitchenCount === 0}
+                                className={`receipt-btn-send-kitchen ${unsentKitchenCount > 0 ? 'active-pulse' : ''}`}
+                            >
+                                <ChefHat size={17} />
+                                <span>
+                                    {unsentKitchenCount > 0
+                                        ? `🍳 Mutfağa Gönder (${unsentKitchenCount} Yeni Ürün)`
+                                        : '✓ Mutfak Siparişleri Güncel'}
+                                </span>
+                            </button>
+                        </div>
+                    )}
+
                     {/* Satır 1: Sipariş Ekle & İndirim / İkram (Reference 1) */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                        <motion.button
-                            whileHover={{ scale: 1.02, y: -1 }}
-                            whileTap={{ scale: 0.98 }}
+                        <button
                             onClick={() => {
                                 if (onNavigateToTable) {
                                     onNavigateToTable(tableNo);
@@ -680,12 +695,10 @@ export default function LiveOrderDrawer({
                             <Plus size={15} />
                             <span>Sipariş Ekle</span>
                             <ArrowUpRight size={13} style={{ opacity: 0.7 }} />
-                        </motion.button>
+                        </button>
 
                         {onOpenDiscount && (
-                            <motion.button
-                                whileHover={{ scale: 1.02, y: -1 }}
-                                whileTap={{ scale: 0.98 }}
+                            <button
                                 onClick={onOpenDiscount}
                                 disabled={totalCount === 0}
                                 style={{ opacity: totalCount === 0 ? 0.45 : 1, cursor: totalCount === 0 ? 'not-allowed' : 'pointer' }}
@@ -693,16 +706,14 @@ export default function LiveOrderDrawer({
                             >
                                 <Tag size={14} />
                                 <span>{orderDiscount > 0 ? `İndirim (${formatMoney(orderDiscount)})` : 'İndirim / İkram'}</span>
-                            </motion.button>
+                            </button>
                         )}
                     </div>
 
                     {/* Satır 2: Mutfak Fişi Yazdır (Reference 1 Thick Bar) */}
                     {onPrintKitchen && (
                         <div>
-                            <motion.button
-                                whileHover={{ scale: 1.015, y: -1 }}
-                                whileTap={{ scale: 0.98 }}
+                            <button
                                 onClick={onPrintKitchen}
                                 disabled={totalCount === 0}
                                 style={{ opacity: totalCount === 0 ? 0.45 : 1, cursor: totalCount === 0 ? 'not-allowed' : 'pointer' }}
@@ -710,15 +721,32 @@ export default function LiveOrderDrawer({
                             >
                                 <Printer size={17} />
                                 <span>Mutfak Fişi Yazdır</span>
-                            </motion.button>
+                            </button>
                         </div>
                     )}
                 </div>
 
-                {/* MOBILE COMPACT ACTIONS (Single Row: Sipariş + İndirim + Mutfak Fişi) */}
+                {/* MOBILE COMPACT ACTIONS (Single Row: Mutfak + Sipariş + İndirim + Fiş) */}
                 <div className="receipt-actions-mobile">
-                    <motion.button
-                        whileTap={{ scale: 0.95 }}
+                    {onSendToKitchen && (
+                        <button
+                            onClick={onSendToKitchen}
+                            disabled={unsentKitchenCount === 0}
+                            style={{
+                                background: unsentKitchenCount > 0 ? 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)' : undefined,
+                                color: unsentKitchenCount > 0 ? '#ffffff' : undefined,
+                                border: unsentKitchenCount > 0 ? '1px solid rgba(255, 255, 255, 0.35)' : undefined,
+                                opacity: unsentKitchenCount === 0 ? 0.4 : 1
+                            }}
+                            className={`receipt-mobile-chip-btn ${unsentKitchenCount > 0 ? 'active' : ''}`}
+                            title="Mutfağa Gönder"
+                        >
+                            <ChefHat size={14} />
+                            <span>{unsentKitchenCount > 0 ? `Mutfak (${unsentKitchenCount})` : 'Mutfak'}</span>
+                        </button>
+                    )}
+
+                    <button
                         onClick={() => {
                             if (onNavigateToTable) {
                                 onNavigateToTable(tableNo);
@@ -729,11 +757,10 @@ export default function LiveOrderDrawer({
                     >
                         <Plus size={14} />
                         <span>Sipariş</span>
-                    </motion.button>
+                    </button>
 
                     {onOpenDiscount && (
-                        <motion.button
-                            whileTap={{ scale: 0.95 }}
+                        <button
                             onClick={onOpenDiscount}
                             disabled={totalCount === 0}
                             style={{ opacity: totalCount === 0 ? 0.4 : 1 }}
@@ -742,12 +769,11 @@ export default function LiveOrderDrawer({
                         >
                             <Tag size={14} />
                             <span>{orderDiscount > 0 ? formatMoney(orderDiscount) : 'İndirim'}</span>
-                        </motion.button>
+                        </button>
                     )}
 
                     {onPrintKitchen && (
-                        <motion.button
-                            whileTap={{ scale: 0.95 }}
+                        <button
                             onClick={onPrintKitchen}
                             disabled={totalCount === 0}
                             style={{ opacity: totalCount === 0 ? 0.4 : 1 }}
@@ -755,16 +781,14 @@ export default function LiveOrderDrawer({
                             title="Mutfak Fişi Yazdır"
                         >
                             <Printer size={14} />
-                            <span>Mutfak</span>
-                        </motion.button>
+                            <span>Fiş</span>
+                        </button>
                     )}
                 </div>
 
                 {/* Satır 3: 3 Checkout Butonu (Nakit Kapat, Kart Kapat, Hesap Fişi - Reference 1) */}
                 <div className="checkout-actions-3col" style={{ marginTop: '2px' }}>
-                    <motion.button
-                        whileHover={totalCount > 0 ? { scale: 1.025, y: -2 } : {}}
-                        whileTap={totalCount > 0 ? { scale: 0.97 } : {}}
+                    <button
                         onClick={() => onCheckout && onCheckout('cash')}
                         disabled={totalCount === 0}
                         style={{ opacity: totalCount === 0 ? 0.35 : 1, cursor: totalCount === 0 ? 'not-allowed' : 'pointer' }}
@@ -772,11 +796,9 @@ export default function LiveOrderDrawer({
                     >
                         <Banknote size={18} />
                         <span>Nakit Kapat</span>
-                    </motion.button>
+                    </button>
 
-                    <motion.button
-                        whileHover={totalCount > 0 ? { scale: 1.025, y: -2 } : {}}
-                        whileTap={totalCount > 0 ? { scale: 0.97 } : {}}
+                    <button
                         onClick={() => onCheckout && onCheckout('card')}
                         disabled={totalCount === 0}
                         style={{ opacity: totalCount === 0 ? 0.35 : 1, cursor: totalCount === 0 ? 'not-allowed' : 'pointer' }}
@@ -784,11 +806,9 @@ export default function LiveOrderDrawer({
                     >
                         <CreditCard size={18} />
                         <span>Kart Kapat</span>
-                    </motion.button>
+                    </button>
 
-                    <motion.button
-                        whileHover={totalCount > 0 ? { scale: 1.025, y: -2 } : {}}
-                        whileTap={totalCount > 0 ? { scale: 0.97 } : {}}
+                    <button
                         onClick={onPrintCustomerBill}
                         disabled={totalCount === 0}
                         style={{ opacity: totalCount === 0 ? 0.35 : 1, cursor: totalCount === 0 ? 'not-allowed' : 'pointer' }}
@@ -797,7 +817,7 @@ export default function LiveOrderDrawer({
                     >
                         <Receipt size={18} />
                         <span>Hesap Fişi</span>
-                    </motion.button>
+                    </button>
                 </div>
             </div>
         </div>

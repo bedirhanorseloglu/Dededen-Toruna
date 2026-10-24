@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Smartphone, Crown, UserCheck, ChevronDown, Delete, Check, User } from 'lucide-react';
+import { Smartphone, Crown, ChefHat, UserCheck, ChevronDown, Delete, Check, User } from 'lucide-react';
 import { useApp, DEFAULT_USERS } from '../context/AppContext';
 import { db, collection, onSnapshot } from '../config/firebase';
 import { playChimeSound, playKeypadBeep } from '../services/audioService';
@@ -20,6 +20,10 @@ const KEYPAD_BUTTONS = [
     { action: 'submit', label: '✓', icon: Check }
 ];
 
+const DEFAULT_KITCHEN_USERS = [
+    { id: "ktc-1", name: "Mutfak Ekibi", role: "kitchen", pin: "197300", phone: "" }
+];
+
 // İsimden (Patron) ibaresini temizleme
 const cleanStaffName = (name) => {
     if (!name) return '';
@@ -28,7 +32,7 @@ const cleanStaffName = (name) => {
 
 export default function LoginView() {
     const { login, showToast } = useApp();
-    const [currentRole, setCurrentRole] = useState('admin');
+    const [currentRole, setCurrentRole] = useState('waiter');
     const [selectedStaffId, setSelectedStaffId] = useState('');
     const [enteredPin, setEnteredPin] = useState('');
     const [isShaking, setIsShaking] = useState(false);
@@ -36,12 +40,18 @@ export default function LoginView() {
     const dropdownRef = useRef(null);
 
     const [waiters, setWaiters] = useState([]);
+    const [kitchenStaff, setKitchenStaff] = useState(DEFAULT_KITCHEN_USERS);
     const [managers, setManagers] = useState(DEFAULT_USERS);
 
     useEffect(() => {
         const unsubW = onSnapshot(collection(db, "waiters"), snap => {
             const list = snap.docs.map(d => ({ id: d.id, ...d.data(), role: 'waiter' }));
             setWaiters(list);
+        }, () => { });
+
+        const unsubK = onSnapshot(collection(db, "kitchen_staff"), snap => {
+            const list = snap.docs.map(d => ({ id: d.id, ...d.data(), role: 'kitchen' }));
+            setKitchenStaff(list.length > 0 ? list : DEFAULT_KITCHEN_USERS);
         }, () => { });
 
         const unsubM = onSnapshot(collection(db, "managers"), snap => {
@@ -51,11 +61,16 @@ export default function LoginView() {
 
         return () => {
             unsubW();
+            unsubK();
             unsubM();
         };
     }, []);
 
-    const filteredStaff = currentRole === 'admin' ? (managers.length > 0 ? managers : DEFAULT_USERS) : waiters;
+    const filteredStaff = currentRole === 'admin' 
+        ? (managers.length > 0 ? managers : DEFAULT_USERS) 
+        : (currentRole === 'kitchen' 
+            ? (kitchenStaff.length > 0 ? kitchenStaff : DEFAULT_KITCHEN_USERS) 
+            : waiters);
 
     useEffect(() => {
         if (filteredStaff.length > 0) {
@@ -65,7 +80,7 @@ export default function LoginView() {
         }
         setEnteredPin('');
         setIsDropdownOpen(false);
-    }, [currentRole, waiters, managers]);
+    }, [currentRole, waiters, kitchenStaff, managers]);
 
     // Dışarı tıklandığında özel açılır menüyü kapat
     useEffect(() => {
@@ -204,11 +219,30 @@ export default function LoginView() {
                         whileTap={{ scale: 0.97 }}
                     >
                         <div className="role-btn-icon-wrap">
-                            <Smartphone size={19} strokeWidth={2.4} />
+                            <Smartphone size={18} strokeWidth={2.4} />
                         </div>
                         <div className="role-btn-info">
                             <span className="role-btn-title">Garson</span>
                             <span className="role-btn-desc">Sipariş & Masa</span>
+                        </div>
+                    </motion.button>
+
+                    <motion.button
+                        type="button"
+                        className={`role-btn ${currentRole === 'kitchen' ? 'active' : ''}`}
+                        onClick={() => {
+                            playKeypadBeep();
+                            setCurrentRole('kitchen');
+                        }}
+                        whileHover={{ y: -2, scale: 1.015 }}
+                        whileTap={{ scale: 0.97 }}
+                    >
+                        <div className="role-btn-icon-wrap">
+                            <ChefHat size={18} strokeWidth={2.4} />
+                        </div>
+                        <div className="role-btn-info">
+                            <span className="role-btn-title">Mutfak</span>
+                            <span className="role-btn-desc">KDS Panosu</span>
                         </div>
                     </motion.button>
 
@@ -223,11 +257,11 @@ export default function LoginView() {
                         whileTap={{ scale: 0.97 }}
                     >
                         <div className="role-btn-icon-wrap">
-                            <Crown size={19} strokeWidth={2.4} />
+                            <Crown size={18} strokeWidth={2.4} />
                         </div>
                         <div className="role-btn-info">
                             <span className="role-btn-title">Yönetici</span>
-                            <span className="role-btn-desc">Kasa & Raporlar</span>
+                            <span className="role-btn-desc">Kasa & Rapor</span>
                         </div>
                     </motion.button>
                 </div>
@@ -259,7 +293,7 @@ export default function LoginView() {
                             lineHeight: 1.4,
                             marginTop: '6px'
                         }}>
-                            ⚠️ Henüz kayıtlı garson personeli bulunmuyor. Yönetici girişi yaparak <strong>Personel & Ekip Yönetimi</strong> sekmesinden garson ekleyebilirsiniz.
+                            ⚠️ Henüz kayıtlı {currentRole === 'kitchen' ? 'mutfak personeli' : 'garson'} bulunmuyor. Yönetici girişi yaparak <strong>Personel & Ekip Yönetimi</strong> sekmesinden personel ekleyebilirsiniz.
                         </div>
                     ) : (
                         <div ref={dropdownRef} className="custom-staff-dropdown-container" style={{ marginTop: '6px' }}>
@@ -275,9 +309,11 @@ export default function LoginView() {
                                 whileTap={{ scale: 0.985 }}
                             >
                                 <div className="staff-trigger-left">
-                                    <div className={`staff-avatar-badge ${currentRole === 'admin' ? 'admin' : 'waiter'}`}>
+                                    <div className={`staff-avatar-badge ${currentRole}`}>
                                         {currentRole === 'admin' ? (
                                             <Crown size={16} strokeWidth={2.4} />
+                                        ) : currentRole === 'kitchen' ? (
+                                            <ChefHat size={16} strokeWidth={2.4} />
                                         ) : (
                                             <User size={16} strokeWidth={2.4} />
                                         )}
@@ -287,7 +323,7 @@ export default function LoginView() {
                                             {cleanStaffName(currentSelectedStaff?.name) || 'Personel Seçiniz'}
                                         </span>
                                         <span className="staff-trigger-role">
-                                            {currentSelectedStaff?.role === 'admin' ? 'Tüm Yetkiler' : 'Garson'}
+                                            {currentSelectedStaff?.role === 'admin' ? 'Tüm Yetkiler' : (currentSelectedStaff?.role === 'kitchen' ? 'Mutfak Ekibi' : 'Garson')}
                                         </span>
                                     </div>
                                 </div>
@@ -312,7 +348,7 @@ export default function LoginView() {
                                     >
                                         <div className="custom-staff-menu-specular" />
                                         <div className="custom-staff-menu-header">
-                                            <span>{currentRole === 'admin' ? 'Yönetici Listesi' : 'Garson Listesi'}</span>
+                                            <span>{currentRole === 'admin' ? 'Yönetici Listesi' : (currentRole === 'kitchen' ? 'Mutfak Listesi' : 'Garson Listesi')}</span>
                                             <span className="staff-count-badge">{filteredStaff.length} Personel</span>
                                         </div>
                                         <div className="custom-staff-menu-list">
@@ -333,9 +369,11 @@ export default function LoginView() {
                                                         whileTap={{ scale: 0.98 }}
                                                     >
                                                         <div className="staff-item-left">
-                                                            <div className={`staff-item-avatar ${staff.role === 'admin' ? 'admin' : 'waiter'}`}>
+                                                            <div className={`staff-item-avatar ${staff.role}`}>
                                                                 {staff.role === 'admin' ? (
                                                                     <Crown size={14} strokeWidth={2.4} />
+                                                                ) : staff.role === 'kitchen' ? (
+                                                                    <ChefHat size={14} strokeWidth={2.4} />
                                                                 ) : (
                                                                     <User size={14} strokeWidth={2.4} />
                                                                 )}
@@ -343,7 +381,7 @@ export default function LoginView() {
                                                             <div className="staff-item-info">
                                                                 <span className="staff-item-name">{cleanedName}</span>
                                                                 <span className="staff-item-sub">
-                                                                    {staff.role === 'admin' ? 'Yönetici • Tüm Yetkiler' : 'Garson'}
+                                                                    {staff.role === 'admin' ? 'Yönetici • Tüm Yetkiler' : (staff.role === 'kitchen' ? 'Mutfak Ekibi' : 'Garson')}
                                                                 </span>
                                                             </div>
                                                         </div>

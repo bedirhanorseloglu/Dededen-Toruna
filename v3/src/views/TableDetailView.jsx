@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { 
     MENU_CATEGORIES, 
@@ -23,9 +22,9 @@ import {
 } from '../services/analyticsService';
 import { 
     playChimeSound, 
-    playDeliveryAlertSound 
+    playDeliveryAlertSound,
+    playNotificationSound
 } from '../services/audioService';
-import { spawnFlyingBadge } from '../services/motionService';
 import { 
     Plus, 
     Minus, 
@@ -46,7 +45,8 @@ import {
     User,
     LayoutGrid,
     ChevronDown,
-    Check
+    Check,
+    ChefHat
 } from 'lucide-react';
 import DiscountModal from '../components/DiscountModal';
 import QuickAmountModal from '../components/QuickAmountModal';
@@ -125,8 +125,15 @@ export default function TableDetailView() {
         return cartItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
     }, [cartItems]);
 
+    // Sepetteki henüz mutfağa iletilmemiş sıcak yemek sayısı
+    const unsentKitchenItemsCount = useMemo(() => {
+        return cartItems
+            .filter(i => i.status === 'cooking' && i.kitchen_sent === false)
+            .reduce((sum, i) => sum + (Number(i.quantity) || 1), 0);
+    }, [cartItems]);
+
     // Save to Firestore
-    const persistOrder = async (items, customDiscount = discount, customReason = discountReason) => {
+    const persistOrder = useCallback(async (items, customDiscount = discount, customReason = discountReason) => {
         const orderRef = doc(db, "orders", `table_${tableNo}`);
         const subtotal = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity || 1)), 0);
         const dAmount = Math.min(subtotal, Math.max(0, Number(customDiscount) || 0));
@@ -157,38 +164,84 @@ export default function TableDetailView() {
         }
 
         await setDoc(orderRef, payload, { merge: true });
-    };
+    }, [tableNo, existingOrder, currentUser, discount, discountReason, closeTableOrder]);
 
-    // Add product to cart
-    const handleAddToCart = async (product, e) => {
-        if (e && e.currentTarget) {
-            spawnFlyingBadge(e.currentTarget, '+1');
-        }
-
+    // Add product to cart (Anında tepki & sıfır kasma)
+    const handleAddToCart = useCallback((product) => {
         const isInstant = isInstantDeliveryCategory(product.category_id, product.name);
         const initialStatus = isInstant ? 'delivered' : 'cooking';
+        // İçecek ve tatlılar anında tezgahtan teslimdir (kitchen_sent: true).
+        // Sıcak mutfak ürünleri ise garson 'Mutfağa Gönder' butonuna basana kadar taslaktır (kitchen_sent: false).
+        const initialKitchenSent = isInstant ? true : false;
 
-        const updated = [...cartItems];
-        const existingIdx = updated.findIndex(i => i.product_id === product.id && i.status === initialStatus && !i.notes);
+        setCartItems(prev => {
+            const updated = [...prev];
+            const existingIdx = updated.findIndex(i => 
+                i.product_id === product.id && 
+                i.status === initialStatus && 
+                !i.notes &&
+                (isInstant ? true : i.kitchen_sent === false)
+            );
 
-        if (existingIdx >= 0) {
-            updated[existingIdx].quantity = (Number(updated[existingIdx].quantity) || 1) + 1;
-        } else {
-            updated.push({
-                product_id: product.id,
-                name: product.name,
-                price: Number(product.price),
-                category_id: product.category_id,
-                quantity: 1,
-                status: initialStatus,
-                notes: '',
-                added_at: new Date().toISOString()
-            });
+            if (existingIdx >= 0) {
+                updated[existingIdx] = {
+                    ...updated[existingIdx],
+                    quantity: (Number(updated[existingIdx].quantity) || 1) + 1
+                };
+            } else {
+                updated.push({
+                    product_id: product.id,
+                    name: product.name,
+                    price: Number(product.price),
+                    category_id: product.category_id,
+                    quantity: 1,
+                    status: initialStatus,
+                    kitchen_sent: initialKitchenSent,
+                    notes: '',
+                    added_at: new Date().toISOString()
+                });
+            }
+
+            persistOrder(updated);
+            return updated;
+        });
+    }, [persistOrder]);
+
+    // Mutfağa Gönder (Garson onaylayınca bekleyen sıcak yemekler mutfağa iletilir)
+    const handleSendToKitchen = useCallback(async () => {
+        const unsentItems = cartItems.filter(i => i.status === 'cooking' && i.kitchen_sent === false);
+        if (unsentItems.length === 0) {
+            showToast('Mutfağa iletilecek yeni sipariş bulunmuyor.', 'info');
+            return;
         }
+
+        const now = new Date().toISOString();
+        const updated = cartItems.map(item => {
+            if (item.status === 'cooking' && item.kitchen_sent === false) {
+                return {
+                    ...item,
+                    kitchen_sent: true,
+                    kitchen_sent_at: now
+                };
+            }
+            return item;
+        });
 
         setCartItems(updated);
         await persistOrder(updated);
-    };
+
+        // Mutfak Fişi Yazdır (eğer mutfak fişi açıksa)
+        try {
+            printKitchenOrderTicket({
+                table_no: tableNo,
+                waiter_name: existingOrder?.waiter_name || currentUser?.name || 'Garson',
+                items: updated
+            }, printerSettings);
+        } catch (e) {}
+
+        playNotificationSound();
+        showToast(`🍳 Masa ${tableNo} için ${unsentItems.length} ürün mutfağa gönderildi!`, 'success');
+    }, [cartItems, persistOrder, tableNo, existingOrder, currentUser, printerSettings, showToast]);
 
     // Update quantity
     const handleUpdateQuantity = async (index, delta) => {
@@ -585,6 +638,48 @@ export default function TableDetailView() {
 
             {/* LEFT / CENTER: MENU & MODERN STICKY CATEGORIES */}
             <section className="menu-side" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                {/* 0. HENÜZ MUTFAĞA İLETİLMEMİŞ SİPARİŞ UYARI BARI */}
+                {unsentKitchenItemsCount > 0 && (
+                    <div style={{
+                        background: 'linear-gradient(90deg, rgba(245, 158, 11, 0.16) 0%, rgba(234, 88, 12, 0.22) 100%)',
+                        borderBottom: '1px solid rgba(245, 158, 11, 0.4)',
+                        padding: '10px 18px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                        zIndex: 10
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', fontSize: '13px', color: '#fef08a', fontWeight: 700 }}>
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b', boxShadow: '0 0 10px #f59e0b', flexShrink: 0 }} />
+                            <span>Mutfağa iletilmemiş <strong>{unsentKitchenItemsCount} yeni ürün</strong> var. Yanlış eklenenleri adisyondan silebilir veya butona basarak mutfağa gönderebilirsiniz.</span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleSendToKitchen}
+                            style={{
+                                background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
+                                border: '1px solid rgba(255, 255, 255, 0.35)',
+                                color: '#ffffff',
+                                padding: '6px 14px',
+                                borderRadius: '10px',
+                                fontSize: '12.5px',
+                                fontWeight: 800,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                cursor: 'pointer',
+                                boxShadow: '0 4px 14px rgba(234, 88, 12, 0.45)',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0
+                            }}
+                        >
+                            <ChefHat size={15} />
+                            <span>Mutfağa Gönder ({unsentKitchenItemsCount})</span>
+                        </button>
+                    </div>
+                )}
+
                 {/* 1. 21ST.DEV & MOTION KULLANICI DOSTU KATEGORİ VE ARAMA BARI */}
                 <div className="category-bar-modern">
                     {/* Modern Search Wrapper */}
@@ -602,24 +697,17 @@ export default function TableDetailView() {
                         />
                         {menuSearch.trim() && (
                             <div className="search-trailing-actions">
-                                <motion.span 
-                                    className="search-count-pill"
-                                    initial={{ scale: 0.8, opacity: 0 }}
-                                    animate={{ scale: 1, opacity: 1 }}
-                                    transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-                                >
+                                <span className="search-count-pill">
                                     {filteredProducts.length} lezzet
-                                </motion.span>
-                                <motion.button 
+                                </span>
+                                <button 
                                     type="button" 
                                     className="search-clear-btn" 
                                     onClick={() => setMenuSearch('')}
                                     title="Aramayı Temizle"
-                                    whileHover={{ scale: 1.15, rotate: 90 }}
-                                    whileTap={{ scale: 0.85 }}
                                 >
                                     <X size={14} />
-                                </motion.button>
+                                </button>
                             </div>
                         )}
                     </div>
@@ -713,12 +801,7 @@ export default function TableDetailView() {
                 {/* 2. PRODUCTS GRID / CATEGORIZED 'TÜMÜ' DISPLAY (Snappy Animated Cascade) */}
                 <div className="menu-products-scroll">
                     {selectedCategory === 'all' && !menuSearch.trim() ? (
-                        <motion.div
-                            key="all_categories"
-                            variants={menuGridVariants}
-                            initial="initial"
-                            animate="animate"
-                        >
+                        <div key="all_categories">
                             {MENU_CATEGORIES.map(cat => {
                                 const catProducts = currentProducts.filter(p => p.category_id === cat.id);
                                 if (catProducts.length === 0) return null;
@@ -743,23 +826,18 @@ export default function TableDetailView() {
                                                     key={p.id} 
                                                     product={p} 
                                                     inCartCount={cartItemCounts[p.id] || 0}
-                                                    onAdd={(e) => handleAddToCart(p, e)} 
+                                                    onAdd={handleAddToCart} 
                                                 />
                                             ))}
                                         </div>
                                     </div>
                                 );
                             })}
-                        </motion.div>
+                        </div>
                     ) : (
                         <>
                             {filteredProducts.length === 0 ? (
-                                <motion.div 
-                                    className="empty-menu-search"
-                                    initial={{ opacity: 0, scale: 0.96 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ duration: 0.15 }}
-                                >
+                                <div className="empty-menu-search">
                                     <div className="empty-search-icon">🔍</div>
                                     <div className="empty-search-title">"{menuSearch}" ile lezzet bulunamadı</div>
                                     <p className="empty-search-desc">Lütfen arama kelimenizi kontrol edin veya filtreyi sıfırlayın.</p>
@@ -770,25 +848,21 @@ export default function TableDetailView() {
                                     >
                                         Aramayı Temizle
                                     </button>
-                                </motion.div>
+                                </div>
                             ) : (
-                                <motion.div 
-                                    key={selectedCategory + (menuSearch || '')}
+                                <div 
                                     className="products-grid" 
                                     style={{ padding: 0 }}
-                                    variants={menuGridVariants}
-                                    initial="initial"
-                                    animate="animate"
                                 >
                                     {filteredProducts.map(p => (
                                         <ProductItemCard 
                                             key={p.id} 
                                             product={p} 
                                             inCartCount={cartItemCounts[p.id] || 0}
-                                            onAdd={(e) => handleAddToCart(p, e)} 
+                                            onAdd={handleAddToCart} 
                                         />
                                     ))}
-                                </motion.div>
+                                </div>
                             )}
                         </>
                     )}
@@ -796,18 +870,51 @@ export default function TableDetailView() {
             </section>
 
             {/* YÜZEN MOBİL SEPET BARI (FLOATING QUICK CART BAR FOR TABLETS/MOBILES) */}
-            <div 
-                className="mobile-cart-bar" 
-                onClick={() => setIsMobileCartOpen(true)}
-            >
-                <div className="mobile-cart-info">
+            <div className="mobile-cart-bar">
+                <div 
+                    className="mobile-cart-info" 
+                    onClick={() => setIsMobileCartOpen(true)}
+                    style={{ flex: 1, cursor: 'pointer' }}
+                >
                     <span className="mobile-cart-badge">{totalItemCount}</span>
                     <div>
                         <div className="mobile-cart-title">Masa {tableNo} Adisyonu</div>
                         <div className="mobile-cart-total">{formatMoney(orderSubtotal)}</div>
                     </div>
                 </div>
-                <button className="mobile-cart-btn">Adisyonu Aç ↗</button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {unsentKitchenItemsCount > 0 && (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleSendToKitchen();
+                            }}
+                            className="mobile-cart-btn"
+                            style={{
+                                background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
+                                color: '#ffffff',
+                                border: '1px solid rgba(255, 255, 255, 0.35)',
+                                boxShadow: '0 4px 14px rgba(234, 88, 12, 0.45)',
+                                fontWeight: 800,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px'
+                            }}
+                        >
+                            <ChefHat size={15} />
+                            <span>Mutfağa Gönder ({unsentKitchenItemsCount})</span>
+                        </button>
+                    )}
+                    <button 
+                        type="button"
+                        className="mobile-cart-btn"
+                        onClick={() => setIsMobileCartOpen(true)}
+                    >
+                        Adisyonu Aç ↗
+                    </button>
+                </div>
             </div>
 
             {/* RIGHT: ADİSYON SEPETİ & ÖDEME (ORTAK MODÜL - REFERANS 1) */}
@@ -824,6 +931,8 @@ export default function TableDetailView() {
                 }}
                 currentUser={currentUser}
                 isTableDetail={true}
+                unsentKitchenCount={unsentKitchenItemsCount}
+                onSendToKitchen={handleSendToKitchen}
                 onClose={() => setIsMobileCartOpen(false)}
                 onMove={() => setShowMoveModal(true)}
                 onSplit={() => {
@@ -850,21 +959,16 @@ export default function TableDetailView() {
             />
 
             {/* KATEGORİ SEÇİM MODALI / SAYFASI (Yana kaydırmasız 1-tıkla kategori seçici) */}
-            <AnimatePresence>
-                {showCategoryModal && (
+            {showCategoryModal && (
+                <div 
+                    className="modal-overlay open" 
+                    style={{ display: 'flex', opacity: 1, zIndex: 2500 }}
+                    onClick={() => setShowCategoryModal(false)}
+                >
                     <div 
-                        className="modal-overlay open" 
-                        style={{ display: 'flex', opacity: 1, zIndex: 2500 }}
-                        onClick={() => setShowCategoryModal(false)}
+                        className="category-sheet-modal"
+                        onClick={(e) => e.stopPropagation()}
                     >
-                        <motion.div 
-                            className="category-sheet-modal"
-                            initial={{ opacity: 0, y: 40, scale: 0.96 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 30, scale: 0.96 }}
-                            transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-                            onClick={(e) => e.stopPropagation()}
-                        >
                             <div className="category-sheet-header">
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <div className="cat-sheet-icon-circle">
@@ -933,10 +1037,9 @@ export default function TableDetailView() {
                                     );
                                 })}
                             </div>
-                        </motion.div>
                     </div>
-                )}
-            </AnimatePresence>
+                </div>
+            )}
 
             {/* MODAL 1: NOTE MODAL */}
             {noteModalItemIdx !== null && (
@@ -1041,56 +1144,20 @@ export default function TableDetailView() {
     );
 }
 
-// Ultra-snappy 21st / Motion Variants (Zero Dead-Delay, Fast Cascade)
-const menuGridVariants = {
-    initial: { opacity: 0 },
-    animate: {
-        opacity: 1,
-        transition: {
-            staggerChildren: 0.022,
-            delayChildren: 0
-        }
-    }
-};
-
-const menuCardVariants = {
-    initial: { opacity: 0, y: 14, scale: 0.96 },
-    animate: { 
-        opacity: 1, 
-        y: 0, 
-        scale: 1,
-        transition: { 
-            type: 'spring', 
-            stiffness: 520, 
-            damping: 28,
-            mass: 0.65
-        } 
-    }
-};
-
-// 21st / Motion Modern Product Card (Snappy Cascade Animation & Tactile Tap)
-function ProductItemCard({ product, onAdd, inCartCount = 0 }) {
+// Ultra-performant Memoized Product Card (4GB Tablet & Low-end CPU/GPU Optimized, Zero Animation Lag)
+const ProductItemCard = React.memo(function ProductItemCard({ product, onAdd, inCartCount = 0 }) {
     const isInstant = isInstantDeliveryCategory(product.category_id, product.name);
     const isOutOfStock = product.active === false;
 
     return (
-        <motion.div 
-            variants={menuCardVariants}
+        <div 
             className={`modern-product-card ${isOutOfStock ? 'is-out-of-stock' : ''} ${inCartCount > 0 ? 'has-in-cart' : ''}`} 
-            onClick={isOutOfStock ? undefined : onAdd} 
+            onClick={isOutOfStock ? undefined : () => onAdd(product)} 
             style={{ 
                 opacity: isOutOfStock ? 0.42 : 1,
                 cursor: isOutOfStock ? 'not-allowed' : 'pointer'
             }}
-            whileHover={isOutOfStock ? {} : { y: -3, scale: 1.015 }}
-            whileTap={isOutOfStock ? {} : { scale: 0.95 }}
         >
-            {/* 21st.dev Specular Top Highlight Glow */}
-            <div className="card-top-glow" />
-
-            {/* 21st.dev Ambient Radial Spotlight */}
-            <div className="card-spotlight-layer" />
-
             <div className="modern-product-info">
                 <div className="modern-product-name-row">
                     <div 
@@ -1101,16 +1168,13 @@ function ProductItemCard({ product, onAdd, inCartCount = 0 }) {
                         {product.name}
                     </div>
                     {inCartCount > 0 && (
-                        <motion.span 
+                        <span 
                             className="modern-incart-badge"
-                            initial={{ scale: 0.5, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={{ type: 'spring', stiffness: 500, damping: 20 }}
                             title={`${inCartCount} adet adisyonda ekli`}
                         >
                             <span className="incart-pulse-dot" />
                             {inCartCount}
-                        </motion.span>
+                        </span>
                     )}
                 </div>
 
@@ -1132,17 +1196,14 @@ function ProductItemCard({ product, onAdd, inCartCount = 0 }) {
                     <span className="modern-product-price">{formatMoney(product.price)}</span>
                 </div>
                 {!isOutOfStock && (
-                    <motion.div 
+                    <div 
                         className={`modern-add-circle ${inCartCount > 0 ? 'in-cart' : ''}`} 
                         title="Adisyona Ekle (+1)"
-                        whileHover={{ scale: 1.15, rotate: 90 }}
-                        whileTap={{ scale: 0.84 }}
-                        transition={{ type: 'spring', stiffness: 420, damping: 18 }}
                     >
                         <Plus size={15} strokeWidth={2.6} />
-                    </motion.div>
+                    </div>
                 )}
             </div>
-        </motion.div>
+        </div>
     );
-}
+});

@@ -89,18 +89,12 @@ function AppContent() {
         <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
             <Navbar />
             <main style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
-                <AnimatePresence mode="wait" initial={false}>
-                    <motion.div 
-                        key={`${currentView}-${selectedTableId || ''}`} 
-                        className="view-transition-wrapper"
-                        initial={{ opacity: 0, y: 12, scale: 0.995 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -10, scale: 0.995 }}
-                        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                    >
-                        {renderActiveView()}
-                    </motion.div>
-                </AnimatePresence>
+                <div 
+                    key={`${currentView}-${selectedTableId || ''}`} 
+                    className="view-transition-wrapper"
+                >
+                    {renderActiveView()}
+                </div>
             </main>
 
             {/* Apple Dynamic Island & 21st.dev Modern Floating Toast Stack (Sonner Style Deck) */}

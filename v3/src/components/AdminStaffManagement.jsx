@@ -102,6 +102,15 @@ export default function AdminStaffManagement({
                 gradient: 'linear-gradient(135deg, rgba(247, 103, 7, 0.25) 0%, rgba(217, 72, 15, 0.12) 100%)',
                 borderColor: 'rgba(247, 103, 7, 0.35)',
                 tagBg: 'rgba(247, 103, 7, 0.12)'
+            })),
+            ...kitchenList.map(k => ({
+                ...k,
+                role: 'kitchen',
+                roleLabel: 'Mutfak Ekibi',
+                color: '#10b981', // Zümrüt Yeşili
+                gradient: 'linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.12) 100%)',
+                borderColor: 'rgba(16, 185, 129, 0.35)',
+                tagBg: 'rgba(16, 185, 129, 0.12)'
             }))
         ];
 
@@ -119,9 +128,9 @@ export default function AdminStaffManagement({
                 (item.phone && item.phone.includes(q));
             return matchesRole && matchesQuery;
         });
-    }, [managersList, waitersList, selectedRoleFilter, searchQuery]);
+    }, [managersList, waitersList, kitchenList, selectedRoleFilter, searchQuery]);
 
-    const totalStaffCount = managersList.length + waitersList.length;
+    const totalStaffCount = managersList.length + waitersList.length + kitchenList.length;
 
     // Rol bazında yeni personel ekle modalı tetikleyici
     const handleOpenAddModal = (role = 'waiter') => {
@@ -229,7 +238,7 @@ export default function AdminStaffManagement({
         if (e) e.stopPropagation();
         if (!staff) return;
 
-        const collectionName = staff.role === 'admin' ? 'managers' : 'waiters';
+        const collectionName = staff.role === 'admin' ? 'managers' : (staff.role === 'kitchen' ? 'kitchen_staff' : 'waiters');
 
         const doReset = async () => {
             setIsResettingStats(true);
@@ -404,7 +413,27 @@ export default function AdminStaffManagement({
                     </div>
                 </div>
 
-                {/* 3. Yöneticiler */}
+                {/* 3. Mutfak Ekibi */}
+                <div 
+                    onClick={() => setSelectedRoleFilter('kitchen')}
+                    style={{
+                        background: selectedRoleFilter === 'kitchen' ? 'rgba(16, 185, 129, 0.14)' : 'rgba(28, 21, 20, 0.6)',
+                        border: selectedRoleFilter === 'kitchen' ? '1px solid rgba(16, 185, 129, 0.45)' : '1px solid rgba(255, 255, 255, 0.06)',
+                        borderRadius: '14px',
+                        padding: '12px 16px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                    }}
+                >
+                    <div style={{ fontSize: '11px', color: '#10b981', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Mutfak Ekibi
+                    </div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#10b981', marginTop: '2px' }}>
+                        {kitchenList.length} <span style={{ fontSize: '13px', fontWeight: 500, color: 'rgba(16, 185, 129, 0.7)' }}>Mutfak</span>
+                    </div>
+                </div>
+
+                {/* 4. Yöneticiler */}
                 <div 
                     onClick={() => setSelectedRoleFilter('admin')}
                     style={{
@@ -469,6 +498,23 @@ export default function AdminStaffManagement({
                         }}
                     >
                         Garsonlar ({waitersList.length})
+                    </button>
+                    <button
+                        onClick={() => setSelectedRoleFilter('kitchen')}
+                        style={{
+                            padding: '7px 14px',
+                            borderRadius: '10px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            border: selectedRoleFilter === 'kitchen' ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid rgba(255, 255, 255, 0.08)',
+                            background: selectedRoleFilter === 'kitchen' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'rgba(28, 21, 20, 0.6)',
+                            color: selectedRoleFilter === 'kitchen' ? '#ffffff' : 'var(--text-secondary, #d1b8af)',
+                            cursor: 'pointer',
+                            boxShadow: selectedRoleFilter === 'kitchen' ? '0 2px 8px rgba(16, 185, 129, 0.3)' : 'none',
+                            transition: 'all 0.15s ease'
+                        }}
+                    >
+                        Mutfak Ekibi ({kitchenList.length})
                     </button>
                     <button
                         onClick={() => setSelectedRoleFilter('admin')}

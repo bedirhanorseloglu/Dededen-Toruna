@@ -261,16 +261,8 @@ export default function AdminMenuManagement({
         const ItemIcon = getCategoryLucideIcon(p.category_id);
 
         return (
-            <motion.div
+            <div
                 key={p.id}
-                initial={{ opacity: 0, y: 14, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{
-                    duration: 0.22,
-                    delay: Math.min(index * 0.025, 0.25),
-                    ease: [0.16, 1, 0.3, 1]
-                }}
-                whileHover={{ y: -4, transition: { duration: 0.18 } }}
                 className={`admin-menu-grid-card ${isOutOfStock ? 'out-of-stock' : ''}`}
             >
                 {/* Specular Hairline Top Light Accent */}
@@ -365,10 +357,8 @@ export default function AdminMenuManagement({
 
                     {/* Düzenle & Sil Cam Butonları */}
                     <div style={{ display: 'flex', gap: '5px', flexShrink: 0 }}>
-                        <motion.button
+                        <button
                             type="button"
-                            whileHover={{ scale: 1.1, backgroundColor: 'rgba(245, 159, 0, 0.15)', color: '#f59f00' }}
-                            whileTap={{ scale: 0.9 }}
                             onClick={() => handleOpenModal(p)}
                             style={{
                                 background: 'rgba(255, 255, 255, 0.05)',
@@ -378,6 +368,7 @@ export default function AdminMenuManagement({
                                 height: '32px',
                                 display: 'flex',
                                 alignItems: 'center',
+                                justifySelf: 'center',
                                 justifyContent: 'center',
                                 color: 'var(--text-secondary)',
                                 cursor: 'pointer',
@@ -386,11 +377,9 @@ export default function AdminMenuManagement({
                             title="Ürünü Düzenle"
                         >
                             <Pencil size={13.5} />
-                        </motion.button>
-                        <motion.button
+                        </button>
+                        <button
                             type="button"
-                            whileHover={{ scale: 1.1, backgroundColor: 'rgba(239, 68, 68, 0.18)', color: '#ef4444' }}
-                            whileTap={{ scale: 0.9 }}
                             onClick={() => handleDelete(p)}
                             style={{
                                 background: 'rgba(239, 68, 68, 0.07)',
@@ -400,6 +389,7 @@ export default function AdminMenuManagement({
                                 height: '32px',
                                 display: 'flex',
                                 alignItems: 'center',
+                                justifySelf: 'center',
                                 justifyContent: 'center',
                                 color: '#f87171',
                                 cursor: 'pointer',
@@ -408,7 +398,7 @@ export default function AdminMenuManagement({
                             title="Ürünü Sil"
                         >
                             <Trash2 size={13.5} />
-                        </motion.button>
+                        </button>
                     </div>
                 </div>
 
@@ -424,155 +414,135 @@ export default function AdminMenuManagement({
                     position: 'relative',
                     zIndex: 2
                 }}>
-                    {/* Tıklanabilir Hızlı Fiyat / İnline Düzenleme (21st.dev Unified Capsule) */}
-                    <AnimatePresence mode="wait">
-                        {isEditingThisPrice ? (
-                            <motion.div
-                                key={`edit-${p.id}`}
-                                initial={{ opacity: 0, scale: 0.92, y: 2 }}
-                                animate={{ opacity: 1, scale: 1, y: 0 }}
-                                exit={{ opacity: 0, scale: 0.92, y: -2 }}
-                                transition={{ type: 'spring', stiffness: 450, damping: 28 }}
+                    {/* Tıklanabilir Hızlı Fiyat / İnline Düzenleme */}
+                    {isEditingThisPrice ? (
+                        <div
+                            key={`edit-${p.id}`}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                background: '#1c1513',
+                                border: '1.5px solid rgba(245, 159, 0, 0.55)',
+                                borderRadius: '12px',
+                                padding: '3px 4px 3px 10px',
+                                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.5)'
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <span style={{
+                                color: 'var(--brand-gold)',
+                                fontWeight: 900,
+                                fontSize: '14px',
+                                opacity: 0.85,
+                                userSelect: 'none'
+                            }}>
+                                ₺
+                            </span>
+                            <input
+                                type="text"
+                                inputMode="decimal"
+                                value={editingPriceValue}
+                                onChange={(e) => setEditingPriceValue(e.target.value.replace(/[^0-9.]/g, ''))}
+                                autoFocus
+                                onFocus={(e) => e.target.select()}
+                                placeholder="0"
                                 style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '5px',
-                                    background: 'rgba(15, 11, 10, 0.92)',
-                                    backdropFilter: 'blur(12px)',
-                                    WebkitBackdropFilter: 'blur(12px)',
-                                    border: '1.5px solid rgba(245, 159, 0, 0.55)',
-                                    borderRadius: '12px',
-                                    padding: '3px 4px 3px 10px',
-                                    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5), 0 0 16px rgba(245, 159, 0, 0.2)'
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <span style={{
-                                    color: 'var(--brand-gold)',
+                                    width: '62px',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#ffffff',
                                     fontWeight: 900,
-                                    fontSize: '14px',
-                                    opacity: 0.85,
-                                    userSelect: 'none'
-                                }}>
-                                    ₺
-                                </span>
-                                <input
-                                    type="text"
-                                    inputMode="decimal"
-                                    value={editingPriceValue}
-                                    onChange={(e) => setEditingPriceValue(e.target.value.replace(/[^0-9.]/g, ''))}
-                                    autoFocus
-                                    onFocus={(e) => e.target.select()}
-                                    placeholder="0"
+                                    fontSize: '14.5px',
+                                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                    outline: 'none',
+                                    padding: '4px 2px',
+                                    textAlign: 'left',
+                                    letterSpacing: '-0.2px'
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveInlinePrice(p);
+                                    else if (e.key === 'Escape') setEditingPriceId(null);
+                                }}
+                            />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginLeft: '2px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => handleSaveInlinePrice(p)}
                                     style={{
-                                        width: '62px',
-                                        background: 'transparent',
+                                        width: '26px',
+                                        height: '26px',
+                                        borderRadius: '8px',
+                                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                                         border: 'none',
                                         color: '#ffffff',
-                                        fontWeight: 900,
-                                        fontSize: '14.5px',
-                                        fontFamily: "'Plus Jakarta Sans', sans-serif",
-                                        outline: 'none',
-                                        padding: '4px 2px',
-                                        textAlign: 'left',
-                                        letterSpacing: '-0.2px'
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: '0 2px 6px rgba(16, 185, 129, 0.35)',
+                                        transition: 'all 0.15s ease'
                                     }}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleSaveInlinePrice(p);
-                                        else if (e.key === 'Escape') setEditingPriceId(null);
+                                    title="Fiyatı Kaydet (Enter)"
+                                >
+                                    <Check size={13} strokeWidth={2.8} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingPriceId(null)}
+                                    style={{
+                                        width: '26px',
+                                        height: '26px',
+                                        borderRadius: '8px',
+                                        background: 'rgba(255, 255, 255, 0.08)',
+                                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                                        color: 'var(--text-secondary)',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        transition: 'all 0.15s ease'
                                     }}
-                                />
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginLeft: '2px' }}>
-                                    <motion.button
-                                        whileHover={{ scale: 1.1, boxShadow: '0 2px 10px rgba(16, 185, 129, 0.5)' }}
-                                        whileTap={{ scale: 0.9 }}
-                                        type="button"
-                                        onClick={() => handleSaveInlinePrice(p)}
-                                        style={{
-                                            width: '26px',
-                                            height: '26px',
-                                            borderRadius: '8px',
-                                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                            border: 'none',
-                                            color: '#ffffff',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            boxShadow: '0 2px 6px rgba(16, 185, 129, 0.35)',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        title="Fiyatı Kaydet (Enter)"
-                                    >
-                                        <Check size={13} strokeWidth={2.8} />
-                                    </motion.button>
-                                    <motion.button
-                                        whileHover={{ scale: 1.1, backgroundColor: 'rgba(239, 68, 68, 0.25)', color: '#ef4444' }}
-                                        whileTap={{ scale: 0.9 }}
-                                        type="button"
-                                        onClick={() => setEditingPriceId(null)}
-                                        style={{
-                                            width: '26px',
-                                            height: '26px',
-                                            borderRadius: '8px',
-                                            background: 'rgba(255, 255, 255, 0.08)',
-                                            border: '1px solid rgba(255, 255, 255, 0.1)',
-                                            color: 'var(--text-secondary)',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s ease'
-                                        }}
-                                        title="Vazgeç (Esc)"
-                                    >
-                                        <X size={13} strokeWidth={2.4} />
-                                    </motion.button>
-                                </div>
-                            </motion.div>
-                        ) : (
-                            <motion.div
-                                key={`view-${p.id}`}
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                                transition={{ duration: 0.15 }}
-                                whileHover={{ scale: 1.04, y: -1, borderColor: 'rgba(245, 159, 0, 0.5)' }}
-                                whileTap={{ scale: 0.96 }}
-                                onClick={() => {
-                                    setEditingPriceId(p.id);
-                                    setEditingPriceValue(String(p.price));
-                                }}
-                                style={{
-                                    fontSize: '15px',
-                                    fontWeight: 900,
-                                    color: 'var(--brand-gold)',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '7px',
-                                    padding: '5px 12px',
-                                    borderRadius: '10px',
-                                    background: 'linear-gradient(135deg, rgba(245, 159, 0, 0.12) 0%, rgba(245, 159, 0, 0.04) 100%)',
-                                    border: '1px solid rgba(245, 159, 0, 0.28)',
-                                    fontFamily: "'Plus Jakarta Sans', sans-serif",
-                                    letterSpacing: '-0.3px',
-                                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
-                                    transition: 'all 0.15s ease'
-                                }}
-                                title="Fiyatı anında değiştirmek için tıklayın"
-                            >
-                                <span>{formatMoney(p.price)}</span>
-                                <Pencil size={11} style={{ opacity: 0.65 }} />
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                                    title="Vazgeç (Esc)"
+                                >
+                                    <X size={13} strokeWidth={2.4} />
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div
+                            key={`view-${p.id}`}
+                            onClick={() => {
+                                setEditingPriceId(p.id);
+                                setEditingPriceValue(String(p.price));
+                            }}
+                            style={{
+                                fontSize: '15px',
+                                fontWeight: 900,
+                                color: 'var(--brand-gold)',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '7px',
+                                padding: '5px 12px',
+                                borderRadius: '10px',
+                                background: 'rgba(245, 159, 0, 0.08)',
+                                border: '1px solid rgba(245, 159, 0, 0.28)',
+                                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                letterSpacing: '-0.3px',
+                                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
+                                transition: 'all 0.15s ease'
+                            }}
+                            title="Fiyatı anında değiştirmek için tıklayın"
+                        >
+                            <span>{formatMoney(p.price)}</span>
+                            <Pencil size={11} style={{ opacity: 0.65 }} />
+                        </div>
+                    )}
 
                     {/* Tek Dokunuşla Stok Durumu */}
-                    <motion.button
+                    <button
                         type="button"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
                         onClick={() => toggleMenuItemAvailability(p.id, p.active !== false)}
                         style={{
                             cursor: 'pointer',
@@ -602,9 +572,9 @@ export default function AdminMenuManagement({
                             boxShadow: !isOutOfStock ? '0 0 8px #10b981' : '0 0 8px #ef4444'
                         }} />
                         {!isOutOfStock ? 'Satışta' : 'Tükendi'}
-                    </motion.button>
+                    </button>
                 </div>
-            </motion.div>
+            </div>
         );
     };
 
@@ -1163,16 +1133,11 @@ export default function AdminMenuManagement({
                         </motion.div>
                     </AnimatePresence>
 
-                    {/* Lezzet Kartları Izgarası (Kategori Tıklandıkça Akışkan Açılış Animasyonu) */}
-                    <AnimatePresence mode="wait">
-                        <motion.div
-                            key={`content-${selectedCategory}_${statusFilter}_${searchTerm ? 's' : 'all'}`}
-                            initial={{ opacity: 0, y: 16, filter: 'blur(4px)' }}
-                            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                            exit={{ opacity: 0, y: -12, filter: 'blur(2px)' }}
-                            transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-                            style={{ width: '100%' }}
-                        >
+                    {/* Lezzet Kartları Izgarası */}
+                    <div
+                        key={`content-${selectedCategory}_${statusFilter}_${searchTerm ? 's' : 'all'}`}
+                        style={{ width: '100%' }}
+                    >
                             {selectedCategory === 'all' ? (
                                 /* Tüm Kategoriler Seçiliyse: Şık Kategori Grupları ile Açık Izgara */
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1181,11 +1146,8 @@ export default function AdminMenuManagement({
                                         const theme = getCategoryTheme(group.id);
 
                                         return (
-                                            <motion.div
+                                            <div
                                                 key={group.id}
-                                                initial={{ opacity: 0, y: 14 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                transition={{ duration: 0.22, delay: Math.min(groupIdx * 0.04, 0.24), ease: [0.16, 1, 0.3, 1] }}
                                                 style={{
                                                     background: 'var(--bg-surface)',
                                                     border: '1px solid var(--border-card)',
@@ -1249,7 +1211,7 @@ export default function AdminMenuManagement({
                                                 }}>
                                                     {group.items.map((p, idx) => renderProductCard(p, group.name, idx))}
                                                 </div>
-                                            </motion.div>
+                                            </div>
                                         );
                                     })}
                                 </div>
@@ -1257,9 +1219,7 @@ export default function AdminMenuManagement({
                                 /* Tekil Bir Kategori Seçiliyse: Doğrudan Geniş Izgara */
                                 <div>
                                     {filteredProducts.length === 0 ? (
-                                        <motion.div
-                                            initial={{ opacity: 0, scale: 0.98 }}
-                                            animate={{ opacity: 1, scale: 1 }}
+                                        <div
                                             style={{
                                                 background: 'var(--bg-surface)',
                                                 borderRadius: 'var(--radius-lg)',
@@ -1284,7 +1244,7 @@ export default function AdminMenuManagement({
                                             >
                                                 <Plus size={14} style={{ marginRight: '6px' }} /> Bu Kategoriye Lezzet Ekle
                                             </button>
-                                        </motion.div>
+                                        </div>
                                     ) : (
                                         <div style={{
                                             display: 'grid',
@@ -1296,9 +1256,8 @@ export default function AdminMenuManagement({
                                     )}
                                 </div>
                             )}
-                        </motion.div>
-                    </AnimatePresence>
-                </div>
+                        </div>
+                    </div>
             </div>
 
             {/* 4. LEZZET EKLEME / DÜZENLEME MODALI (21st.dev & Motion Tasarımı) */}

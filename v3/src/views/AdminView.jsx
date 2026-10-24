@@ -1596,7 +1596,7 @@ export default function AdminView() {
                                             <label style={{ fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary, #d1b8af)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '8px' }}>
                                                 Görevi / Yetki Rolü
                                             </label>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
                                                 <button
                                                     type="button"
                                                     onClick={() => setStaffModalRole('waiter')}
@@ -1636,6 +1636,49 @@ export default function AdminView() {
                                                         </div>
                                                         <div style={{ fontSize: '10.5px', color: 'var(--text-secondary, #d1b8af)', marginTop: '1px' }}>
                                                             Sipariş & Servis
+                                                        </div>
+                                                    </div>
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setStaffModalRole('kitchen')}
+                                                    style={{
+                                                        padding: '12px 14px',
+                                                        borderRadius: '14px',
+                                                        border: staffModalRole === 'kitchen'
+                                                            ? '1.5px solid #10b981'
+                                                            : '1px solid rgba(255, 255, 255, 0.08)',
+                                                        background: staffModalRole === 'kitchen'
+                                                            ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(5, 150, 105, 0.1) 100%)'
+                                                            : 'rgba(255, 255, 255, 0.03)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '10px',
+                                                        cursor: 'pointer',
+                                                        textAlign: 'left',
+                                                        transition: 'all 0.18s ease'
+                                                    }}
+                                                >
+                                                    <div style={{
+                                                        width: '34px',
+                                                        height: '34px',
+                                                        borderRadius: '10px',
+                                                        background: staffModalRole === 'kitchen' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                                                        color: staffModalRole === 'kitchen' ? '#10b981' : 'rgba(255, 255, 255, 0.5)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        flexShrink: 0
+                                                    }}>
+                                                        <ChefHat size={17} />
+                                                    </div>
+                                                    <div style={{ minWidth: 0 }}>
+                                                        <div style={{ fontSize: '13px', fontWeight: 800, color: staffModalRole === 'kitchen' ? '#fffaf5' : 'rgba(255, 255, 255, 0.8)' }}>
+                                                            Mutfak
+                                                        </div>
+                                                        <div style={{ fontSize: '10.5px', color: 'var(--text-secondary, #d1b8af)', marginTop: '1px' }}>
+                                                            KDS Panosu
                                                         </div>
                                                     </div>
                                                 </button>

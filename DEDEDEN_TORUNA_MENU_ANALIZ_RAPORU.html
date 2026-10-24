@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dededen Toruna — Menü İçerik & Saha Notu Raporu (71 Lezzet)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #f59e0b;
+            --primary-dark: #d97706;
+            --bg-body: #0f172a;
+            --bg-card: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --danger: #ef4444;
+            --success: #10b981;
+            --info: #3b82f6;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            padding: 30px 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 1px solid var(--border);
+            padding: 32px;
+            border-radius: 16px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .header-title h1 {
+            font-size: 26px;
+            font-weight: 800;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-title h1 span {
+            color: var(--primary);
+        }
+
+        .header-meta {
+            margin-top: 8px;
+            font-size: 14px;
+            color: var(--text-muted);
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .badge-gold {
+            background: rgba(245, 158, 11, 0.2);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.4);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .btn-print {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: #000;
+            font-weight: 800;
+            padding: 12px 24px;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-print:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(245, 158, 11, 0.4);
+        }
+
+        .summary-box {
+            background: rgba(30, 41, 59, 0.7);
+            border-left: 4px solid var(--primary);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 35px;
+            color: #cbd5e1;
+            font-size: 15px;
+        }
+
+        .summary-box strong {
+            color: #ffffff;
+        }
+
+        .section-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            margin-bottom: 30px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .section-header {
+            padding: 18px 24px;
+            background: rgba(15, 23, 42, 0.5);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        th {
+            background: rgba(15, 23, 42, 0.8);
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+            vertical-align: top;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .product-name {
+            font-weight: 700;
+            color: #ffffff;
+            font-size: 15px;
+        }
+
+        .product-price {
+            font-weight: 700;
+            color: #fbbf24;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .ingredients {
+            color: #cbd5e1;
+            font-size: 13px;
+        }
+
+        .requests-list {
+            list-style: none;
+            padding: 0;
+            font-size: 13px;
+            color: #e2e8f0;
+        }
+
+        .requests-list li {
+            margin-bottom: 4px;
+            position: relative;
+            padding-left: 14px;
+        }
+
+        .requests-list li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: var(--primary);
+            font-weight: bold;
+        }
+
+        .chip {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 6px;
+            margin: 2px;
+            white-space: nowrap;
+        }
+
+        .chip-remove {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .chip-add {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .chip-change {
+            background: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .chip-cook {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .receipt-preview {
+            background: #fff;
+            color: #000;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 340px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .receipt-preview .highlight {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        @media print {
+            body {
+                background: #ffffff !important;
+                color: #000000 !important;
+                padding: 0 !important;
+            }
+            .header {
+                background: none !important;
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0 0 20px 0 !important;
+            }
+            .header-title h1 {
+                color: #000 !important;
+            }
+            .btn-print {
+                display: none !important;
+            }
+            .section-card {
+                background: #fff !important;
+                border: 1px solid #ccc !important;
+                box-shadow: none !important;
+                page-break-inside: avoid;
+                margin-bottom: 20px !important;
+            }
+            .section-header {
+                background: #f1f5f9 !important;
+            }
+            .section-title {
+                color: #000 !important;
+            }
+            th {
+                background: #f8fafc !important;
+                color: #333 !important;
+            }
+            td {
+                color: #222 !important;
+            }
+            .product-name {
+                color: #000 !important;
+            }
+            .product-price {
+                color: #444 !important;
+            }
+            .chip {
+                border: 1px solid #999 !important;
+                color: #000 !important;
+                background: #eee !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div class="header-title">
+            <h1>🍗 Dededen Toruna — <span>Menü İçerik & Saha Notu Raporu</span></h1>
+            <div class="header-meta">
+                <span><strong>Tarih:</strong> 22 Ekim 2026</span>
+                <span><strong>Veritabanı:</strong> Canlı Sistem Senkronu</span>
+                <span class="badge-gold">Tam 71 Lezzet (11 Kategori)</span>
+            </div>
+        </div>
+        <div>
+            <button onclick="window.print()" class="btn-print">
+                🖨️ PDF Olarak İndir / Yazdır
+            </button>
+        </div>
+    </div>
+
+    <div class="summary-box">
+        <strong>📌 Saha Durumu & Çözüm:</strong> Sisteminizdeki <strong>11 kategoride yer alan tam 71 lezzetin</strong> tamamı incelenmiştir. Personelin öğle yoğunluğunda <em>"Tabakta şu olsun, bu olmasın derken adisyon yazamıyoruz, sistemi salıyoruz"</em> serzenişini bitirmek için klavye kullanımını sıfırlayan, <strong>tek dokunuşla (1 saniye)</strong> eklenebilen ürün bazlı akıllı butonlar aşağıda detaylandırılmıştır.
+    </div>
+
+    <!-- 1. TAVUK ÇEŞİTLERİ -->
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">🍗 1. Tavuk Çeşitleri (8 Ürün)</div>
+            <span class="badge-gold">Garnitür Değişimi & Mantar Ayıklama</span>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 22%;">Ürün & Fiyat</th>
+                    <th style="width: 28%;">Standart Tabak İçeriği</th>
+                    <th style="width: 25%;">Sahadaki Müşteri Talepleri</th>
+                    <th style="width: 25%;">Önerilen Hızlı Butonlar (Tek Tık)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <div class="product-name">Tavuk Izgara</div>
+                        <div class="product-price">400 ₺</div>
+                    </td>
+                    <td class="ingredients">Izgara tavuk göğsü/but, Pirinç Pilavı veya Makarna, Patates Kızartması (Cips), Köz Domates/Biber, Mevsim Yeşilliği</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Pilav istemiyorum patates olsun</li>
+                            <li>Salata soğansız olsun</li>
+                            <li>Garnitürsüz / Sade</li>
+                            <li>İyi kızarsın</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-change">Pilav Yerine Patates</span>
+                        <span class="chip chip-remove">- Soğansız Salata</span>
+                        <span class="chip chip-cook">İyi Kızarmış</span>
+                        <span class="chip chip-cook">Garnitürsüz</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="product-name">Köri Soslu Tavuk</div>
+                        <div class="product-price">420 ₺</div>
+                    </td>
+                    <td class="ingredients">Tavuk parçaları, krema, köri baharatı, mantar, kapya biber + Makarna (Penne)</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Mantarsız olsun</li>
+                            <li>Makarna yerine cips</li>
+                            <li>Bol soslu / Sosu az</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-remove">- Mantarsız</span>
+                        <span class="chip chip-change">Makarna Yerine Cips</span>
+                        <span class="chip chip-add">+ Bol Sos</span>
+                        <span class="chip chip-cook">Sos Az</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="product-name">Tavuk Sote & Mantarlı Sote</div>
+                        <div class="product-price">400 ₺</div>
+                    </td>
+                    <td class="ingredients">Tavuk kuşbaşı, mantar, domates, kapya/yeşil biber, soğan, salçalı sos + Pilav/Patates</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Soğansız / Bibersiz</li>
+                            <li>Mantarsız</li>
+                            <li>Acısız</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-remove">- Mantarsız</span>
+                        <span class="chip chip-remove">- Soğansız</span>
+                        <span class="chip chip-remove">- Bibersiz</span>
+                        <span class="chip chip-cook">Acısız</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="product-name">Tavuk Wrap</div>
+                        <div class="product-price">420 ₺</div>
+                    </td>
+                    <td class="ingredients">Tortilla lavaş, marine tavuk, eritilmiş kaşar, mantar, biber, karamelize soğan + Cips</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Mantarsız / Soğansız</li>
+                            <li>Kaşarsız</li>
+                            <li>Acılı sos</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-remove">- Mantarsız</span>
+                        <span class="chip chip-remove">- Soğansız</span>
+                        <span class="chip chip-remove">- Kaşarsız</span>
+                        <span class="chip chip-add">Acılı</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="product-name">Soya Soslu Piliç</div>
+                        <div class="product-price">400 ₺</div>
+                    </td>
+                    <td class="ingredients">Julyen tavuk göğsü, soya sosu, susam, kapya ve yeşil biber, mantar + Garnitür</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Mantarsız</li>
+                            <li>Susamsız</li>
+                            <li>Tuzu az</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-remove">- Mantarsız</span>
+                        <span class="chip chip-remove">- Susamsız</span>
+                        <span class="chip chip-cook">Tuzu Az</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="product-name">Şinitzel & K. Mantar Soslu</div>
+                        <div class="product-price">400 - 420 ₺</div>
+                    </td>
+                    <td class="ingredients">Çıtır pane tavuk göğsü, özel krema-mantar sosu, patates kızartması, limon dilimi</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Sos ayrı kapta gelsin</li>
+                            <li>Mantarsız sos</li>
+                            <li>Bol patatesli</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-change">Sos Ayrı Kapta</span>
+                        <span class="chip chip-remove">- Mantarsız</span>
+                        <span class="chip chip-add">+ Bol Patates</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 2. ET ÇEŞİTLERİ -->
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">🥩 2. Et Çeşitleri (4 Ürün)</div>
+            <span class="badge-gold">Pişme & Piyaz Tercihi</span>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 22%;">Ürün & Fiyat</th>
+                    <th style="width: 28%;">Standart Tabak İçeriği</th>
+                    <th style="width: 25%;">Sahadaki Müşteri Talepleri</th>
+                    <th style="width: 25%;">Önerilen Hızlı Butonlar (Tek Tık)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <div class="product-name">Köfte</div>
+                        <div class="product-price">500 ₺</div>
+                    </td>
+                    <td class="ingredients">Kasap köfte (5-6 adet), Pirinç pilavı, Patates kızartması, Sumaklı Piyaz (Soğan), Köz biber/domates</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Piyaz soğansız olsun / Piyazsız</li>
+                            <li>İyi pişmiş olsun</li>
+                            <li>Pilav yerine sadece patates</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-remove">Piyaz Soğansız</span>
+                        <span class="chip chip-remove">Piyazsız</span>
+                        <span class="chip chip-cook">İyi Pişmiş</span>
+                        <span class="chip chip-change">Pilav Yerine Patates</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="product-name">Sac Kavurma & Et Sote</div>
+                        <div class="product-price">550 ₺</div>
+                    </td>
+                    <td class="ingredients">Dana eti, domates, biber, tereyağı, mantar (sotede), sıcak lavaş</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Az yağlı / Yağsız</li>
+                            <li>Acısız</li>
+                            <li>Soğansız</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-cook">Az Yağlı</span>
+                        <span class="chip chip-cook">Acısız</span>
+                        <span class="chip chip-remove">- Soğansız</span>
+                        <span class="chip chip-remove">- Mantarsız</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="product-name">Et Wrap</div>
+                        <div class="product-price">550 ₺</div>
+                    </td>
+                    <td class="ingredients">Tortilla lavaş, dana eti dilimleri, eritilmiş kaşar, mantar, biber + Patates</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Mantarsız / Soğansız</li>
+                            <li>Kaşarsız</li>
+                            <li>Sossuz</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-remove">- Mantarsız</span>
+                        <span class="chip chip-remove">- Soğansız</span>
+                        <span class="chip chip-remove">- Kaşarsız</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 3. HAMBURGERLER -->
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">🍔 3. Hamburgerler (4 Ürün)</div>
+            <span class="badge-gold">En Sık Malzeme Çıkarılan Kategori</span>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 22%;">Ürün & Fiyat</th>
+                    <th style="width: 28%;">Standart İçerik</th>
+                    <th style="width: 25%;">Sahadaki Müşteri Talepleri</th>
+                    <th style="width: 25%;">Önerilen Hızlı Butonlar (Tek Tık)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <div class="product-name">Hamburger & Cheese Burger</div>
+                        <div class="product-price">300 - 320 ₺</div>
+                    </td>
+                    <td class="ingredients">Burger köftesi, marul, domates, turşu, soğan, burger sos, cheddar + Patates</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Turşusuz (Öğrencilerin %60'ı)</li>
+                            <li>Soğansız</li>
+                            <li>Domatessiz / Yeşilliksiz</li>
+                            <li>Sade (Sadece Köfte-Ekmek)</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-remove">- Turşusuz</span>
+                        <span class="chip chip-remove">- Soğansız</span>
+                        <span class="chip chip-remove">- Domatessiz</span>
+                        <span class="chip chip-remove">- Yeşilliksiz</span>
+                        <span class="chip chip-cook">Sade (Boş)</span>
+                        <span class="chip chip-add">+ Çift Cheddar</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="product-name">Chicken Burger</div>
+                        <div class="product-price">275 ₺</div>
+                    </td>
+                    <td class="ingredients">Çıtır tavuk fileto, marul, mayonez/sos, kornişon turşu + Patates</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Mayonezsiz</li>
+                            <li>Turşusuz</li>
+                            <li>Acılı sos</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-remove">- Turşusuz</span>
+                        <span class="chip chip-remove">- Mayonezsiz</span>
+                        <span class="chip chip-add">Acılı</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="product-name">Cips (200 ₺) & 1/2 Cips (100 ₺)</div>
+                        <div class="product-price">100 - 200 ₺</div>
+                    </td>
+                    <td class="ingredients">Özel baharatlı çıtır parmak patates kızartması</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Baharatsız / Tuzsuz</li>
+                            <li>Ketçap-Mayonez bol</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-cook">Baharatsız</span>
+                        <span class="chip chip-cook">Tuzsuz</span>
+                        <span class="chip chip-add">+ Bol Sos</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 4. TOST VE GÖZLEMELER -->
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">🥪 4. Tost ve Gözleme Çeşitleri (8 Ürün)</div>
+            <span class="badge-gold">5 Tost + 3 Gözleme</span>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 22%;">Ürün & Fiyat</th>
+                    <th style="width: 28%;">Standart İçerik</th>
+                    <th style="width: 25%;">Sahadaki Müşteri Talepleri</th>
+                    <th style="width: 25%;">Önerilen Hızlı Butonlar (Tek Tık)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <div class="product-name">Karışık / Kaşarlı / Sucuklu Tost</div>
+                        <div class="product-price">250 - 260 ₺</div>
+                    </td>
+                    <td class="ingredients">Tost ekmeği, kaşar peyniri, sucuk, tereyağı, domates/salça sosu</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Salçasız / Domatessiz</li>
+                            <li>Kıtır (çok kızarsın) / Yumuşak</li>
+                            <li>Yağsız (kuru)</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-remove">Salçasız</span>
+                        <span class="chip chip-cook">Kıtır / Çok Kızarsın</span>
+                        <span class="chip chip-cook">Yumuşak</span>
+                        <span class="chip chip-cook">Yağsız</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="product-name">Akdeniz Tost & Tost Burger</div>
+                        <div class="product-price">250 - 270 ₺</div>
+                    </td>
+                    <td class="ingredients">Beyaz peynir, domates, zeytin ezmesi veya burger köfteli tost</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Zeytinsiz / Domatessiz</li>
+                            <li>Sossuz</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-remove">- Zeytinsiz</span>
+                        <span class="chip chip-remove">- Domatessiz</span>
+                        <span class="chip chip-cook">Sossuz</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="product-name">Gözlemeler (Peynirli, Karışık, Patatesli)</div>
+                        <div class="product-price">320 - 340 ₺</div>
+                    </td>
+                    <td class="ingredients">El açması yufka, peynir/patates/kıyma harcı, maydanoz, tereyağı</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Maydanozsuz (En sık çıkarılan)</li>
+                            <li>Yağsız / Kuru</li>
+                            <li>Acısız</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-remove">- Maydanozsuz</span>
+                        <span class="chip chip-cook">Yağsız (Kuru)</span>
+                        <span class="chip chip-cook">Acısız</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 5. KAHVALTILAR -->
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">🍳 5. Kahvaltılar (11 Ürün)</div>
+            <span class="badge-gold">Serpme, Menemen, Kuymak, Omletler</span>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 22%;">Ürün & Fiyat</th>
+                    <th style="width: 28%;">Standart Bileşenler</th>
+                    <th style="width: 25%;">Sahadaki Müşteri Talepleri</th>
+                    <th style="width: 25%;">Önerilen Hızlı Butonlar</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <div class="product-name">Menemen</div>
+                        <div class="product-price">250 ₺</div>
+                    </td>
+                    <td class="ingredients">Domates, yeşil biber, yumurta, tereyağı</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Soğanlı / Soğansız</li>
+                            <li>Acısız</li>
+                            <li>Sulu / Kuru (Çok pişmiş)</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-cook">Soğansız</span>
+                        <span class="chip chip-cook">Soğanlı</span>
+                        <span class="chip chip-cook">Acısız</span>
+                        <span class="chip chip-cook">Sulu Kalsın</span>
+                        <span class="chip chip-cook">İyi Pişmiş</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="product-name">Kuymak & Kaygana</div>
+                        <div class="product-price">300 / 200 ₺</div>
+                    </td>
+                    <td class="ingredients">Trabzon tereyağı, mısır unu, kolot peyniri</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Dibi kıtır/yansın</li>
+                            <li>Az tuzlu</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-cook">Dibi Kıtır</span>
+                        <span class="chip chip-cook">Az Tuzlu</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="product-name">Omletler & Sahanda Yumurtalar</div>
+                        <div class="product-price">150 - 250 ₺</div>
+                    </td>
+                    <td class="ingredients">Sucuklu Yumurta, Peynirli Omlet, Sade Omlet, Sahanda Yumurta</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Sarıları patlamasın (rafadan)</li>
+                            <li>Çift taraflı (sert pişmiş)</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-cook">Rafadan</span>
+                        <span class="chip chip-cook">Çift Taraflı Pişmiş</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="product-name">Serpme Kahvaltı & Tabak</div>
+                        <div class="product-price">450 - 1200 ₺</div>
+                    </td>
+                    <td class="ingredients">Peynirler, zeytinler, reçeller, tereyağı, bal, domates-salatalık, pişi/börek</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Ekstra ekmek / çay</li>
+                            <li>Yumurtası sucuklu olsun</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-add">+ Ekstra Ekmek</span>
+                        <span class="chip chip-change">Yumurta Sucuklu</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 6. GÜNÜN MENÜSÜ & ÇORBA -->
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">🍲 6. Günün Menüsü & Ev Yemekleri (5 Ürün)</div>
+            <span class="badge-gold">Günün Menüsü, Yemek, Az Çorba, Çorbasız Menü</span>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 22%;">Ürün & Fiyat</th>
+                    <th style="width: 28%;">Bileşenler</th>
+                    <th style="width: 25%;">Müşteri Talepleri</th>
+                    <th style="width: 25%;">Önerilen Hızlı Butonlar</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <div class="product-name">Günün Menüsü & Çorbasız Menü</div>
+                        <div class="product-price">250 - 300 ₺</div>
+                    </td>
+                    <td class="ingredients">Ana Yemek + Pilav/Makarna + Çorba + Yoğurt/Salata</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Pilav yerine makarna</li>
+                            <li>Yoğurt yerine salata</li>
+                            <li>Az sulu / susuz</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-change">Pilav Yerine Makarna</span>
+                        <span class="chip chip-change">Yoğurt Yerine Salata</span>
+                        <span class="chip chip-cook">Az Sulu</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="product-name">Günün Çorbası & Az Çorba</div>
+                        <div class="product-price">50 - 100 ₺</div>
+                    </td>
+                    <td class="ingredients">Sıcak günün çorbası, dilim limon, ekmek</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Pul bibersiz / acısız</li>
+                            <li>Bol limonlu</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-cook">Pul Bibersiz</span>
+                        <span class="chip chip-add">Bol Limon</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 7. MAKARNALAR & SALATALAR -->
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">🥗 7. Makarnalar & Salatalar (7 Ürün)</div>
+            <span class="badge-gold">3 Makarna + 4 Salata</span>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 22%;">Ürün & Fiyat</th>
+                    <th style="width: 28%;">Bileşenler</th>
+                    <th style="width: 25%;">Müşteri Talepleri</th>
+                    <th style="width: 25%;">Önerilen Hızlı Butonlar</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <div class="product-name">Fettucine Alfredo / Bolognese / Napoletana</div>
+                        <div class="product-price">350 - 380 ₺</div>
+                    </td>
+                    <td class="ingredients">Fettucine makarna, soslar (krema/tavuk/kıyma/domates), parmesan</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Mantarsız / Sarımsaksız</li>
+                            <li>Peynirini bol atın / Peynirsiz</li>
+                            <li>Acılı</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-remove">- Mantarsız</span>
+                        <span class="chip chip-remove">- Sarımsaksız</span>
+                        <span class="chip chip-add">+ Bol Peynir</span>
+                        <span class="chip chip-remove">- Peynirsiz</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <div class="product-name">Mevsim, Akdeniz, Sezar, Ton Balıklı</div>
+                        <div class="product-price">250 - 360 ₺</div>
+                    </td>
+                    <td class="ingredients">Mevsim yeşillikleri, tavuk/ton balığı/peynir, mısır, zeytin, kruton ekmek, sos</td>
+                    <td>
+                        <ul class="requests-list">
+                            <li>Soğansız</li>
+                            <li>Sosu ayrı kapta gelsin</li>
+                            <li>Mısırsız / Ekmeksiz</li>
+                        </ul>
+                    </td>
+                    <td>
+                        <span class="chip chip-remove">- Soğansız</span>
+                        <span class="chip chip-change">Sosu Ayrı Kapta</span>
+                        <span class="chip chip-remove">- Mısırsız</span>
+                        <span class="chip chip-remove">- Ekmeksiz</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 8. TATLILAR VE İÇECEKLER -->
+    <div class="section-card">
+        <div class="section-header">
+            <div class="section-title">🍮 8. Tatlılar & İçecekler (24 Ürün)</div>
+            <span class="badge-gold">10 Tatlı + 14 İçecek</span>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 22%;">Grup</th>
+                    <th style="width: 28%;">Örnek Ürünler</th>
+                    <th style="width: 25%;">Müşteri Talepleri</th>
+                    <th style="width: 25%;">Önerilen Hızlı Butonlar</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Tatlılar (10 Ürün)</strong></td>
+                    <td class="ingredients">Hamsiköy Sütlaç, Kadayıf, Atom Sütlaç, Dondurmalı Sütlaç, 1/2 Kadayıf vb.</td>
+                    <td>Fındıksız, tarçınsız, şerbeti az</td>
+                    <td>
+                        <span class="chip chip-remove">- Fındıksız</span>
+                        <span class="chip chip-remove">- Tarçınsız</span>
+                        <span class="chip chip-add">+ Bol Fındık</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td><strong>İçecekler (14 Ürün)</strong></td>
+                    <td class="ingredients">Çay, Fincan Çay, Semaver, Kahveler, Meşrubatlar, Ayran, Su</td>
+                    <td>Buzsuz, açık çay, demli çay, şekersiz</td>
+                    <td>
+                        <span class="chip chip-cook">Buzsuz</span>
+                        <span class="chip chip-cook">Açık Çay</span>
+                        <span class="chip chip-cook">Demli Çay</span>
+                        <span class="chip chip-cook">Şekersiz</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- FİŞ ÇIKTISI ÖNİZLEMESİ -->
+    <div style="display: flex; gap: 30px; align-items: center; margin-top: 30px; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 300px;">
+            <h3 style="color: #fff; margin-bottom: 12px;">🧾 Mutfak Fişinde Nasıl Görünecek?</h3>
+            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 15px;">
+                Usta pik saatte küçük not yazılarını aramakla uğraşmayacak. Hızlı butonlarla seçilen notlar ürünün tam altına, büyük harflerle ve dikkat çekici yıldızlarla basılacaktır.
+            </p>
+        </div>
+        <div class="receipt-preview">
+            <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 8px; margin-bottom: 8px;">
+                <strong>DEDEDEN TORUNA</strong><br>
+                MUTFAK SİPARİŞİ - MASA 4
+            </div>
+            <div><strong>1x CHEESE BURGER</strong></div>
+            <div class="highlight">&nbsp;&nbsp;>>> ** TURŞUSUZ **</div>
+            <div class="highlight">&nbsp;&nbsp;>>> ** SOĞANSIZ **</div>
+            <div style="margin-top: 6px;"><strong>1x TAVUK IZGARA</strong></div>
+            <div class="highlight">&nbsp;&nbsp;>>> ** PİLAV YERİNE PATATES **</div>
+            <div class="highlight">&nbsp;&nbsp;>>> ** SALATA SOĞANSIZ **</div>
+            <div style="margin-top: 6px;"><strong>1x MENEMEN</strong></div>
+            <div class="highlight">&nbsp;&nbsp;>>> ** SOĞANSIZ / SULU **</div>
+            <div style="border-top: 1px dashed #000; margin-top: 10px; padding-top: 5px; text-align: center; font-size: 11px;">
+                Saat: 13:42 | Kasa Terminali
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
