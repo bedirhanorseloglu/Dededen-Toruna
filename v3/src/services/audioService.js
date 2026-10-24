@@ -160,10 +160,10 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     window.speechSynthesis.onvoiceschanged = loadVoices;
 }
 
-function getBestTurkishVoice() {
+function getBestTurkishVoiceInfo() {
     loadVoices();
     const voices = cachedVoices.length > 0 ? cachedVoices : (window.speechSynthesis?.getVoices?.() || []);
-    if (voices.length === 0) return null;
+    if (voices.length === 0) return { voice: null, isMale: false };
 
     // Tüm Türkçe ses motorlarını normalize ederek filtrele (tr, tr-TR, tr_TR)
     const trVoices = voices.filter(v => {
@@ -171,31 +171,64 @@ function getBestTurkishVoice() {
         return l.startsWith('tr');
     });
 
-    if (trVoices.length === 0) return null;
+    if (trVoices.length === 0) return { voice: null, isMale: false };
 
-    // 1. Android Tablet Google Speech Services & Chrome Google Türkçe (en yüksek desibel)
+    // Erkek ses belirteçleri (Windows Tolga/Ahmet, iOS Cem, Android Google Male/Voice 2 vb.)
+    const isExplicitMale = (v) => {
+        const str = `${v.name || ''} ${v.voiceURI || ''} ${v.id || ''}`.toLowerCase();
+        return (
+            str.includes('tolga') ||
+            str.includes('ahmet') ||
+            str.includes('cem') ||
+            str.includes('male') ||
+            str.includes('erkek') ||
+            str.includes('#male') ||
+            str.includes('voice 2') ||
+            str.includes('ses 2') ||
+            str.includes('variant 2')
+        );
+    };
+
+    // 1. Önce doğrudan Erkek Türkçe sesleri ara (Tolga, Ahmet, Cem, Google Male)
+    const maleVoice = trVoices.find(isExplicitMale);
+    if (maleVoice) {
+        return { voice: maleVoice, isMale: true };
+    }
+
+    // 2. Android Google Türkçe Sesleri
     const googleVoice = trVoices.find(v => {
         const n = (v.name || '').toLowerCase();
         return n.includes('google') || n.includes('network') || n.includes('online');
     });
-    if (googleVoice) return googleVoice;
+    if (googleVoice) {
+        return { voice: googleVoice, isMale: false };
+    }
 
-    // 2. iPad / iOS Türkçe (Yelda / Cem)
+    // 3. Apple Türkçe (Cem / Yelda)
     const appleVoice = trVoices.find(v => {
         const n = (v.name || '').toLowerCase();
-        return n.includes('yelda') || n.includes('cem');
+        return n.includes('cem') || n.includes('yelda');
     });
-    if (appleVoice) return appleVoice;
+    if (appleVoice) {
+        return { voice: appleVoice, isMale: (appleVoice.name || '').toLowerCase().includes('cem') };
+    }
 
-    // 3. Microsoft Natural / Online / Emel / Tolga
+    // 4. Microsoft Natural / Online / Tolga
     const naturalVoice = trVoices.find(v => {
         const n = (v.name || '').toLowerCase();
-        return n.includes('natural') || n.includes('emel') || n.includes('tolga');
+        return n.includes('natural') || n.includes('tolga') || n.includes('emel');
     });
-    if (naturalVoice) return naturalVoice;
+    if (naturalVoice) {
+        const isTolga = (naturalVoice.name || '').toLowerCase().includes('tolga');
+        return { voice: naturalVoice, isMale: isTolga };
+    }
 
-    // 4. Bulunan ilk Türkçe ses motoru
-    return trVoices[0];
+    // 5. Bulunan ilk Türkçe ses motoru
+    return { voice: trVoices[0], isMale: false };
+}
+
+function getBestTurkishVoice() {
+    return getBestTurkishVoiceInfo().voice;
 }
 
 function processNextAnnouncement() {
@@ -231,16 +264,18 @@ function processNextAnnouncement() {
 
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'tr-TR';
-        // 0.88 hafif yavaş ve tok tempo: Ses kartı her heceyi tam rezonansta ve en yüksek gövde gücünde çıkartır
-        utterance.rate = 0.88;
-        // 1.02 doğal göğüs rezonansı: Sesi inceltip cılızlaştırmadan tok ve gür duyulmasını sağlar
-        utterance.pitch = 1.02;
-        utterance.volume = 1.0; // W3C standardında izin verilen mutlak tavan (%100)
+        
+        // HIZ (Rate): Tablette ve mobilde hantallığı önlemek için 1.08 seri tempo (PC ile aynı canlılıkta okur)
+        utterance.rate = 1.08;
 
-        const bestTrVoice = getBestTurkishVoice();
-        if (bestTrVoice) {
-            utterance.voice = bestTrVoice;
+        const voiceInfo = getBestTurkishVoiceInfo();
+        if (voiceInfo?.voice) {
+            utterance.voice = voiceInfo.voice;
         }
+
+        // TON (Pitch): Erkek sesinde tok ve otoriter (0.95); eğer tablette kadın sesi yüklüyse tizleşmeyi kırıp toklaştırmak için (0.82)
+        utterance.pitch = voiceInfo?.isMale ? 0.95 : 0.82;
+        utterance.volume = 1.0; // W3C standardında izin verilen mutlak tavan (%100)
 
         let hasEnded = false;
         const finish = () => {
@@ -250,10 +285,10 @@ function processNextAnnouncement() {
                 clearTimeout(speechWatchdogTimer);
                 speechWatchdogTimer = null;
             }
-            // İki masa anonsu arasında aşçının net anlaması için 700ms nefes payı bırak:
+            // İki masa anonsu arasında aşçının net anlaması için 600ms nefes payı bırak:
             setTimeout(() => {
                 processNextAnnouncement();
-            }, 700);
+            }, 600);
         };
 
         utterance.onend = finish;
@@ -262,7 +297,7 @@ function processNextAnnouncement() {
         // Watchdog: Tarayıcıda onend tetiklenmezse kuyruk kilitlenmesin
         speechWatchdogTimer = setTimeout(() => {
             finish();
-        }, 8000);
+        }, 7000);
 
         // Çan sesinin ardından konuşmayı başlat
         const startDelay = withChime ? 520 : 50;
@@ -302,6 +337,10 @@ export function announceKitchenOrder(tableNo, items = [], isExtra = false) {
             : `Dikkat! Masa ${tableNo} için yeni sipariş geldi. Tekrar ediyorum, Masa ${tableNo} yeni sipariş!`;
         speakAnnouncement(text, true);
     } catch (e) {}
+}
+
+export function testVoiceAnnouncement() {
+    speakAnnouncement("Dikkat! Mutfak ses sistemi testi. Masa 1 için yeni sipariş geldi!", true);
 }
 
 // Tuş Takımı Hafif Tıklama Sesi (Tactile Keypad Click)

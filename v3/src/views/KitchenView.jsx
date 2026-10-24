@@ -9,7 +9,8 @@ import {
     speakAnnouncement, 
     announceKitchenOrder,
     playKeypadBeep,
-    warmUpAudio
+    warmUpAudio,
+    testVoiceAnnouncement
 } from '../services/audioService';
 import { 
     ChefHat, 
@@ -458,25 +459,54 @@ export default function KitchenView() {
                         {clock}
                     </div>
 
-                    {/* Ses Aç / Kapat */}
-                    <button
-                        onClick={toggleSound}
-                        className="btn-outline"
-                        title={soundEnabled ? "Sesi Kapat" : "Sesi Aç"}
-                        style={{
-                            padding: '7px 11px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            fontSize: '12px',
-                            fontWeight: 700,
-                            borderRadius: '10px',
-                            color: soundEnabled ? 'var(--brand-gold)' : 'var(--text-muted)'
-                        }}
-                    >
-                        {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-                        <span>{soundEnabled ? 'Sesli' : 'Sessiz'}</span>
-                    </button>
+                    {/* Ses Aç / Kapat & Ses Testi */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                            onClick={toggleSound}
+                            className="btn-outline"
+                            title={soundEnabled ? "Sesi Kapat" : "Sesi Aç"}
+                            style={{
+                                padding: '7px 11px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                borderRadius: '10px',
+                                color: soundEnabled ? 'var(--brand-gold)' : 'var(--text-muted)'
+                            }}
+                        >
+                            {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                            <span>{soundEnabled ? 'Sesli' : 'Sessiz'}</span>
+                        </button>
+
+                        {soundEnabled && (
+                            <button
+                                onClick={() => {
+                                    warmUpAudio();
+                                    testVoiceAnnouncement();
+                                    showToast("🔊 Mutfak ses ve anons testi yapılıyor...", "info");
+                                }}
+                                className="btn-outline"
+                                title="Anons ve Ses Testi Yap"
+                                style={{
+                                    padding: '7px 10px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    borderRadius: '10px',
+                                    background: 'rgba(247, 103, 7, 0.08)',
+                                    borderColor: 'rgba(247, 103, 7, 0.3)',
+                                    color: 'var(--brand-primary)'
+                                }}
+                            >
+                                <Sparkles size={13} />
+                                <span>Ses Testi</span>
+                            </button>
+                        )}
+                    </div>
 
                     {/* Tam Ekran */}
                     <button
