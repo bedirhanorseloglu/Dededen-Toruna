@@ -150,10 +150,23 @@ export default function DiscountModal({
         <AnimatePresence>
             <div
                 className="modal-overlay open discount-modal-overlay"
+                style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    zIndex: 999999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxSizing: 'border-box'
+                }}
                 onClick={onClose}
             >
                 <motion.div
                     className="modal-content modal-responsive-card discount-modal-card"
+                    style={{ position: 'relative', zIndex: 1000000 }}
                     onClick={(e) => e.stopPropagation()}
                     initial={{ scale: 0.92, opacity: 0, y: 15 }}
                     animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -265,7 +278,6 @@ export default function DiscountModal({
                                         fontWeight: 800,
                                         outline: 'none'
                                     }}
-                                    autoFocus
                                 />
                                 <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '13px', fontWeight: 700 }}>
                                     ₺

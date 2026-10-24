@@ -1,4 +1,5 @@
 import { db, collection, getDocs, doc, setDoc } from '../config/firebase';
+import { resetKitchenHistoryNow } from './kitchenHistoryService';
 
 const TURKISH_MONTHS = [
     'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
@@ -189,6 +190,14 @@ export async function checkAndExecuteDailyClosing({
             }
 
             localStorage.setItem(localDoneKey, 'true');
+
+            // 7. Mutfak Geçmişini 23:59'da Sıfırla (Firestore veritabanında gereksiz yer tutmasını önler)
+            try {
+                await resetKitchenHistoryNow();
+                console.log("[AutoClosingService] 23:59 mutfak geçmişi sıfırlandı.");
+            } catch (kErr) {
+                console.warn("[AutoClosingService] Kitchen history reset error:", kErr);
+            }
 
             if (showToast) {
                 showToast(`🌙 23:59 Gün Sonu Özeti otomatik olarak kaydedildi ve arşive eklendi! (${reportNo})`, 'success');

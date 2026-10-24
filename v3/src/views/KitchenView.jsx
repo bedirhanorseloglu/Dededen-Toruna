@@ -35,8 +35,14 @@ import {
     ChevronRight,
     History,
     RotateCcw,
-    LogOut
+    LogOut,
+    Trash2
 } from 'lucide-react';
+import {
+    getLocalDateStr,
+    resetKitchenHistoryNow,
+    checkAndExecuteKitchen2359Reset
+} from '../services/kitchenHistoryService';
 
 // Tabletlerde kasma ve donmayı önlemek için saniyede 1 çalışan dijital saati izole memo bileşeni yapıyoruz
 const KitchenClock = React.memo(function KitchenClock() {
@@ -111,14 +117,22 @@ export default function KitchenView() {
     // Günlük tamamlanan sipariş geçmişi paneli state'i
     const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
     const [kitchenHistory, setKitchenHistory] = useState([]);
+    const [currentDateStr, setCurrentDateStr] = useState(() => getLocalDateStr());
+    const [lastResetTimestamp, setLastResetTimestamp] = useState(() => {
+        try {
+            const stored = localStorage.getItem('kitchen_last_reset_timestamp');
+            return stored ? Number(stored) : 0;
+        } catch (e) {
+            return 0;
+        }
+    });
 
-    // Bugün tamamlanan mutfak siparişlerini gerçek zamanlı dinle
+    // Bugün tamamlanan mutfak siparişlerini yerel tarihe göre gerçek zamanlı dinle
     useEffect(() => {
-        const todayStr = new Date().toISOString().split('T')[0];
         try {
             const q = query(
                 collection(db, "kitchen_history"),
-                where("date_str", "==", todayStr),
+                where("date_str", "==", currentDateStr),
                 limit(60)
             );
             const unsub = onSnapshot(q, (snap) => {
@@ -133,7 +147,45 @@ export default function KitchenView() {
         } catch (e) {
             console.error("kitchen_history setup error:", e);
         }
+    }, [currentDateStr]);
+
+    // 23:59 sıfırlaması veya başka bir cihazdan yapılan temizliği anında tüm tabletlere uygula
+    useEffect(() => {
+        try {
+            const unsub = onSnapshot(doc(db, "settings", "kitchen_history_state"), (snap) => {
+                if (snap.exists()) {
+                    const data = snap.data();
+                    if (data?.last_reset_timestamp) {
+                        setLastResetTimestamp(prev => Math.max(prev, data.last_reset_timestamp));
+                    }
+                }
+            }, (err) => {
+                console.warn("kitchen_history_state listener error:", err);
+            });
+            return () => unsub();
+        } catch (e) { }
     }, []);
+
+    // 23:59 Otomatik Mutfak Geçmişi Sıfırlayıcı & Dünden Kalan Kayıtları Temizleyici
+    useEffect(() => {
+        const runCheck = async () => {
+            const today = getLocalDateStr();
+            if (today !== currentDateStr) {
+                setCurrentDateStr(today);
+            }
+            await checkAndExecuteKitchen2359Reset({
+                onReset: (resetTime) => {
+                    setKitchenHistory([]);
+                    if (resetTime) setLastResetTimestamp(resetTime);
+                    showToast("🌙 23:59 - Mutfak sipariş geçmişi otomatik olarak sıfırlandı ve temizlendi.", "info");
+                }
+            });
+        };
+
+        runCheck();
+        const intervalId = setInterval(runCheck, 15000);
+        return () => clearInterval(intervalId);
+    }, [currentDateStr, showToast]);
 
     // Tablet ekranının mutfakta açık kalmasını sağlayan Screen Wake Lock API ve ilk dokunuş aktivasyonu
     useEffect(() => {
@@ -440,30 +492,45 @@ export default function KitchenView() {
 
     // Birleşik günlük mutfak geçmişi (Firestore + aktif dismissed masalar)
     const combinedHistory = useMemo(() => {
+        const todayStr = getLocalDateStr();
         const map = new Map();
+
         kitchenHistory.forEach(item => {
-            const key = item.order_doc_id || item.id;
-            map.set(key, item);
+            const itemDate = item.date_str || (item.completed_at ? getLocalDateStr(new Date(item.completed_at)) : todayStr);
+            if (itemDate === todayStr) {
+                const itemTime = item.completed_at ? new Date(item.completed_at).getTime() : 0;
+                if (itemTime > lastResetTimestamp) {
+                    const key = item.order_doc_id || item.id;
+                    map.set(key, item);
+                }
+            }
         });
+
         Object.values(activeOrders).forEach(ord => {
             if (ord.kitchen_status === 'dismissed' && ord.kitchen_delivered_at) {
-                const docId = ord.id || `table_${ord.table_no}`;
-                if (!map.has(docId)) {
-                    map.set(docId, {
-                        id: `active_${docId}`,
-                        table_no: Number(ord.table_no),
-                        waiter_name: ord.waiter_name || 'Personel',
-                        items: (ord.items || []).filter(i => i.kitchen_sent !== false),
-                        completed_at: ord.kitchen_delivered_at,
-                        completed_time_str: new Date(ord.kitchen_delivered_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-                        date_str: new Date(ord.kitchen_delivered_at).toISOString().split('T')[0],
-                        order_doc_id: docId
-                    });
+                const ordDate = getLocalDateStr(new Date(ord.kitchen_delivered_at));
+                const ordTime = new Date(ord.kitchen_delivered_at).getTime();
+
+                // Yalnızca bugüne ait ve 23:59 sıfırlamasından sonraki siparişleri göster
+                if (ordDate === todayStr && ordTime > lastResetTimestamp) {
+                    const docId = ord.id || `table_${ord.table_no}`;
+                    if (!map.has(docId)) {
+                        map.set(docId, {
+                            id: `active_${docId}`,
+                            table_no: Number(ord.table_no),
+                            waiter_name: ord.waiter_name || 'Personel',
+                            items: (ord.items || []).filter(i => i.kitchen_sent !== false),
+                            completed_at: ord.kitchen_delivered_at,
+                            completed_time_str: new Date(ord.kitchen_delivered_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+                            date_str: ordDate,
+                            order_doc_id: docId
+                        });
+                    }
                 }
             }
         });
         return Array.from(map.values()).sort((a, b) => new Date(b.completed_at || 0) - new Date(a.completed_at || 0));
-    }, [kitchenHistory, activeOrders]);
+    }, [kitchenHistory, activeOrders, lastResetTimestamp, currentDateStr]);
 
     // TEK TIKLA MASAYI TAMAMLAMA (Garsona anında bildirim gider ve ekrandan kalkar)
     const handleDeliverAllOrderItems = async (order) => {
@@ -485,7 +552,7 @@ export default function KitchenView() {
                 updated_at: nowIso
             });
 
-            // 2. Günlük geçmişe kaydet
+            // 2. Günlük geçmişe kaydet (Yerel tarih formatıyla)
             try {
                 await addDoc(collection(db, "kitchen_history"), {
                     table_no: Number(order.table_no),
@@ -493,7 +560,7 @@ export default function KitchenView() {
                     items: items.filter(i => i.kitchen_sent !== false),
                     completed_at: nowIso,
                     completed_time_str: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-                    date_str: nowIso.split('T')[0],
+                    date_str: getLocalDateStr(),
                     order_doc_id: docId
                 });
             } catch (e) {
@@ -505,6 +572,17 @@ export default function KitchenView() {
         } catch (err) {
             console.error("handleDeliverAllOrderItems error:", err);
             showToast("Teslimat onaylanırken hata oluştu.", "danger");
+        }
+    };
+
+    // Mutfak geçmişini manuel olarak sıfırlama
+    const handleManualClearHistory = async () => {
+        if (window.confirm("Bugünkü mutfak sipariş geçmişini şimdi sıfırlamak istiyor musunuz?\n(Geçmiş kayıtları tamamen temizlenecektir)")) {
+            playKeypadBeep();
+            const resetTime = await resetKitchenHistoryNow();
+            setKitchenHistory([]);
+            setLastResetTimestamp(resetTime);
+            showToast("✓ Mutfak sipariş geçmişi sıfırlandı ve temizlendi.", "success");
         }
     };
 
@@ -1284,52 +1362,52 @@ export default function KitchenView() {
                                                             </span>
                                                         </div>
 
-                                                    {/* Tek Ürünü Hazırla Butonu */}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleToggleItemStatus(ord, item.realIdx)}
-                                                        className="btn-outline"
-                                                        style={{
-                                                            padding: '3px 7px',
-                                                            borderRadius: '6px',
-                                                            fontSize: '10.5px',
-                                                            fontWeight: 800,
-                                                            color: '#10b981',
-                                                            borderColor: 'rgba(16, 185, 129, 0.4)',
-                                                            background: 'rgba(16, 185, 129, 0.1)',
-                                                            cursor: 'pointer',
+                                                        {/* Tek Ürünü Hazırla Butonu */}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleToggleItemStatus(ord, item.realIdx)}
+                                                            className="btn-outline"
+                                                            style={{
+                                                                padding: '3px 7px',
+                                                                borderRadius: '6px',
+                                                                fontSize: '10.5px',
+                                                                fontWeight: 800,
+                                                                color: '#10b981',
+                                                                borderColor: 'rgba(16, 185, 129, 0.4)',
+                                                                background: 'rgba(16, 185, 129, 0.1)',
+                                                                cursor: 'pointer',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '3px',
+                                                                flexShrink: 0
+                                                            }}
+                                                        >
+                                                            <Check size={12} strokeWidth={3} />
+                                                            Hazır
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Özel Sipariş Notu (Chef Dikkat Rozeti) */}
+                                                    {(item.notes || item.note) && (
+                                                        <div style={{
+                                                            background: 'rgba(245, 159, 0, 0.14)',
+                                                            border: '1px solid rgba(245, 159, 0, 0.4)',
+                                                            borderRadius: '5px',
+                                                            padding: '3px 6px',
+                                                            fontSize: '11px',
+                                                            fontWeight: 700,
+                                                            color: '#fbbf24',
                                                             display: 'flex',
                                                             alignItems: 'center',
-                                                            gap: '3px',
-                                                            flexShrink: 0
-                                                        }}
-                                                    >
-                                                        <Check size={12} strokeWidth={3} />
-                                                        Hazır
-                                                    </button>
+                                                            gap: '4px'
+                                                        }}>
+                                                            <span>📝 Not:</span>
+                                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.notes || item.note}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
-
-                                                {/* Özel Sipariş Notu (Chef Dikkat Rozeti) */}
-                                                {(item.notes || item.note) && (
-                                                    <div style={{
-                                                        background: 'rgba(245, 159, 0, 0.14)',
-                                                        border: '1px solid rgba(245, 159, 0, 0.4)',
-                                                        borderRadius: '5px',
-                                                        padding: '3px 6px',
-                                                        fontSize: '11px',
-                                                        fontWeight: 700,
-                                                        color: '#fbbf24',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '4px'
-                                                    }}>
-                                                        <span>📝 Not:</span>
-                                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.notes || item.note}</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
+                                            );
+                                        })}
 
                                         {/* 2. Eğer masada önceden teslim edilmiş veya hazır ürünler varsa */}
                                         {deliveredItems.length > 0 && (
@@ -1789,26 +1867,53 @@ export default function KitchenView() {
                                             Günlük Sipariş Geçmişi
                                         </h3>
                                         <div style={{ fontSize: '11px', color: 'var(--text-muted, #8d736b)' }}>
-                                            Bugün tamamlanan {combinedHistory.length} masa
+                                            Bugün tamamlanan {combinedHistory.length} masa • Her gün 23:59'da sıfırlanır
                                         </div>
                                     </div>
                                 </div>
 
-                                <button
-                                    type="button"
-                                    onClick={() => setShowHistoryDrawer(false)}
-                                    className="btn-outline"
-                                    style={{
-                                        padding: '5px',
-                                        borderRadius: '8px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        color: 'var(--text-muted)'
-                                    }}
-                                >
-                                    <X size={18} />
-                                </button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {combinedHistory.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={handleManualClearHistory}
+                                            className="btn-outline"
+                                            title="Geçmişi Şimdi Sıfırla / Temizle"
+                                            style={{
+                                                padding: '4px 8px',
+                                                borderRadius: '8px',
+                                                fontSize: '11px',
+                                                fontWeight: 800,
+                                                color: '#f87171',
+                                                background: 'rgba(239, 68, 68, 0.1)',
+                                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px'
+                                            }}
+                                        >
+                                            <Trash2 size={13} />
+                                            <span>Sıfırla</span>
+                                        </button>
+                                    )}
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowHistoryDrawer(false)}
+                                        className="btn-outline"
+                                        style={{
+                                            padding: '5px',
+                                            borderRadius: '8px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: 'var(--text-muted)'
+                                        }}
+                                    >
+                                        <X size={18} />
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Liste */}
@@ -1907,7 +2012,7 @@ export default function KitchenView() {
                                                     title="Yanlışlıkla tıklandıysa siparişi tekrar mutfak panosuna geri gönder"
                                                 >
                                                     <RotateCcw size={12} />
-                                                    <span>Panoya Geri Al (Yanlışlıkla Tıklandı)</span>
+                                                    <span>Panoya Geri Al</span>
                                                 </button>
                                             </div>
                                         </div>

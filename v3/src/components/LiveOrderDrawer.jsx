@@ -81,7 +81,7 @@ export default function LiveOrderDrawer({
 
     // Drawer İçeriği
     const drawerContent = (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', position: 'relative' }}>
             {/* Ambient Top Glow Line */}
             <div style={{
                 position: 'absolute',

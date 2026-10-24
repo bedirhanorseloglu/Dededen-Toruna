@@ -1210,7 +1210,9 @@ body {
     .receipt-side {
         display: flex !important;
         position: relative !important;
-        width: 340px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        justify-self: stretch !important;
         height: 100% !important;
         max-height: 100% !important;
         transform: none !important;
@@ -1796,9 +1798,12 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: clamp(14px, 2.8vw, 24px);
+    padding: clamp(10px, 2.5vw, 24px);
+    padding-top: max(clamp(10px, 2.5vw, 24px), env(safe-area-inset-top, 10px));
+    padding-bottom: max(clamp(10px, 2.5vw, 24px), env(safe-area-inset-bottom, 10px));
     box-sizing: border-box;
     overflow-y: auto;
+    overflow-x: hidden;
     position: relative;
     background: radial-gradient(circle at 50% 18%, rgba(249, 115, 22, 0.12) 0%, transparent 60%),
                 radial-gradient(circle at 80% 85%, rgba(251, 191, 36, 0.05) 0%, transparent 50%),
@@ -1810,7 +1815,7 @@ body {
     top: 10%;
     left: 50%;
     transform: translateX(-50%);
-    width: 600px;
+    width: min(600px, 90vw);
     height: 400px;
     background: radial-gradient(ellipse at center, rgba(249, 115, 22, 0.14) 0%, transparent 70%);
     filter: blur(60px);
@@ -1821,12 +1826,13 @@ body {
 .login-card {
     position: relative;
     z-index: 1;
-    background: rgba(22, 16, 15, 0.86);
+    margin: auto;
+    background: rgba(22, 16, 15, 0.88);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 28px;
+    border-radius: clamp(20px, 3vh, 28px);
     width: 100%;
     max-width: 440px;
-    padding: clamp(22px, 3.8vw, 34px) clamp(18px, 3vw, 28px);
+    padding: clamp(16px, 3vh, 32px) clamp(14px, 3vw, 26px);
     box-shadow: 0 30px 80px -15px rgba(0, 0, 0, 0.85), 
                 0 0 0 1px rgba(255, 255, 255, 0.05),
                 0 0 45px -10px rgba(249, 115, 22, 0.16);
@@ -1835,6 +1841,8 @@ body {
     -webkit-backdrop-filter: blur(28px);
     box-sizing: border-box;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .login-card-specular {
@@ -1848,33 +1856,48 @@ body {
     pointer-events: none;
 }
 
+.login-left-pane,
+.login-right-pane {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
 .login-logo-halo {
     position: relative;
     display: inline-block;
-    margin-bottom: 12px;
+    margin-bottom: clamp(6px, 1.2vh, 12px);
+}
+
+.login-brand-logo {
+    width: clamp(52px, 8.5vh, 82px);
+    height: clamp(52px, 8.5vh, 82px);
+    border-radius: 50%;
+    object-fit: cover;
 }
 
 .login-brand-title {
-    font-size: clamp(22px, 2.5vw, 26px);
+    font-size: clamp(20px, 2.7vh, 26px);
     font-weight: 800;
     letter-spacing: -0.025em;
     background: linear-gradient(180deg, #FFFFFF 20%, #E4E4E7 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     margin: 0;
+    line-height: 1.2;
 }
 
 .login-brand-badge {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    margin-top: 5px;
-    padding: 3px 12px;
+    margin-top: clamp(3px, 0.5vh, 5px);
+    padding: clamp(2px, 0.4vh, 3px) clamp(8px, 1.5vw, 12px);
     border-radius: 999px;
     background: rgba(251, 191, 36, 0.1);
     border: 1px solid rgba(251, 191, 36, 0.25);
     color: #fbbf24;
-    font-size: 11px;
+    font-size: clamp(9.5px, 1.2vh, 11px);
     font-weight: 800;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -1883,23 +1906,24 @@ body {
 .role-selector {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-    margin: 18px 0 14px;
+    gap: clamp(6px, 1.2vw, 8px);
+    margin: clamp(10px, 1.8vh, 18px) 0 clamp(8px, 1.4vh, 14px);
 }
 
 .role-btn {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.09);
-    border-radius: 16px;
-    padding: 10px 8px;
+    border-radius: clamp(12px, 1.8vh, 16px);
+    padding: clamp(6px, 1.1vh, 10px) clamp(4px, 1vw, 8px);
     color: rgba(255, 255, 255, 0.65);
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: clamp(5px, 0.8vw, 8px);
     text-align: left;
     transition: all 0.15s ease;
     user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .role-btn:hover {
@@ -1916,18 +1940,22 @@ body {
 }
 
 .role-btn-icon-wrap {
-    width: 38px;
-    height: 38px;
-    border-radius: 11px;
+    width: clamp(28px, 4vh, 38px);
+    height: clamp(28px, 4vh, 38px);
+    border-radius: clamp(8px, 1.2vh, 11px);
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
     flex-shrink: 0;
     color: rgba(255, 255, 255, 0.7);
     transition: all 0.15s ease;
+}
+
+.role-btn-icon-wrap svg {
+    width: clamp(14px, 2vh, 18px);
+    height: clamp(14px, 2vh, 18px);
 }
 
 .role-btn.active .role-btn-icon-wrap {
@@ -1944,21 +1972,33 @@ body {
 }
 
 .role-btn-title {
-    font-size: 13.5px;
+    font-size: clamp(11.5px, 1.5vh, 13.5px);
     font-weight: 700;
     line-height: 1.2;
     color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .role-btn-desc {
-    font-size: 10.5px;
+    font-size: clamp(8.5px, 1.1vh, 10.5px);
     color: rgba(255, 255, 255, 0.45);
     margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* ==========================================================================
    21ST.DEV CUSTOM STAFF SELECT DROPDOWN
    ========================================================================== */
+.login-staff-select-wrapper {
+    text-align: left;
+    margin-bottom: clamp(8px, 1.4vh, 14px);
+    width: 100%;
+}
+
 .custom-staff-dropdown-container {
     position: relative;
     width: 100%;
@@ -1968,8 +2008,8 @@ body {
     width: 100%;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: 10px 14px;
+    border-radius: clamp(12px, 1.8vh, 16px);
+    padding: clamp(7px, 1.2vh, 10px) clamp(10px, 1.8vw, 14px);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1978,6 +2018,7 @@ body {
     box-sizing: border-box;
     text-align: left;
     user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .custom-staff-trigger:hover {
@@ -1995,19 +2036,24 @@ body {
 .staff-trigger-left {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: clamp(8px, 1.4vw, 12px);
     min-width: 0;
 }
 
 .staff-avatar-badge {
-    width: 34px;
-    height: 34px;
-    border-radius: 10px;
+    width: clamp(28px, 3.8vh, 34px);
+    height: clamp(28px, 3.8vh, 34px);
+    border-radius: clamp(7px, 1.1vh, 10px);
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     transition: all 0.18s ease;
+}
+
+.staff-avatar-badge svg {
+    width: clamp(13px, 1.8vh, 16px);
+    height: clamp(13px, 1.8vh, 16px);
 }
 
 .staff-avatar-badge.admin {
@@ -2038,7 +2084,7 @@ body {
 }
 
 .staff-trigger-name {
-    font-size: 14px;
+    font-size: clamp(12.5px, 1.6vh, 14px);
     font-weight: 700;
     color: #ffffff;
     letter-spacing: -0.01em;
@@ -2048,7 +2094,7 @@ body {
 }
 
 .staff-trigger-role {
-    font-size: 11px;
+    font-size: clamp(9.5px, 1.2vh, 11px);
     font-weight: 600;
     color: rgba(255, 255, 255, 0.5);
     margin-top: 1px;
@@ -2064,7 +2110,7 @@ body {
 
 .custom-staff-menu {
     position: absolute;
-    top: calc(100% + 8px);
+    top: calc(100% + 6px);
     left: 0;
     right: 0;
     z-index: 999;
@@ -2072,11 +2118,11 @@ body {
     backdrop-filter: blur(28px);
     -webkit-backdrop-filter: blur(28px);
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 20px;
-    padding: 8px;
+    border-radius: clamp(14px, 2vh, 20px);
+    padding: 6px;
     box-shadow: 0 22px 50px -10px rgba(0, 0, 0, 0.88), 0 0 0 1px rgba(255, 255, 255, 0.05), 0 0 30px rgba(249, 115, 22, 0.15);
     overflow: hidden;
-    max-height: 280px;
+    max-height: 240px;
     display: flex;
     flex-direction: column;
 }
@@ -2095,32 +2141,32 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 12px 6px;
-    font-size: 11px;
+    padding: 6px 10px 4px;
+    font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: rgba(255, 255, 255, 0.45);
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    margin-bottom: 4px;
+    margin-bottom: 3px;
 }
 
 .staff-count-badge {
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 999px;
-    padding: 2px 8px;
-    font-size: 10px;
+    padding: 1px 6px;
+    font-size: 9.5px;
     font-weight: 700;
     color: rgba(255, 255, 255, 0.6);
 }
 
 .custom-staff-menu-list {
     overflow-y: auto;
-    max-height: 220px;
+    max-height: 190px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
     padding-right: 2px;
 }
 
@@ -2136,8 +2182,8 @@ body {
     width: 100%;
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 12px;
-    padding: 10px 12px;
+    border-radius: 10px;
+    padding: 8px 10px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -2160,46 +2206,22 @@ body {
 .staff-item-left {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     min-width: 0;
 }
 
 .staff-item-avatar {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
 }
 
-.staff-item-avatar.admin {
-    background: rgba(249, 115, 22, 0.2);
-    border: 1px solid rgba(249, 115, 22, 0.4);
-    color: #fbbf24;
-}
-
-.staff-item-avatar.waiter {
-    background: rgba(59, 130, 246, 0.18);
-    border: 1px solid rgba(59, 130, 246, 0.4);
-    color: #60a5fa;
-}
-
-.staff-item-avatar.kitchen {
-    background: rgba(16, 185, 129, 0.18);
-    border: 1px solid rgba(16, 185, 129, 0.4);
-    color: #10b981;
-}
-
-.staff-item-info {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-}
-
 .staff-item-name {
-    font-size: 13.5px;
+    font-size: 13px;
     font-weight: 700;
     color: #ffffff;
     white-space: nowrap;
@@ -2208,13 +2230,9 @@ body {
 }
 
 .staff-item-sub {
-    font-size: 11px;
+    font-size: 10px;
     color: rgba(255, 255, 255, 0.45);
     margin-top: 1px;
-}
-
-.custom-staff-item.selected .staff-item-name {
-    color: #ffffff;
 }
 
 .staff-item-check {
@@ -2225,16 +2243,27 @@ body {
     flex-shrink: 0;
 }
 
+/* ==========================================================================
+   PIN GÖSTERGESİ & NUMPAD
+   ========================================================================== */
+.login-pin-instruction {
+    font-size: clamp(10px, 1.3vh, 11.5px);
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: clamp(6px, 1.2vh, 12px);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
 .pin-display {
     display: flex;
     justify-content: center;
-    gap: 12px;
-    margin: 14px 0 16px;
+    gap: clamp(8px, 1.5vw, 12px);
+    margin: clamp(8px, 1.2vh, 14px) 0 clamp(10px, 1.5vh, 16px);
 }
 
 .pin-dot {
-    width: 18px;
-    height: 18px;
+    width: clamp(14px, 2vh, 18px);
+    height: clamp(14px, 2vh, 18px);
     border-radius: 50%;
     background: rgba(255, 255, 255, 0.04);
     border: 1.5px solid rgba(255, 255, 255, 0.14);
@@ -2251,8 +2280,8 @@ body {
 }
 
 .pin-dot-fill-core {
-    width: 9px;
-    height: 9px;
+    width: clamp(6.5px, 1vh, 9px);
+    height: clamp(6.5px, 1vh, 9px);
     border-radius: 50%;
     background: linear-gradient(135deg, #fbbf24, #f97316);
     box-shadow: 0 0 8px #f97316;
@@ -2267,14 +2296,14 @@ body {
 .numpad {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
+    gap: clamp(6px, 1vh, 10px);
 }
 
 .num-btn {
     background: rgba(255, 255, 255, 0.035);
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 16px;
-    height: clamp(48px, 6vh, 58px);
+    border-radius: clamp(11px, 1.6vh, 16px);
+    height: clamp(40px, 5.8vh, 58px);
     color: #ffffff;
     cursor: pointer;
     display: flex;
@@ -2300,18 +2329,18 @@ body {
 }
 
 .num-btn .num-digit {
-    font-size: clamp(19px, 2.2vw, 22px);
+    font-size: clamp(17px, 2.3vh, 22px);
     font-weight: 700;
     line-height: 1;
     letter-spacing: -0.02em;
 }
 
 .num-btn .num-letters {
-    font-size: 8.5px;
+    font-size: clamp(7.5px, 0.9vh, 8.5px);
     font-weight: 600;
     color: rgba(255, 255, 255, 0.35);
     letter-spacing: 0.12em;
-    margin-top: 2px;
+    margin-top: 1px;
 }
 
 .num-btn.btn-clear {
@@ -2336,6 +2365,190 @@ body {
     background: linear-gradient(135deg, rgba(249, 115, 22, 0.5) 0%, rgba(249, 115, 22, 0.25) 100%);
     border-color: #f97316;
     box-shadow: 0 0 20px rgba(249, 115, 22, 0.35);
+}
+
+/* ==========================================================================
+   GİRİŞ EKRANI MOBİL & YATAY / LANDSCAPE RESPONSIVE UYUMLULUK
+   ========================================================================== */
+
+/* Küçük Mobil Cihazlar (Genişlik <= 400px): Rol Butonlarını Dikey Düzenle */
+@media (max-width: 400px) {
+    .login-card {
+        padding: 18px 12px;
+        border-radius: 20px;
+    }
+    .role-btn {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 7px 4px;
+        gap: 4px;
+    }
+    .role-btn-icon-wrap {
+        width: 30px;
+        height: 30px;
+    }
+    .role-btn-title {
+        font-size: 11.5px;
+    }
+    .role-btn-desc {
+        display: none;
+    }
+}
+
+/* Kısa Ekranlar (Yükseklik <= 740px): Dikey Boşlukları Optimize Et */
+@media (max-height: 740px) {
+    .login-screen {
+        padding: 8px;
+    }
+    .login-card {
+        padding: 12px 14px;
+        max-width: 400px;
+    }
+    .login-logo-halo {
+        margin-bottom: 4px;
+    }
+    .login-brand-logo {
+        width: 46px;
+        height: 46px;
+    }
+    .login-brand-title {
+        font-size: 19px;
+    }
+    .login-brand-badge {
+        font-size: 9px;
+        margin-top: 2px;
+        padding: 2px 7px;
+    }
+    .role-selector {
+        margin: 8px 0 6px;
+        gap: 6px;
+    }
+    .role-btn {
+        padding: 6px 4px;
+    }
+    .role-btn-icon-wrap {
+        width: 26px;
+        height: 26px;
+    }
+    .role-btn-desc {
+        display: none;
+    }
+    .login-staff-select-wrapper {
+        margin-bottom: 6px;
+    }
+    .login-pin-instruction {
+        margin-top: 6px;
+    }
+    .pin-display {
+        margin: 6px 0 8px;
+    }
+    .numpad {
+        gap: 6px;
+    }
+    .num-btn {
+        height: 42px;
+    }
+}
+
+/* Çok Kısa Ekranlar / Küçük Cihazlar (Yükseklik <= 620px) */
+@media (max-height: 620px) {
+    .login-logo-halo {
+        display: none;
+    }
+    .login-brand-badge {
+        display: none;
+    }
+    .num-btn {
+        height: 38px;
+    }
+    .num-btn .num-letters {
+        display: none;
+    }
+}
+
+/* Yatay / Landscape Ekranlar (Telefon & Tablet Yatay Tutulduğunda 2 Sütunlu POS Arayüzü) */
+@media (orientation: landscape) and (max-height: 580px) {
+    .login-screen {
+        padding: 8px 12px;
+    }
+    .login-card {
+        max-width: 660px;
+        padding: 12px 18px;
+        display: grid;
+        grid-template-columns: 1fr 1.15fr;
+        gap: 16px;
+        align-items: center;
+        text-align: left;
+    }
+    .login-left-pane {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .login-right-pane {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .login-logo-halo {
+        margin-bottom: 4px;
+        display: flex;
+        justify-content: flex-start;
+    }
+    .login-brand-logo {
+        width: 44px;
+        height: 44px;
+    }
+    .login-brand-title {
+        font-size: 19px;
+        text-align: left;
+    }
+    .login-brand-badge {
+        font-size: 9px;
+        padding: 2px 7px;
+        margin-top: 2px;
+    }
+    .role-selector {
+        margin: 8px 0 6px;
+        gap: 6px;
+    }
+    .role-btn {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 6px 3px;
+        gap: 3px;
+    }
+    .role-btn-icon-wrap {
+        width: 24px;
+        height: 24px;
+    }
+    .role-btn-title {
+        font-size: 11px;
+    }
+    .role-btn-desc {
+        display: none;
+    }
+    .login-staff-select-wrapper {
+        margin-bottom: 0;
+    }
+    .login-pin-instruction {
+        margin-top: 0;
+        text-align: center;
+    }
+    .pin-display {
+        margin: 6px 0 8px;
+    }
+    .numpad {
+        gap: 6px;
+    }
+    .num-btn {
+        height: 38px;
+    }
+    .num-btn .num-letters {
+        display: none;
+    }
 }
 
 /* ==========================================================================
@@ -5348,7 +5561,7 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 2100;
+    z-index: 999999 !important;
     padding: 16px;
 }
 
@@ -7201,59 +7414,15 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
         height: 18px !important;
     }
 
-    /* GİRİŞ EKRANI (S26: Tek Ekranda Kaydırmasız Numpad) */
+    /* GİRİŞ EKRANI (Mobil: Tek Ekranda Akıcı & Kaydırmasız Numpad) */
     .login-screen {
-        padding: 12px !important;
+        padding: clamp(8px, 2vh, 14px);
     }
 
     .login-card {
-        padding: 20px 16px !important;
-        max-width: 360px !important;
-        border-radius: 22px !important;
-    }
-
-    .login-card img {
-        width: 68px !important;
-        height: 68px !important;
-    }
-
-    .login-card h1 {
-        font-size: 20px !important;
-    }
-
-    .role-selector {
-        margin: 12px 0 !important;
-        gap: 8px !important;
-    }
-
-    .role-btn {
-        padding: 8px 4px !important;
-        font-size: 11.5px !important;
-        gap: 4px !important;
-    }
-
-    .role-btn span:first-child {
-        font-size: 20px !important;
-    }
-
-    .pin-display {
-        margin: 12px 0 !important;
-        gap: 10px !important;
-    }
-
-    .pin-dot {
-        width: 12px !important;
-        height: 12px !important;
-    }
-
-    .numpad {
-        gap: 7px !important;
-    }
-
-    .num-btn {
-        height: 50px !important;
-        font-size: 20px !important;
-        border-radius: 12px !important;
+        padding: clamp(14px, 2.5vh, 22px) clamp(12px, 3vw, 18px);
+        max-width: min(400px, 96vw);
+        border-radius: clamp(18px, 2.8vh, 24px);
     }
 
     /* YÖNETİCİ EKRANI */
@@ -7359,7 +7528,9 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
     .receipt-side {
         display: flex !important;
         position: relative !important;
-        width: 375px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        justify-self: stretch !important;
         height: 100% !important;
         max-height: 100% !important;
         transform: none !important;
@@ -7507,7 +7678,9 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
     .receipt-side {
         display: flex !important;
         position: relative !important;
-        width: 330px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        justify-self: stretch !important;
         height: 100% !important;
         transform: none !important;
         border-left: 1px solid var(--border-subtle) !important;

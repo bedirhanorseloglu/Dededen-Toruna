@@ -656,7 +656,7 @@ export default function WaiterView() {
             {/* MODAL: SİPARİŞ NOTU DÜZENLEME                                  */}
             {/* ============================================================== */}
             {noteModalItemIdx !== null && (
-                <div className="modal-overlay open" style={{ display: 'flex', opacity: 1, zIndex: 1750 }}>
+                <div className="modal-overlay open" style={{ display: 'flex', opacity: 1, zIndex: 999999 }}>
                     <div className="modal-content open modal-responsive-card" style={{ maxWidth: '400px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                             <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'white', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
