@@ -349,51 +349,54 @@ export default function LiveOrderDrawer({
                                             key={item.id || idx}
                                             className="receipt-item-card-21 pending"
                                         >
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
-                                                    <div className="receipt-dish-icon-box">
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1, minWidth: 0 }}>
+                                                    <div className="receipt-dish-icon-box" style={{ marginTop: '2px' }}>
                                                         <Utensils size={15} />
                                                     </div>
                                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                                        <div style={{ fontWeight: 800, fontSize: '14.5px', color: '#FFFFFF', letterSpacing: '-0.2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                        <div style={{ fontWeight: 800, fontSize: '14.5px', color: '#FFFFFF', letterSpacing: '-0.2px', wordBreak: 'break-word', lineHeight: 1.3 }}>
                                                             {item.name}
                                                         </div>
-                                                        <div style={{ fontSize: '12px', color: 'var(--brand-gold)', fontWeight: 700, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', textWrap: 'nowrap', flexWrap: 'nowrap' }}>
+                                                        <div style={{ fontSize: '12px', color: 'var(--brand-gold)', fontWeight: 700, marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                                             <span style={{ fontWeight: 800, flexShrink: 0 }}>{formatMoney(Number(item.price) * Number(item.quantity || 1))}</span>
                                                             <span className="receipt-item-qty-badge">{item.quantity || 1}&nbsp;Adet</span>
+                                                            {item.kitchen_sent === false && (
+                                                                <span
+                                                                    style={{
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '4px',
+                                                                        fontSize: '10.5px',
+                                                                        fontWeight: 700,
+                                                                        color: '#fbbf24',
+                                                                        background: 'rgba(245, 158, 11, 0.12)',
+                                                                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                                                                        padding: '1px 6px',
+                                                                        borderRadius: '5px',
+                                                                        flexShrink: 0
+                                                                    }}
+                                                                    title="Henüz mutfağa iletilmedi (Taslak)"
+                                                                >
+                                                                    <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#f59e0b', boxShadow: '0 0 6px #f59e0b' }} />
+                                                                    İletilmedi
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
 
-                                                {item.kitchen_sent === false ? (
-                                                    <span
-                                                        className="receipt-status-chip"
-                                                        style={{
-                                                            background: 'rgba(245, 158, 11, 0.15)',
-                                                            border: '1px solid rgba(245, 158, 11, 0.4)',
-                                                            color: '#fbbf24',
-                                                            fontSize: '11px',
-                                                            fontWeight: 800,
-                                                            padding: '3px 8px',
-                                                            borderRadius: '6px',
-                                                            flexShrink: 0
-                                                        }}
-                                                        title="Henüz mutfağa iletilmedi (Taslak)"
+                                                {item.kitchen_sent !== false && onToggleItemStatus && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onToggleItemStatus(idx)}
+                                                        className="receipt-status-chip is-cooking cursor-pointer"
+                                                        style={{ border: '1px solid rgba(245, 158, 11, 0.35)', cursor: 'pointer', flexShrink: 0, marginTop: '2px' }}
+                                                        title="Teslim Edildi Olarak İşaretle"
                                                     >
-                                                        İletilmedi
-                                                    </span>
-                                                ) : (
-                                                    onToggleItemStatus && (
-                                                        <button
-                                                            onClick={() => onToggleItemStatus(idx)}
-                                                            className="receipt-status-chip is-cooking cursor-pointer"
-                                                            style={{ border: '1px solid rgba(245, 158, 11, 0.35)', cursor: 'pointer', flexShrink: 0 }}
-                                                            title="Teslim Edildi Olarak İşaretle"
-                                                        >
-                                                            <Clock size={12} />
-                                                            <span>Hazırlanıyor</span>
-                                                        </button>
-                                                    )
+                                                        <Clock size={12} />
+                                                        <span>Hazırlanıyor</span>
+                                                    </button>
                                                 )}
                                             </div>
 
@@ -487,16 +490,16 @@ export default function LiveOrderDrawer({
                                             key={item.id || idx}
                                             className="receipt-item-card-21 delivered"
                                         >
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
-                                                    <div className="receipt-dish-icon-box">
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flex: 1, minWidth: 0 }}>
+                                                    <div className="receipt-dish-icon-box" style={{ marginTop: '2px' }}>
                                                         <Utensils size={15} />
                                                     </div>
                                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                                        <div style={{ fontWeight: 800, fontSize: '14.5px', color: '#FFFFFF', letterSpacing: '-0.2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                        <div style={{ fontWeight: 800, fontSize: '14.5px', color: '#FFFFFF', letterSpacing: '-0.2px', wordBreak: 'break-word', lineHeight: 1.3 }}>
                                                             {item.name}
                                                         </div>
-                                                        <div style={{ fontSize: '12px', color: 'var(--brand-gold)', fontWeight: 700, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', textWrap: 'nowrap', flexWrap: 'nowrap' }}>
+                                                        <div style={{ fontSize: '12px', color: 'var(--brand-gold)', fontWeight: 700, marginTop: '3px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                                             <span style={{ fontWeight: 800, flexShrink: 0 }}>{formatMoney(Number(item.price) * Number(item.quantity || 1))}</span>
                                                             <span className="receipt-item-qty-badge">{item.quantity || 1}&nbsp;Adet</span>
                                                         </div>
@@ -505,9 +508,10 @@ export default function LiveOrderDrawer({
 
                                                 {onToggleItemStatus && (
                                                     <button
+                                                        type="button"
                                                         onClick={() => onToggleItemStatus(idx)}
                                                         className="receipt-status-chip is-delivered cursor-pointer"
-                                                        style={{ border: '1px solid rgba(16, 185, 129, 0.35)', cursor: 'pointer', flexShrink: 0 }}
+                                                        style={{ border: '1px solid rgba(16, 185, 129, 0.35)', cursor: 'pointer', flexShrink: 0, marginTop: '2px' }}
                                                         title="Geri Al (Hazırlanıyor Yap)"
                                                     >
                                                         <CheckCircle2 size={12} />
