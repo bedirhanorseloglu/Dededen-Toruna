@@ -24,7 +24,7 @@ export default function Navbar() {
         toggleSound
     } = useApp();
 
-    if (!currentUser || currentView === 'login') return null;
+    if (!currentUser || currentView === 'login' || currentView === 'kitchen') return null;
 
     const handleBack = () => {
         if (currentUser.role === 'admin') {

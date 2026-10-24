@@ -318,14 +318,14 @@ export default function KitchenView() {
         <div 
             className="kitchen-page-container" 
             style={{ 
-                padding: layoutMode === 'horizontal' ? '8px 12px' : '14px 18px', 
+                padding: '6px 10px', 
                 maxWidth: '100%', 
                 margin: '0 auto', 
-                height: layoutMode === 'horizontal' ? '100vh' : 'auto',
-                minHeight: '100vh',
+                height: '100vh',
+                maxHeight: '100dvh',
                 display: 'flex',
                 flexDirection: 'column',
-                overflow: layoutMode === 'horizontal' ? 'hidden' : 'auto',
+                overflow: 'hidden',
                 boxSizing: 'border-box'
             }}
         >
@@ -333,51 +333,62 @@ export default function KitchenView() {
             {/* 1. ÜST KONTROL & BİLGİ ŞERİDİ (KOMPAKT SLIM KDS HEADER)         */}
             {/* ============================================================== */}
             <div style={{
-                background: 'rgba(28, 21, 20, 0.92)',
+                background: 'rgba(28, 21, 20, 0.94)',
                 backdropFilter: 'blur(20px)',
                 WebkitBackdropFilter: 'blur(20px)',
                 border: '1px solid rgba(247, 103, 7, 0.3)',
                 borderRadius: '12px',
-                padding: '8px 14px',
+                padding: '6px 12px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 flexWrap: 'wrap',
                 gap: '8px',
-                marginBottom: '8px',
-                boxShadow: '0 6px 20px rgba(0, 0, 0, 0.45)',
+                marginBottom: '6px',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.45)',
                 flexShrink: 0
             }}>
                 {/* Sol: Logo, Başlık ve Canlı İstatistikler */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div style={{
                         background: 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)',
                         color: 'white',
-                        padding: '6px',
-                        borderRadius: '9px',
+                        padding: '5px',
+                        borderRadius: '8px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         boxShadow: '0 2px 8px rgba(247, 103, 7, 0.4)'
                     }}>
-                        <ChefHat size={17} strokeWidth={2.4} />
+                        <ChefHat size={16} strokeWidth={2.4} />
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
-                        <span style={{ fontWeight: 900, fontSize: '15px', color: '#fffaf5', letterSpacing: '-0.02em' }}>
-                            Mutfak KDS
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontWeight: 900, fontSize: '14.5px', color: '#fffaf5', letterSpacing: '-0.02em' }}>
+                            DEDEDEN TORUNA • MUTFAK KDS
+                        </span>
+                        <span style={{
+                            background: 'rgba(247, 103, 7, 0.15)',
+                            border: '1px solid rgba(247, 103, 7, 0.35)',
+                            color: 'var(--brand-primary)',
+                            fontSize: '10px',
+                            fontWeight: 800,
+                            padding: '1px 6px',
+                            borderRadius: '999px'
+                        }}>
+                            {currentUser?.name || 'Mutfak'}
                         </span>
                         <span style={{
                             background: 'rgba(16, 185, 129, 0.15)',
                             border: '1px solid rgba(16, 185, 129, 0.4)',
                             color: '#10b981',
-                            fontSize: '9.5px',
+                            fontSize: '9px',
                             fontWeight: 800,
-                            padding: '1px 6px',
+                            padding: '1px 5px',
                             borderRadius: '999px',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '4px'
+                            gap: '3px'
                         }}>
                             <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#10b981', animation: 'pulse 1.8s infinite' }} />
                             CANLI
@@ -623,18 +634,22 @@ export default function KitchenView() {
                 className="kitchen-board" 
                 style={layoutMode === 'horizontal' ? {
                     flex: 1,
-                    display: 'flex',
-                    flexDirection: 'row',
-                    gap: '12px',
+                    minHeight: 0,
+                    display: 'grid',
+                    gridAutoFlow: 'column',
+                    gridTemplateRows: 'repeat(2, auto)',
+                    gridAutoColumns: 'minmax(270px, 320px)',
+                    gap: '8px 10px',
                     overflowX: 'auto',
-                    overflowY: 'hidden',
-                    paddingBottom: '6px',
-                    alignItems: 'stretch'
+                    overflowY: 'auto',
+                    alignItems: 'start',
+                    paddingBottom: '8px'
                 } : {
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))',
-                    gap: '14px',
-                    paddingBottom: '20px'
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))',
+                    gap: '12px',
+                    paddingBottom: '20px',
+                    overflowY: 'auto'
                 }}
             >
                 <AnimatePresence mode="popLayout">
@@ -727,10 +742,10 @@ export default function KitchenView() {
                                     exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.2 } }}
                                     transition={{ type: 'spring', stiffness: 450, damping: 28 }}
                                     style={layoutMode === 'horizontal' ? {
-                                        width: '310px',
-                                        minWidth: '290px',
+                                        width: '305px',
+                                        minWidth: '270px',
                                         maxWidth: '330px',
-                                        height: '100%',
+                                        height: 'fit-content',
                                         flexShrink: 0,
                                         display: 'flex',
                                         flexDirection: 'column',
@@ -738,14 +753,13 @@ export default function KitchenView() {
                                         border: allDelivered 
                                             ? '1.5px solid rgba(16, 185, 129, 0.5)' 
                                             : (isDelayed ? '1.5px solid #ef4444' : '1px solid rgba(247, 103, 7, 0.35)'),
-                                        borderRadius: '14px',
-                                        padding: '12px 14px',
-                                        gap: '10px',
+                                        borderRadius: '12px',
+                                        padding: '9px 11px',
+                                        gap: '6px',
                                         boxShadow: isDelayed 
-                                            ? '0 0 25px rgba(239, 68, 68, 0.3), 0 8px 20px rgba(0, 0, 0, 0.5)' 
-                                            : '0 6px 20px rgba(0, 0, 0, 0.45)',
+                                            ? '0 0 20px rgba(239, 68, 68, 0.25), 0 6px 16px rgba(0, 0, 0, 0.5)' 
+                                            : '0 4px 16px rgba(0, 0, 0, 0.45)',
                                         position: 'relative',
-                                        overflow: 'hidden',
                                         boxSizing: 'border-box'
                                     } : {
                                         background: allDelivered ? 'rgba(16, 185, 129, 0.08)' : 'rgba(28, 21, 20, 0.94)',
@@ -888,14 +902,11 @@ export default function KitchenView() {
                                         </div>
                                     </div>
 
-                                    {/* Sipariş Kalemleri Listesi (Normalde de görünür, içi dikey kaydırılabilir) */}
+                                    {/* Sipariş Kalemleri Listesi (Sipariş uzunluğuna göre doğal uzar, kart içi kaydırma olmaz) */}
                                     <div style={{ 
-                                        flex: 1, 
-                                        overflowY: 'auto', 
                                         display: 'flex', 
                                         flexDirection: 'column', 
-                                        gap: '6px',
-                                        paddingRight: '2px'
+                                        gap: '5px'
                                     }}>
                                         {/* 1. Hazırlanan / Pişen Ürünler */}
                                         {cookingItems.map((item) => (
@@ -990,7 +1001,7 @@ export default function KitchenView() {
                                                 alignItems: 'center'
                                             }}>
                                                 <span>✓ Hazır: {deliveredItems.length} kalem</span>
-                                                <span style={{ color: 'var(--text-muted, #8d736b)', fontSize: '10px', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                <span style={{ color: 'var(--text-muted, #8d736b)', fontSize: '9.5px', maxWidth: '130px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {deliveredItems.map(d => `${d.quantity}x ${d.name}`).join(', ')}
                                                 </span>
                                             </div>
@@ -998,7 +1009,7 @@ export default function KitchenView() {
                                     </div>
 
                                     {/* Kart Altı Aksiyon Butonları */}
-                                    <div style={{ marginTop: 'auto', paddingTop: '6px' }}>
+                                    <div style={{ marginTop: '4px', paddingTop: '2px', flexShrink: 0 }}>
                                         {allDelivered ? (
                                             <motion.button
                                                 type="button"
@@ -1007,22 +1018,22 @@ export default function KitchenView() {
                                                 whileTap={{ scale: 0.97 }}
                                                 style={{
                                                     width: '100%',
-                                                    padding: '9px 12px',
-                                                    borderRadius: '10px',
+                                                    padding: '7px 10px',
+                                                    borderRadius: '8px',
                                                     border: 'none',
                                                     background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                                                     color: 'white',
                                                     fontWeight: 800,
-                                                    fontSize: '12px',
+                                                    fontSize: '11.5px',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    gap: '5px',
+                                                    gap: '4px',
                                                     cursor: 'pointer',
-                                                    boxShadow: '0 4px 14px rgba(16, 185, 129, 0.35)'
+                                                    boxShadow: '0 2px 10px rgba(16, 185, 129, 0.35)'
                                                 }}
                                             >
-                                                <CheckCheck size={15} strokeWidth={2.6} />
+                                                <CheckCheck size={14} strokeWidth={2.6} />
                                                 Garsona Teslim Edildi (Kaldır)
                                             </motion.button>
                                         ) : (
@@ -1033,22 +1044,22 @@ export default function KitchenView() {
                                                 whileTap={{ scale: 0.97 }}
                                                 style={{
                                                     width: '100%',
-                                                    padding: '9px 12px',
-                                                    borderRadius: '10px',
+                                                    padding: '7px 10px',
+                                                    borderRadius: '8px',
                                                     border: 'none',
                                                     background: 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)',
                                                     color: 'white',
                                                     fontWeight: 800,
-                                                    fontSize: '12px',
+                                                    fontSize: '11.5px',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    gap: '5px',
+                                                    gap: '4px',
                                                     cursor: 'pointer',
-                                                    boxShadow: '0 4px 14px rgba(247, 103, 7, 0.35)'
+                                                    boxShadow: '0 2px 10px rgba(247, 103, 7, 0.35)'
                                                 }}
                                             >
-                                                <Send size={14} strokeWidth={2.4} />
+                                                <Send size={13} strokeWidth={2.4} />
                                                 {isExtraOrder ? '✓ Ek Siparişi Tamamla' : '✓ Masayı Tamamla (Bildir)'}
                                             </motion.button>
                                         )}
