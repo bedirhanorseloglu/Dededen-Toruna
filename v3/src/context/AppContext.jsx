@@ -17,7 +17,8 @@ import {
     serverTimestamp 
 } from '../config/firebase';
 import { DEFAULT_TABLES, MENU_PRODUCTS, MENU_CATEGORIES } from '../data/menu';
-import { playChimeSound, playKitchenNewOrderSound, playDeliveryAlertSound, speakTurkish, setAudioMuted, isAudioMuted } from '../services/audioService';
+import { playChimeSound, playKitchenNewOrderSound, playDeliveryAlertSound, speakAnnouncement, speakTurkish, setAudioMuted, isAudioMuted } from '../services/audioService';
+import { showSystemNotification, flashTabTitle } from '../services/notificationService';
 
 const AppContext = createContext(null);
 
@@ -110,6 +111,61 @@ export function AppProvider({ children }) {
     const toastTimersRef = useRef({});
     const lastToastRef = useRef(null);
 
+    const hideToast = (idToRemove) => {
+        if (!idToRemove) {
+            Object.values(toastTimersRef.current).forEach(t => clearTimeout(t));
+            toastTimersRef.current = {};
+            setToasts([]);
+            return;
+        }
+
+        if (toastTimersRef.current[idToRemove]) {
+            clearTimeout(toastTimersRef.current[idToRemove]);
+            delete toastTimersRef.current[idToRemove];
+        }
+
+        setToasts(prev => prev.filter(t => t.id !== idToRemove));
+    };
+
+    const showToast = (message, type = 'info', duration = 3500) => {
+        if (!message) return;
+
+        const now = Date.now();
+        // 800ms içinde gelen birebir aynı bildirimi (çift tıklama/spam) engelle
+        if (
+            lastToastRef.current &&
+            lastToastRef.current.message === message &&
+            lastToastRef.current.type === type &&
+            now - lastToastRef.current.time < 800
+        ) {
+            return;
+        }
+        lastToastRef.current = { message, type, time: now };
+
+        const id = `${now}_${Math.random().toString(36).substr(2, 6)}`;
+        const newToast = { id, message, type, duration, timestamp: now };
+
+        setToasts(prev => {
+            const updated = [...prev, newToast];
+            // Ekranda aynı anda en fazla 3 bildirim tut
+            if (updated.length > 3) {
+                const removed = updated.shift();
+                if (toastTimersRef.current[removed.id]) {
+                    clearTimeout(toastTimersRef.current[removed.id]);
+                    delete toastTimersRef.current[removed.id];
+                }
+            }
+            return updated;
+        });
+
+        // Her bildirimin kendi bağımsız kapanma zamanlayıcısı (birbirini ezmez)
+        const timer = setTimeout(() => {
+            hideToast(id);
+        }, duration);
+
+        toastTimersRef.current[id] = timer;
+    };
+
     // Modern Evrensel Onay Modalı State'i
     const [confirmModal, setConfirmModal] = useState({
         isOpen: false,
@@ -186,6 +242,98 @@ export function AppProvider({ children }) {
 
         return () => unsubscribe();
     }, []);
+
+    // ------------------------------------------------------------------
+    // GARSON CANLI MUTFAK BİLDİRİMİ DİNLEYİCİSİ
+    // (Mutfak siparişi tamamladığında siparişi alan ilgili garsona sesli & görsel anlık uyarı verir)
+    // ------------------------------------------------------------------
+    const notifiedDeliveriesRef = useRef(new Set());
+    const isWaiterInitRef = useRef(true);
+    const waiterMountTimeRef = useRef(Date.now());
+
+    useEffect(() => {
+        if (!currentUser || (currentUser.role !== 'waiter' && currentUser.role !== 'admin')) {
+            return;
+        }
+        if (loadingOrders) {
+            return;
+        }
+
+        // İlk açılışta veya sayfa yenilendiğinde eski tamamlanmış masaları hafızaya al, sahte bildirim üretme
+        if (isWaiterInitRef.current) {
+            Object.values(activeOrders).forEach(ord => {
+                const isReady = ord.all_delivered === true || ord.kitchen_status === 'dismissed' || ord.kitchen_status === 'completed';
+                if (isReady || ord.kitchen_notified_at) {
+                    const key = `${ord.table_no}_${ord.kitchen_notified_at || ord.kitchen_delivered_at || ord.updated_at || 'old'}`;
+                    notifiedDeliveriesRef.current.add(key);
+                }
+            });
+            isWaiterInitRef.current = false;
+            return;
+        }
+
+        const now = Date.now();
+        // Sayfa açılışından sonraki ilk 2 saniye emniyet payı
+        if (now - waiterMountTimeRef.current < 2000) {
+            return;
+        }
+
+        const clean = (str) => String(str || '').replace(/\s*\(patron\)\s*/gi, '').trim().toLowerCase();
+        const currentStaffName = clean(currentUser.name);
+        const currentStaffId = String(currentUser.id || '');
+
+        Object.values(activeOrders).forEach(order => {
+            const tableNo = order.table_no;
+            const isReady = order.all_delivered === true || order.kitchen_status === 'dismissed' || order.kitchen_status === 'completed';
+            const notifiedAt = order.kitchen_notified_at || new Date(order.kitchen_delivered_at || 0).getTime();
+
+            // Sadece mutfaktan yeni tamamlanmış (son 60 saniye içinde) siparişleri bildir:
+            if (!isReady || !notifiedAt) return;
+            const ageMs = now - notifiedAt;
+            if (ageMs > 60000 || ageMs < -5000) return;
+
+            const notifKey = `${tableNo}_${notifiedAt}`;
+            if (notifiedDeliveriesRef.current.has(notifKey)) return;
+
+            // SİPARİŞİ ALAN GARSONA ÖZEL FİLTRELEME:
+            // Sipariş bu garsona mı ait? (waiter_id eşleşmesi veya waiter_name eşleşmesi)
+            const orderWaiterName = clean(order.waiter_name);
+            const orderWaiterId = String(order.waiter_id || '');
+
+            const isMyOrder = currentUser.role === 'waiter' && (
+                (orderWaiterId && orderWaiterId === currentStaffId) ||
+                (orderWaiterName && orderWaiterName === currentStaffName)
+            );
+            const isUnassigned = !order.waiter_name || order.waiter_name === 'Garson' || order.waiter_name === 'Personel';
+
+            // Eğer bu garsonun masası değilse (ve genel atanmamış sipariş değilse) ve yönetici değilse bildirim verme!
+            if (!isMyOrder && !isUnassigned && currentUser.role !== 'admin') {
+                return;
+            }
+
+            // Bildirimi kaydet ve garsona ilet
+            notifiedDeliveriesRef.current.add(notifKey);
+
+            // 1. Sesli Çan ve Zil Uyarısı
+            if (soundEnabled) {
+                playDeliveryAlertSound();
+                speakAnnouncement(`Masa ${tableNo} mutfakta hazırlandı!`);
+            }
+
+            // 2. Canlı Ekranda Görsel Toast Bildirimi
+            showToast(`🔔 Masa ${tableNo} siparişi mutfakta hazırlandı! Servis edebilirsiniz.`, 'success', 6000);
+
+            // 3. Tarayıcı / Mobil Sistem Bildirimi (Arka planda veya kilit ekranında olsa bile)
+            showSystemNotification(
+                `Masa ${tableNo} Hazır! 🔔`,
+                `Masa ${tableNo} mutfakta tamamlandı, servise hazır.`,
+                `kitchen-ready-${tableNo}-${notifiedAt}`
+            );
+
+            // 4. Sekme Başlığını Yanıp Söndür (Tarayıcı sekmesi arka plandaysa)
+            flashTabTitle(`🔔 MASA ${tableNo} HAZIR!`);
+        });
+    }, [activeOrders, loadingOrders, currentUser, soundEnabled, showToast]);
 
     // Printer Settings (Centralized in Firestore settings/printer)
     const [printerSettings, setPrinterSettings] = useState({
@@ -478,60 +626,7 @@ export function AppProvider({ children }) {
         }
     };
 
-    const showToast = (message, type = 'info', duration = 3500) => {
-        if (!message) return;
 
-        const now = Date.now();
-        // 800ms içinde gelen birebir aynı bildirimi (çift tıklama/spam) engelle
-        if (
-            lastToastRef.current &&
-            lastToastRef.current.message === message &&
-            lastToastRef.current.type === type &&
-            now - lastToastRef.current.time < 800
-        ) {
-            return;
-        }
-        lastToastRef.current = { message, type, time: now };
-
-        const id = `${now}_${Math.random().toString(36).substr(2, 6)}`;
-        const newToast = { id, message, type, duration, timestamp: now };
-
-        setToasts(prev => {
-            const updated = [...prev, newToast];
-            // Ekranda aynı anda en fazla 3 bildirim tut
-            if (updated.length > 3) {
-                const removed = updated.shift();
-                if (toastTimersRef.current[removed.id]) {
-                    clearTimeout(toastTimersRef.current[removed.id]);
-                    delete toastTimersRef.current[removed.id];
-                }
-            }
-            return updated;
-        });
-
-        // Her bildirimin kendi bağımsız kapanma zamanlayıcısı (birbirini ezmez)
-        const timer = setTimeout(() => {
-            hideToast(id);
-        }, duration);
-
-        toastTimersRef.current[id] = timer;
-    };
-
-    const hideToast = (idToRemove) => {
-        if (!idToRemove) {
-            Object.values(toastTimersRef.current).forEach(t => clearTimeout(t));
-            toastTimersRef.current = {};
-            setToasts([]);
-            return;
-        }
-
-        if (toastTimersRef.current[idToRemove]) {
-            clearTimeout(toastTimersRef.current[idToRemove]);
-            delete toastTimersRef.current[idToRemove];
-        }
-
-        setToasts(prev => prev.filter(t => t.id !== idToRemove));
-    };
 
     const login = (user) => {
         setCurrentUser(user);

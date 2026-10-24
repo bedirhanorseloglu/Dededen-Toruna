@@ -70,6 +70,10 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /kitchen_history/{docId} {
+      allow read, write: if true;
+    }
+
     // Diğer tüm bilinmeyen koleksiyonları varsayılan olarak koru
     match /{document=**} {
       allow read, write: if false;

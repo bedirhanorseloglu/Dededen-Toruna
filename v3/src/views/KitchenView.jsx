@@ -106,6 +106,7 @@ export default function KitchenView() {
     const prevOrdersRef = useRef({});
     const isFirstLoadRef = useRef(true);
     const mountTimeRef = useRef(Date.now());
+    const restoredOrdersRef = useRef(new Set());
 
     // Günlük tamamlanan sipariş geçmişi paneli state'i
     const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
@@ -209,6 +210,12 @@ export default function KitchenView() {
                     return;
                 }
 
+                // GEÇMİŞTEN GERİ ALINAN BİR SİPARİŞ İSE SESLİ OKUMA YAPMA!
+                if (order.is_restored || restoredOrdersRef.current.has(tableNo)) {
+                    restoredOrdersRef.current.delete(tableNo);
+                    return;
+                }
+
                 // Yeni sipariş geldiğinde ekranı otomatik 'Tümü'ne al ki aşçı anında görsün
                 setCurrentFilter('all');
 
@@ -220,11 +227,22 @@ export default function KitchenView() {
                 }
                 showToast(`🔔 Masa ${tableNo} için ${isExtra ? 'ek' : 'yeni'} mutfak siparişi geldi!`, 'warning');
             } else if (prevSentCookingCount > 0 && sentCookingItems.length < prevSentCookingCount) {
-                // Daha önce mutfağa gönderilmiş pişmekte olan ürün silindiyse / iptal edildiyse:
-                if (soundEnabled) {
-                    speakAnnouncement(`Dikkat! Masa ${tableNo} siparişi iptal edildi. ... Tekrar ediyorum: Masa ${tableNo} siparişi iptal edildi!`, true);
+                const isCompleted = order.kitchen_status === 'dismissed' || order.kitchen_status === 'completed' || order.all_delivered === true;
+                const prevDeliveredCount = (prevOrder?.items || []).filter(i => i.status === 'delivered').length;
+                const currentDeliveredCount = (order.items || []).filter(i => i.status === 'delivered').length;
+                const itemsMarkedReady = currentDeliveredCount > prevDeliveredCount;
+
+                const prevTotalSent = (prevOrder?.items || []).filter(i => i.kitchen_sent !== false).length;
+                const currentTotalSent = (order.items || []).filter(i => i.kitchen_sent !== false).length;
+                const itemActuallyRemoved = currentTotalSent < prevTotalSent;
+
+                // Yalnızca sipariş tamamlanmadıysa VE ürün hazır olarak işaretlenmediyse VE gerçekten silindiyse sesli iptal anonsu yap:
+                if (!isCompleted && !itemsMarkedReady && itemActuallyRemoved) {
+                    if (soundEnabled) {
+                        speakAnnouncement(`Dikkat! Masa ${tableNo} siparişi iptal edildi. ... Tekrar ediyorum: Masa ${tableNo} siparişi iptal edildi!`, true);
+                    }
+                    showToast(`⚠️ Masa ${tableNo} siparişi iptal edildi / güncellendi.`, 'info');
                 }
-                showToast(`⚠️ Masa ${tableNo} siparişi iptal edildi / güncellendi.`, 'info');
             }
         });
 
@@ -493,10 +511,12 @@ export default function KitchenView() {
     // Yanlışlıkla butona basıldıysa siparişi tekrar mutfak panosuna geri alma
     const handleRestoreOrder = async (historyItem) => {
         playKeypadBeep();
+        const tableStr = String(historyItem.table_no);
+        restoredOrdersRef.current.add(tableStr);
         const docId = historyItem.order_doc_id || `table_${historyItem.table_no}`;
         const nowIso = new Date().toISOString();
         try {
-            const currentActive = activeOrders[String(historyItem.table_no)];
+            const currentActive = activeOrders[tableStr];
             if (currentActive) {
                 const revertedItems = (currentActive.items || []).map(i => ({
                     ...i,
@@ -507,6 +527,8 @@ export default function KitchenView() {
                     all_delivered: false,
                     kitchen_status: 'pending',
                     kitchen_notified_at: null,
+                    is_restored: true,
+                    restored_at: nowIso,
                     updated_at: nowIso
                 });
             } else {
@@ -517,6 +539,8 @@ export default function KitchenView() {
                     all_delivered: false,
                     status: 'open',
                     kitchen_status: 'pending',
+                    is_restored: true,
+                    restored_at: nowIso,
                     created_at: historyItem.completed_at || nowIso,
                     updated_at: nowIso
                 }, { merge: true });
