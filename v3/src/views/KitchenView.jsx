@@ -83,7 +83,8 @@ export default function KitchenView() {
         logout
     } = useApp();
 
-    const [currentFilter, setCurrentFilter] = useState('all'); // 'all' | 'cooking' | 'ready'
+    const [currentFilter, setCurrentFilter] = useState('all'); // 'all' | 'cooking' | 'ready' | 'urgent'
+    const [selectedBatchItem, setSelectedBatchItem] = useState(null); // string | null (Toplu Pişirme Özeti seçili filtre)
     const [selectedTableNo, setSelectedTableNo] = useState(null);
     const [layoutMode, setLayoutMode] = useState(() => {
         try {
@@ -215,7 +216,9 @@ export default function KitchenView() {
     };
 
     // Tüm açık mutfak siparişleri (Yalnızca mutfağa gönderilmiş ve henüz dismiss edilmemiş olanlar)
+    // Aciliyet & Bekleme Süresi Sıralaması (Otomatik Öncelik): En uzun süredir bekleyen sipariş daima en başta yer alır
     const kitchenOrders = useMemo(() => {
+        const now = Date.now();
         return Object.values(activeOrders)
             .filter(ord => {
                 const items = ord.items || [];
@@ -227,26 +230,73 @@ export default function KitchenView() {
                 return hasCooking || hasAnySent;
             })
             .sort((a, b) => {
-                // Öncelik: Pişenler önce, sonra eskiden yeniye doğru
-                const aHasCooking = (a.items || []).some(i => i.status === 'cooking' && i.kitchen_sent !== false);
-                const bHasCooking = (b.items || []).some(i => i.status === 'cooking' && i.kitchen_sent !== false);
+                const aItems = a.items || [];
+                const bItems = b.items || [];
+                const aHasCooking = aItems.some(i => i.status === 'cooking' && i.kitchen_sent !== false);
+                const bHasCooking = bItems.some(i => i.status === 'cooking' && i.kitchen_sent !== false);
+
+                // 1. Pişmekte olan siparişler daima servise hazır bekleyenlerin önündedir
                 if (aHasCooking && !bHasCooking) return -1;
                 if (!aHasCooking && bHasCooking) return 1;
-                return new Date(a.updated_at || a.created_at || 0) - new Date(b.updated_at || b.created_at || 0);
+
+                // 2. Pişen siparişler arasında bekleme süresine göre katı öncelik:
+                // En eski sipariş zaman damgası (en uzun bekleyen) en başta çıkar!
+                const aTime = new Date(a.updated_at || a.created_at || now).getTime();
+                const bTime = new Date(b.updated_at || b.created_at || now).getTime();
+                return aTime - bTime;
             });
     }, [activeOrders]);
 
-    // Metrikler
-    const { cookingOrdersCount, readyOrdersCount, totalPendingItemsCount } = useMemo(() => {
+    // Toplu Pişirme / Üretim Özeti:
+    // Tüm aktif masalarda şu an pişmekte olan tüm yemekleri toplar (örn: 6x Kuymak, 4x Sahanda Yumurta)
+    const batchCookingSummary = useMemo(() => {
+        const summaryMap = {};
+
+        kitchenOrders.forEach(ord => {
+            const items = ord.items || [];
+            items.forEach(i => {
+                if (i.status === 'cooking' && i.kitchen_sent !== false) {
+                    const name = (i.name || '').trim();
+                    if (!name) return;
+                    const qty = Number(i.quantity) || 1;
+                    if (!summaryMap[name]) {
+                        summaryMap[name] = {
+                            name,
+                            totalQty: 0,
+                            tables: new Set()
+                        };
+                    }
+                    summaryMap[name].totalQty += qty;
+                    summaryMap[name].tables.add(ord.table_no);
+                }
+            });
+        });
+
+        return Object.values(summaryMap)
+            .map(item => ({
+                ...item,
+                tables: Array.from(item.tables).sort((a, b) => Number(a) - Number(b))
+            }))
+            .sort((a, b) => b.totalQty - a.totalQty);
+    }, [kitchenOrders]);
+
+    // Metrikler & Aciliyet Sayıları
+    const { cookingOrdersCount, readyOrdersCount, urgentOrdersCount, totalPendingItemsCount } = useMemo(() => {
         let cookingCount = 0;
         let readyCount = 0;
+        let urgentCount = 0;
         let pendingItems = 0;
+        const now = Date.now();
 
         kitchenOrders.forEach(ord => {
             const items = ord.items || [];
             const hasCooking = items.some(i => i.status === 'cooking' && i.kitchen_sent !== false);
             if (hasCooking) {
                 cookingCount++;
+                const diffMinutes = Math.floor((now - new Date(ord.updated_at || ord.created_at || now).getTime()) / 60000);
+                if (diffMinutes >= 15) {
+                    urgentCount++;
+                }
                 items.forEach(i => {
                     if (i.status === 'cooking' && i.kitchen_sent !== false) {
                         pendingItems += (Number(i.quantity) || 1);
@@ -260,27 +310,46 @@ export default function KitchenView() {
         return {
             cookingOrdersCount: cookingCount,
             readyOrdersCount: readyCount,
+            urgentOrdersCount: urgentCount,
             totalPendingItemsCount: pendingItems
         };
     }, [kitchenOrders]);
 
-    // Eğer 'Servise Hazır' filtresindeyken hazır masa kalmadıysa ve pişen yemek varsa otomatik 'Tümü'ne dön:
+    // Eğer filtrelerde aktif masa kalmadıysa otomatik 'Tümü'ne dön:
     useEffect(() => {
         if (currentFilter === 'ready' && readyOrdersCount === 0 && cookingOrdersCount > 0) {
             setCurrentFilter('all');
         }
-    }, [currentFilter, readyOrdersCount, cookingOrdersCount]);
+        if (currentFilter === 'urgent' && urgentOrdersCount === 0 && cookingOrdersCount > 0) {
+            setCurrentFilter('all');
+        }
+    }, [currentFilter, readyOrdersCount, cookingOrdersCount, urgentOrdersCount]);
 
     // Filtrelenmiş liste
     const filteredOrders = useMemo(() => {
+        const now = Date.now();
         return kitchenOrders.filter(ord => {
             const items = ord.items || [];
             const hasCooking = items.some(i => i.status === 'cooking' && i.kitchen_sent !== false);
-            if (currentFilter === 'cooking') return hasCooking;
-            if (currentFilter === 'ready') return !hasCooking;
+            const diffMinutes = Math.floor((now - new Date(ord.updated_at || ord.created_at || now).getTime()) / 60000);
+
+            if (currentFilter === 'cooking' && !hasCooking) return false;
+            if (currentFilter === 'ready' && hasCooking) return false;
+            if (currentFilter === 'urgent' && (!hasCooking || diffMinutes < 15)) return false;
+
+            // Toplu Pişirme / Ürün filtresi: Aşçı bir yemeğe tıkladıysa sadece o yemeğin piştiği masaları göster
+            if (selectedBatchItem) {
+                const hasBatchItem = items.some(i =>
+                    (i.name || '').trim().toLowerCase() === selectedBatchItem.trim().toLowerCase() &&
+                    i.status === 'cooking' &&
+                    i.kitchen_sent !== false
+                );
+                if (!hasBatchItem) return false;
+            }
+
             return true;
         });
-    }, [kitchenOrders, currentFilter]);
+    }, [kitchenOrders, currentFilter, selectedBatchItem]);
 
     // Sağdan açılan detay paneli için seçilen canlı masa
     const selectedOrder = useMemo(() => {
@@ -583,6 +652,26 @@ export default function KitchenView() {
                         >
                             🟡 Pişen ({cookingOrdersCount})
                         </button>
+                        {urgentOrdersCount > 0 && (
+                            <button
+                                onClick={() => setCurrentFilter('urgent')}
+                                style={{
+                                    padding: '4px 9px',
+                                    borderRadius: '7px',
+                                    fontSize: '11px',
+                                    fontWeight: 800,
+                                    border: 'none',
+                                    background: currentFilter === 'urgent' ? 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)' : 'rgba(239, 68, 68, 0.16)',
+                                    color: currentFilter === 'urgent' ? '#ffffff' : '#ef4444',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '3px'
+                                }}
+                            >
+                                <span>🚨 Acil ({urgentOrdersCount})</span>
+                            </button>
+                        )}
                         <button
                             onClick={() => setCurrentFilter('ready')}
                             style={{
@@ -766,6 +855,121 @@ export default function KitchenView() {
             </div>
 
             {/* ============================================================== */}
+            {/* 1.5. TOPLU PİŞİRME / ÜRETİM ÖZETİ ŞERİDİ (17 MASA OPTİMİZASYONU) */}
+            {/* ============================================================== */}
+            {batchCookingSummary.length > 0 && (
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '6px 12px',
+                    marginBottom: '10px',
+                    background: 'rgba(28, 21, 20, 0.88)',
+                    border: '1px solid rgba(247, 103, 7, 0.3)',
+                    borderRadius: '10px',
+                    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.3)',
+                    overflowX: 'auto',
+                    whiteSpace: 'nowrap',
+                    WebkitOverflowScrolling: 'touch',
+                    flexShrink: 0
+                }}>
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        fontSize: '11px',
+                        fontWeight: 900,
+                        color: 'var(--brand-primary, #f76707)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        flexShrink: 0,
+                        paddingRight: '8px',
+                        borderRight: '1px solid rgba(247, 103, 7, 0.3)'
+                    }}>
+                        <Flame size={14} color="#f76707" />
+                        <span>Toplu Pişirme ({totalPendingItemsCount}):</span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, overflowX: 'auto' }}>
+                        {batchCookingSummary.map((item) => {
+                            const isSelected = selectedBatchItem === item.name;
+                            return (
+                                <button
+                                    key={item.name}
+                                    type="button"
+                                    onClick={() => setSelectedBatchItem(isSelected ? null : item.name)}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '5px',
+                                        padding: '4px 9px',
+                                        borderRadius: '8px',
+                                        fontSize: '11.5px',
+                                        fontWeight: 800,
+                                        cursor: 'pointer',
+                                        background: isSelected
+                                            ? 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)'
+                                            : 'rgba(247, 103, 7, 0.12)',
+                                        border: isSelected
+                                            ? '1.5px solid #ff922b'
+                                            : '1px solid rgba(247, 103, 7, 0.3)',
+                                        color: isSelected ? '#ffffff' : '#fffaf5',
+                                        boxShadow: isSelected ? '0 0 10px rgba(247, 103, 7, 0.5)' : 'none',
+                                        transition: 'all 0.15s ease',
+                                        flexShrink: 0
+                                    }}
+                                    title={`${item.totalQty} adet sipariş var. Masalar: ${item.tables.map(t => 'M' + t).join(', ')}`}
+                                >
+                                    <span style={{
+                                        background: isSelected ? 'rgba(0,0,0,0.25)' : 'rgba(247, 103, 7, 0.28)',
+                                        padding: '1px 5px',
+                                        borderRadius: '5px',
+                                        fontWeight: 900,
+                                        color: isSelected ? '#ffffff' : '#ff922b',
+                                        fontSize: '11px'
+                                    }}>
+                                        {item.totalQty}x
+                                    </span>
+                                    <span>{item.name}</span>
+                                    <span style={{
+                                        fontSize: '9.5px',
+                                        opacity: isSelected ? 0.95 : 0.65,
+                                        marginLeft: '1px'
+                                    }}>
+                                        ({item.tables.length} masa)
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {selectedBatchItem && (
+                        <button
+                            type="button"
+                            onClick={() => setSelectedBatchItem(null)}
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                background: 'rgba(239, 68, 68, 0.2)',
+                                border: '1px solid rgba(239, 68, 68, 0.45)',
+                                color: '#ef4444',
+                                fontSize: '10.5px',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                flexShrink: 0
+                            }}
+                        >
+                            <X size={12} />
+                            <span>Filtreyi Temizle</span>
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {/* ============================================================== */}
             {/* 2. CANLI KDS KARTLARI (YATAY ŞERİT VEYA IZGARA)                */}
             {/* ============================================================== */}
             <div
@@ -866,9 +1070,37 @@ export default function KitchenView() {
                             const isExtraOrder = deliveredItems.length > 0 && cookingItems.length > 0;
                             const elapsedText = formatElapsedTime(ord.updated_at || ord.created_at);
 
-                            // Gecikme uyarısı: 12 dakikadan uzun süredir pişiyorsa
-                            const diffMinutes = Math.floor((Date.now() - new Date(ord.updated_at || ord.created_at || Date.now()).getTime()) / 60000);
-                            const isDelayed = cookingItems.length > 0 && diffMinutes >= 12;
+                            // 3 Kademeli Bekleme & Aciliyet Seviyesi:
+                            // 🔴 Kritik / Gecikmiş (15 dk ve üzeri): Kırmızı acil çerçeve & kırmızı parıltı
+                            // 🟡 Uyarı / Pişiyor (8 - 14 dk): Amber / turuncu çerçeve & kum saati rozeti
+                            // 🟢 Yeni / Normal (0 - 7 dk): Yumuşak zümrüt yeşili çerçeve & taze sipariş rozeti
+                            const orderTime = new Date(ord.updated_at || ord.created_at || Date.now()).getTime();
+                            const diffMinutes = Math.max(0, Math.floor((Date.now() - orderTime) / 60000));
+                            const isCritical = cookingItems.length > 0 && diffMinutes >= 15;
+                            const isWarning = cookingItems.length > 0 && diffMinutes >= 8 && diffMinutes < 15;
+                            const isNormal = cookingItems.length > 0 && diffMinutes < 8;
+
+                            let cardBorder = '1px solid rgba(247, 103, 7, 0.35)';
+                            let cardShadow = '0 4px 16px rgba(0, 0, 0, 0.45)';
+                            let cardBg = 'rgba(28, 21, 20, 0.94)';
+
+                            if (allDelivered) {
+                                cardBorder = '1.5px solid rgba(16, 185, 129, 0.55)';
+                                cardShadow = '0 4px 16px rgba(0, 0, 0, 0.45)';
+                                cardBg = 'rgba(16, 185, 129, 0.08)';
+                            } else if (isCritical) {
+                                cardBorder = '2px solid #ef4444';
+                                cardShadow = '0 0 20px rgba(239, 68, 68, 0.35), 0 6px 18px rgba(0, 0, 0, 0.6)';
+                                cardBg = 'rgba(38, 16, 16, 0.95)';
+                            } else if (isWarning) {
+                                cardBorder = '1.5px solid #f59f00';
+                                cardShadow = '0 0 12px rgba(245, 159, 0, 0.22), 0 4px 16px rgba(0, 0, 0, 0.5)';
+                                cardBg = 'rgba(32, 23, 16, 0.95)';
+                            } else if (isNormal) {
+                                cardBorder = '1.5px solid rgba(16, 185, 129, 0.45)';
+                                cardShadow = '0 4px 16px rgba(0, 0, 0, 0.45)';
+                                cardBg = 'rgba(24, 25, 23, 0.95)';
+                            }
 
                             return (
                                 <motion.div
@@ -885,32 +1117,24 @@ export default function KitchenView() {
                                         flex: '0 0 auto',
                                         display: 'flex',
                                         flexDirection: 'column',
-                                        background: allDelivered ? 'rgba(16, 185, 129, 0.08)' : 'rgba(28, 21, 20, 0.94)',
-                                        border: allDelivered 
-                                            ? '1.5px solid rgba(16, 185, 129, 0.5)' 
-                                            : (isDelayed ? '1.5px solid #ef4444' : '1px solid rgba(247, 103, 7, 0.35)'),
+                                        background: cardBg,
+                                        border: cardBorder,
                                         borderRadius: '12px',
                                         padding: '8px 11px',
                                         gap: '5px',
-                                        boxShadow: isDelayed 
-                                            ? '0 0 20px rgba(239, 68, 68, 0.25), 0 6px 16px rgba(0, 0, 0, 0.5)' 
-                                            : '0 4px 16px rgba(0, 0, 0, 0.45)',
+                                        boxShadow: cardShadow,
                                         position: 'relative',
                                         boxSizing: 'border-box',
                                         willChange: 'opacity'
                                     } : {
-                                        background: allDelivered ? 'rgba(16, 185, 129, 0.08)' : 'rgba(28, 21, 20, 0.94)',
-                                        border: allDelivered
-                                            ? '1.5px solid rgba(16, 185, 129, 0.5)'
-                                            : (isDelayed ? '1.5px solid #ef4444' : '1px solid rgba(247, 103, 7, 0.35)'),
+                                        background: cardBg,
+                                        border: cardBorder,
                                         borderRadius: '14px',
                                         padding: '14px',
                                         display: 'flex',
                                         flexDirection: 'column',
                                         gap: '10px',
-                                        boxShadow: isDelayed
-                                            ? '0 0 25px rgba(239, 68, 68, 0.3), 0 8px 20px rgba(0, 0, 0, 0.5)'
-                                            : '0 6px 20px rgba(0, 0, 0, 0.45)',
+                                        boxShadow: cardShadow,
                                         position: 'relative',
                                         overflow: 'hidden'
                                     }}
@@ -927,8 +1151,12 @@ export default function KitchenView() {
                                                     fontWeight: 900,
                                                     fontSize: '18px',
                                                     color: '#fffaf5',
-                                                    letterSpacing: '-0.02em'
+                                                    letterSpacing: '-0.02em',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '4px'
                                                 }}>
+                                                    {isCritical && <span title="15+ dakika acil sipariş">🚨</span>}
                                                     Masa {ord.table_no}
                                                 </span>
 
@@ -1018,12 +1246,29 @@ export default function KitchenView() {
                                                     <Check size={11} strokeWidth={3} />
                                                     Hazır
                                                 </span>
-                                            ) : (
+                                            ) : isCritical ? (
                                                 <span style={{
                                                     fontSize: '10px',
-                                                    color: isDelayed ? '#ef4444' : '#f59f00',
-                                                    background: isDelayed ? 'rgba(239, 68, 68, 0.18)' : 'rgba(245, 159, 0, 0.16)',
-                                                    border: isDelayed ? '1px solid rgba(239, 68, 68, 0.5)' : '1px solid rgba(245, 159, 0, 0.4)',
+                                                    color: '#ffffff',
+                                                    background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
+                                                    border: '1px solid #ef4444',
+                                                    padding: '2px 6px',
+                                                    borderRadius: '6px',
+                                                    fontWeight: 900,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '3px',
+                                                    boxShadow: '0 0 10px rgba(239, 68, 68, 0.5)'
+                                                }}>
+                                                    <AlertCircle size={11} strokeWidth={2.5} />
+                                                    ACİL {diffMinutes} dk
+                                                </span>
+                                            ) : isWarning ? (
+                                                <span style={{
+                                                    fontSize: '10px',
+                                                    color: '#f59f00',
+                                                    background: 'rgba(245, 159, 0, 0.16)',
+                                                    border: '1px solid rgba(245, 159, 0, 0.45)',
                                                     padding: '2px 6px',
                                                     borderRadius: '6px',
                                                     fontWeight: 800,
@@ -1032,8 +1277,23 @@ export default function KitchenView() {
                                                     gap: '3px'
                                                 }}>
                                                     <Clock size={11} />
-                                                    {elapsedText}
-                                                    {isDelayed && ' ⚠️'}
+                                                    ⏳ {diffMinutes} dk
+                                                </span>
+                                            ) : (
+                                                <span style={{
+                                                    fontSize: '10px',
+                                                    color: '#10b981',
+                                                    background: 'rgba(16, 185, 129, 0.14)',
+                                                    border: '1px solid rgba(16, 185, 129, 0.4)',
+                                                    padding: '2px 6px',
+                                                    borderRadius: '6px',
+                                                    fontWeight: 800,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '3px'
+                                                }}>
+                                                    <Clock size={11} />
+                                                    {diffMinutes < 1 ? 'Yeni' : `${diffMinutes} dk`}
                                                 </span>
                                             )}
                                         </div>
@@ -1046,36 +1306,40 @@ export default function KitchenView() {
                                         gap: '5px'
                                     }}>
                                         {/* 1. Hazırlanan / Pişen Ürünler */}
-                                        {cookingItems.map((item) => (
-                                            <div
-                                                key={`cooking-${item.realIdx}`}
-                                                style={{
-                                                    background: 'rgba(0, 0, 0, 0.35)',
-                                                    border: '1px solid rgba(247, 103, 7, 0.25)',
-                                                    padding: '5px 7px',
-                                                    borderRadius: '8px',
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    gap: '3px'
-                                                }}
-                                            >
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-                                                        <span style={{
-                                                            background: 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)',
-                                                            color: 'white',
-                                                            fontWeight: 900,
-                                                            fontSize: '11.5px',
-                                                            padding: '2px 5px',
-                                                            borderRadius: '5px',
-                                                            flexShrink: 0
-                                                        }}>
-                                                            {item.quantity}x
-                                                        </span>
-                                                        <span style={{ fontWeight: 800, fontSize: '12.5px', color: '#fffaf5', whiteSpace: 'nowrap' }}>
-                                                            {item.name}
-                                                        </span>
-                                                    </div>
+                                        {cookingItems.map((item) => {
+                                            const isMatchingBatchItem = selectedBatchItem && (item.name || '').trim().toLowerCase() === selectedBatchItem.trim().toLowerCase();
+                                            return (
+                                                <div
+                                                    key={`cooking-${item.realIdx}`}
+                                                    style={{
+                                                        background: isMatchingBatchItem ? 'rgba(247, 103, 7, 0.22)' : 'rgba(0, 0, 0, 0.35)',
+                                                        border: isMatchingBatchItem ? '1.5px solid #f76707' : '1px solid rgba(247, 103, 7, 0.25)',
+                                                        padding: '5px 7px',
+                                                        borderRadius: '8px',
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        gap: '3px',
+                                                        boxShadow: isMatchingBatchItem ? '0 0 10px rgba(247, 103, 7, 0.35)' : 'none',
+                                                        transition: 'all 0.15s ease'
+                                                    }}
+                                                >
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                                                            <span style={{
+                                                                background: 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)',
+                                                                color: 'white',
+                                                                fontWeight: 900,
+                                                                fontSize: '11.5px',
+                                                                padding: '2px 5px',
+                                                                borderRadius: '5px',
+                                                                flexShrink: 0
+                                                            }}>
+                                                                {item.quantity}x
+                                                            </span>
+                                                            <span style={{ fontWeight: 800, fontSize: '12.5px', color: '#fffaf5', whiteSpace: 'nowrap' }}>
+                                                                {item.name}
+                                                            </span>
+                                                        </div>
 
                                                     {/* Tek Ürünü Hazırla Butonu */}
                                                     <button
@@ -1121,7 +1385,8 @@ export default function KitchenView() {
                                                     </div>
                                                 )}
                                             </div>
-                                        ))}
+                                        );
+                                    })}
 
                                         {/* 2. Eğer masada önceden teslim edilmiş veya hazır ürünler varsa */}
                                         {deliveredItems.length > 0 && (
