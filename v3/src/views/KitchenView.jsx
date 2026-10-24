@@ -1109,11 +1109,11 @@ export default function KitchenView() {
                                     } : {
                                         background: cardBg,
                                         border: cardBorder,
-                                        borderRadius: '14px',
-                                        padding: '14px',
+                                        borderRadius: '12px',
+                                        padding: '11px 12px',
                                         display: 'flex',
                                         flexDirection: 'column',
-                                        gap: '10px',
+                                        gap: '8px',
                                         boxShadow: cardShadow,
                                         position: 'relative',
                                         overflow: 'hidden'
@@ -1160,119 +1160,71 @@ export default function KitchenView() {
                                             </div>
                                         </div>
 
-                                        {/* Durum & Süre Rozeti & Yan Panel Aç Butonu */}
-                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                {/* Detay Paneli Aç Butonu */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setSelectedTableNo(ord.table_no)}
-                                                    title="Siparişi Yana Genişlet"
-                                                    style={{
-                                                        padding: '3px 7px',
-                                                        borderRadius: '7px',
-                                                        fontSize: '10.5px',
-                                                        fontWeight: 800,
-                                                        color: 'var(--brand-primary, #f76707)',
-                                                        background: 'rgba(247, 103, 7, 0.1)',
-                                                        border: '1px solid rgba(247, 103, 7, 0.35)',
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        gap: '2px',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                >
-                                                    <span>Detay</span>
-                                                    <ChevronRight size={11} />
-                                                </button>
-
-                                                {/* Sesli anons butonu */}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        announceKitchenOrder(ord.table_no, [], isExtraOrder);
-                                                        showToast(`🔊 Masa ${ord.table_no} ${isExtraOrder ? 'ek sipariş' : 'yeni sipariş'} uyarısı okundu`, 'info');
-                                                    }}
-                                                    title={isExtraOrder ? 'Ek Sipariş Uyarısını Oku' : 'Yeni Sipariş Uyarısını Oku'}
-                                                    style={{
-                                                        padding: '3px 6px',
-                                                        borderRadius: '7px',
-                                                        fontSize: '11px',
-                                                        color: 'var(--brand-gold, #fbbf24)',
-                                                        background: 'rgba(251, 191, 36, 0.1)',
-                                                        border: '1px solid rgba(251, 191, 36, 0.35)',
-                                                        display: 'inline-flex',
-                                                        alignItems: 'center',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                >
-                                                    <Volume2 size={12} />
-                                                </button>
-                                            </div>
-
+                                        {/* Sağ: Süre Rozeti (Gereksiz ses ve detay butonları temizlendi, sadeleştirildi) */}
+                                        <div>
                                             {allDelivered ? (
                                                 <span style={{
-                                                    fontSize: '10px',
+                                                    fontSize: '11px',
                                                     color: '#10b981',
-                                                    background: 'rgba(16, 185, 129, 0.2)',
-                                                    border: '1px solid rgba(16, 185, 129, 0.45)',
-                                                    padding: '2px 6px',
-                                                    borderRadius: '6px',
+                                                    background: 'rgba(16, 185, 129, 0.16)',
+                                                    border: '1px solid rgba(16, 185, 129, 0.4)',
+                                                    padding: '3px 8px',
+                                                    borderRadius: '7px',
                                                     fontWeight: 800,
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     gap: '3px'
                                                 }}>
-                                                    <Check size={11} strokeWidth={3} />
+                                                    <Check size={12} strokeWidth={3} />
                                                     Hazır
                                                 </span>
                                             ) : isCritical ? (
                                                 <span style={{
-                                                    fontSize: '10px',
+                                                    fontSize: '11px',
                                                     color: '#ffffff',
                                                     background: 'linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)',
                                                     border: '1px solid #ef4444',
-                                                    padding: '2px 6px',
-                                                    borderRadius: '6px',
+                                                    padding: '3px 8px',
+                                                    borderRadius: '7px',
                                                     fontWeight: 900,
                                                     display: 'flex',
                                                     alignItems: 'center',
-                                                    gap: '3px',
+                                                    gap: '4px',
                                                     boxShadow: '0 0 10px rgba(239, 68, 68, 0.5)'
                                                 }}>
-                                                    <AlertCircle size={11} strokeWidth={2.5} />
+                                                    <AlertCircle size={12} strokeWidth={2.5} />
                                                     ACİL {diffMinutes} dk
                                                 </span>
                                             ) : isWarning ? (
                                                 <span style={{
-                                                    fontSize: '10px',
+                                                    fontSize: '11px',
                                                     color: '#f59f00',
                                                     background: 'rgba(245, 159, 0, 0.16)',
-                                                    border: '1px solid rgba(245, 159, 0, 0.45)',
-                                                    padding: '2px 6px',
-                                                    borderRadius: '6px',
+                                                    border: '1px solid rgba(245, 159, 0, 0.4)',
+                                                    padding: '3px 8px',
+                                                    borderRadius: '7px',
                                                     fontWeight: 800,
                                                     display: 'flex',
                                                     alignItems: 'center',
-                                                    gap: '3px'
+                                                    gap: '4px'
                                                 }}>
-                                                    <Clock size={11} />
-                                                    ⏳ {diffMinutes} dk
+                                                    <Clock size={12} />
+                                                    {diffMinutes} dk
                                                 </span>
                                             ) : (
                                                 <span style={{
-                                                    fontSize: '10px',
+                                                    fontSize: '11px',
                                                     color: '#10b981',
                                                     background: 'rgba(16, 185, 129, 0.14)',
-                                                    border: '1px solid rgba(16, 185, 129, 0.4)',
-                                                    padding: '2px 6px',
-                                                    borderRadius: '6px',
+                                                    border: '1px solid rgba(16, 185, 129, 0.35)',
+                                                    padding: '3px 8px',
+                                                    borderRadius: '7px',
                                                     fontWeight: 800,
                                                     display: 'flex',
                                                     alignItems: 'center',
-                                                    gap: '3px'
+                                                    gap: '4px'
                                                 }}>
-                                                    <Clock size={11} />
+                                                    <Clock size={12} />
                                                     {diffMinutes < 1 ? 'Yeni' : `${diffMinutes} dk`}
                                                 </span>
                                             )}
@@ -1390,32 +1342,33 @@ export default function KitchenView() {
                                         )}
                                     </div>
 
-                                    {/* Kart Altı Aksiyon Butonu - TEK TIKLA GARSONA BİLDİR VE EKRANDAN KALDIR */}
+                                    {/* Kart Altı Aksiyon Butonu - TEK TIKLA MASAYI TAMAMLA */}
                                     <div style={{ marginTop: '4px', paddingTop: '2px', flexShrink: 0 }}>
                                         <button
                                             type="button"
                                             onClick={() => handleDeliverAllOrderItems(ord)}
                                             style={{
                                                 width: '100%',
-                                                padding: '7px 10px',
+                                                padding: '8px 10px',
                                                 borderRadius: '8px',
                                                 border: 'none',
                                                 background: 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)',
                                                 color: 'white',
                                                 fontWeight: 800,
-                                                fontSize: '11.5px',
+                                                fontSize: '12px',
+                                                letterSpacing: '-0.01em',
                                                 whiteSpace: 'nowrap',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center',
-                                                gap: '4px',
+                                                gap: '6px',
                                                 cursor: 'pointer',
                                                 boxShadow: '0 2px 10px rgba(247, 103, 7, 0.35)',
                                                 touchAction: 'manipulation'
                                             }}
                                         >
-                                            <Send size={13} strokeWidth={2.4} />
-                                            {isExtraOrder ? '✓ Ek Siparişi Tamamla (Garsona Bildir)' : '✓ Masayı Tamamla (Garsona Bildir)'}
+                                            <CheckCheck size={15} strokeWidth={2.4} />
+                                            <span>{isExtraOrder ? 'Ek Siparişi Tamamla' : 'Masayı Tamamla'}</span>
                                         </button>
                                     </div>
                                 </motion.div>
@@ -1750,8 +1703,8 @@ export default function KitchenView() {
                                             boxShadow: '0 4px 14px rgba(247, 103, 7, 0.35)'
                                         }}
                                     >
-                                        <Send size={15} strokeWidth={2.4} />
-                                        <span>Tüm Masayı Hazırla (Garsona Bildir)</span>
+                                        <CheckCheck size={16} strokeWidth={2.4} />
+                                        <span>Tüm Masayı Tamamla</span>
                                     </button>
                                 )}
                             </div>
