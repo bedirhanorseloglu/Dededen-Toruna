@@ -265,16 +265,20 @@ function processNextAnnouncement() {
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'tr-TR';
         
-        // HIZ (Rate): Tablette ve mobilde hantallığı önlemek için 1.08 seri tempo (PC ile aynı canlılıkta okur)
-        utterance.rate = 1.08;
+        // HIZ (Rate): Tablet ve mobil cihazlarda TTS motorları daha hantal okuduğu için tablette 1.25x seri tempo
+        const isTabletOrMobile = typeof navigator !== 'undefined' && (
+            /android|ipad|iphone|tablet/i.test(navigator.userAgent) ||
+            (navigator.maxTouchPoints && navigator.maxTouchPoints > 2)
+        );
+        utterance.rate = isTabletOrMobile ? 1.25 : 1.18;
 
         const voiceInfo = getBestTurkishVoiceInfo();
         if (voiceInfo?.voice) {
             utterance.voice = voiceInfo.voice;
         }
 
-        // TON (Pitch): Erkek sesinde tok ve otoriter (0.95); eğer tablette kadın sesi yüklüyse tizleşmeyi kırıp toklaştırmak için (0.82)
-        utterance.pitch = voiceInfo?.isMale ? 0.95 : 0.82;
+        // TON (Pitch): Erkek sesinde tok ve otoriter (0.95); eğer tablette kadın sesi yüklüyse tizleşmeyi kırıp netleştirmek için (0.88)
+        utterance.pitch = voiceInfo?.isMale ? 0.95 : 0.88;
         utterance.volume = 1.0; // W3C standardında izin verilen mutlak tavan (%100)
 
         let hasEnded = false;
