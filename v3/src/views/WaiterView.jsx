@@ -353,6 +353,46 @@ export default function WaiterView() {
         showToast(`Masa ${selectedTableForReceipt} adisyon fişi yazdırılıyor.`, "info");
     };
 
+    // Çekmeceden bekleyen sıcak mutfak ürünlerini mutfağa gönder
+    const handleSendDrawerToKitchen = async () => {
+        if (!receiptOrder || !selectedTableForReceipt) return;
+        const items = receiptOrder.items || [];
+        const unsent = items.filter(i => i.status === 'cooking' && i.kitchen_sent === false);
+        if (unsent.length === 0) {
+            showToast('Mutfağa iletilecek yeni sipariş bulunmuyor.', 'info');
+            return;
+        }
+
+        const now = new Date().toISOString();
+        const updated = items.map(item => {
+            if (item.status === 'cooking' && item.kitchen_sent === false) {
+                return {
+                    ...item,
+                    kitchen_sent: true,
+                    kitchen_sent_at: now
+                };
+            }
+            return item;
+        });
+
+        const docId = receiptOrder.id || `table_${selectedTableForReceipt}`;
+        try {
+            await updateDoc(doc(db, "orders", docId), {
+                items: updated,
+                updated_at: now
+            });
+            printKitchenOrderTicket({
+                table_no: selectedTableForReceipt,
+                waiter_name: receiptOrder?.waiter_name || currentUser?.name || 'Garson',
+                items: updated
+            }, printerSettings);
+            showToast(`🍳 ${unsent.length} yeni ürün mutfağa iletildi!`, 'success');
+        } catch (e) {
+            console.error("Mutfak iletim hatası:", e);
+            showToast('Mutfağa iletilirken hata oluştu.', 'danger');
+        }
+    };
+
     // Çekmeceden mutfak fişi yazdır (tatlı, içecekler ve teslim edilenler hariç)
     const handlePrintDrawerKitchenTicket = () => {
         if (!receiptOrder) return;
@@ -538,6 +578,8 @@ export default function WaiterView() {
                 order={receiptOrder}
                 currentUser={currentUser}
                 isTableDetail={false}
+                unsentKitchenCount={(receiptOrder?.items || []).filter(i => i.status === 'cooking' && i.kitchen_sent === false).length}
+                onSendToKitchen={handleSendDrawerToKitchen}
                 onClose={() => setSelectedTableForReceipt(null)}
                 onMove={() => {
                     setMoveSourceTable(selectedTableForReceipt);

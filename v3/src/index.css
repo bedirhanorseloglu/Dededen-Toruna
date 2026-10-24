@@ -3541,12 +3541,12 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
         white-space: nowrap;
     }
     .receipt-actions-desktop {
-        display: none !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 6px !important;
     }
     .receipt-actions-mobile {
-        display: grid !important;
-        grid-template-columns: repeat(3, 1fr) !important;
-        gap: 6px !important;
+        display: none !important;
     }
     .receipt-items-list {
         padding: 8px 10px !important;

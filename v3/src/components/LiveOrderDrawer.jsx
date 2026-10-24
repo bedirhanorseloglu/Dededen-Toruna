@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     MoveHorizontal,
@@ -54,9 +54,14 @@ export default function LiveOrderDrawer({
     onPrintCustomerBill,
     onCheckout
 }) {
+    const [showPrintOptionsModal, setShowPrintOptionsModal] = useState(false);
+
     if (!isOpen && mode === 'drawer') return null;
 
     const items = order?.items || [];
+    const effectiveUnsentCount = unsentKitchenCount !== undefined 
+        ? unsentKitchenCount 
+        : (items.filter(i => i.status === 'cooking' && i.kitchen_sent === false).length);
     const cookingItems = items.filter(i => i.status !== 'delivered');
     const deliveredItems = items.filter(i => i.status === 'delivered');
     const cookingCount = cookingItems.length;
@@ -662,27 +667,9 @@ export default function LiveOrderDrawer({
                     </div>
                 )}
 
-                {/* DESKTOP ACTIONS */}
+                {/* UNIFIED RECEIPT ACTIONS (Mobil, Tablet & Desktop) */}
                 <div className="receipt-actions-desktop">
-                    {/* Satır 0: MUTFAĞA GÖNDER BUTONU */}
-                    {onSendToKitchen && (
-                        <div style={{ marginBottom: '8px' }}>
-                            <button
-                                onClick={onSendToKitchen}
-                                disabled={unsentKitchenCount === 0}
-                                className={`receipt-btn-send-kitchen ${unsentKitchenCount > 0 ? 'active-pulse' : ''}`}
-                            >
-                                <ChefHat size={17} />
-                                <span>
-                                    {unsentKitchenCount > 0
-                                        ? `🍳 Mutfağa Gönder (${unsentKitchenCount} Yeni Ürün)`
-                                        : '✓ Mutfak Siparişleri Güncel'}
-                                </span>
-                            </button>
-                        </div>
-                    )}
-
-                    {/* Satır 1: Sipariş Ekle & İndirim / İkram (Reference 1) */}
+                    {/* Satır 1: Sipariş Ekle & İndirim / İkram */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                         <button
                             onClick={() => {
@@ -710,83 +697,54 @@ export default function LiveOrderDrawer({
                         )}
                     </div>
 
-                    {/* Satır 2: Mutfak Fişi Yazdır (Reference 1 Thick Bar) */}
-                    {onPrintKitchen && (
+                    {/* Satır 2: MUTFAĞA GÖNDER (Mutfak Fişi Yazdır yerine tam genişlik ana aksiyon) */}
+                    {onSendToKitchen && (
                         <div>
                             <button
-                                onClick={onPrintKitchen}
-                                disabled={totalCount === 0}
-                                style={{ opacity: totalCount === 0 ? 0.45 : 1, cursor: totalCount === 0 ? 'not-allowed' : 'pointer' }}
-                                className="receipt-btn-kitchen-21"
+                                type="button"
+                                onClick={() => {
+                                    if (effectiveUnsentCount > 0) {
+                                        onSendToKitchen();
+                                    }
+                                }}
+                                disabled={effectiveUnsentCount === 0}
+                                className={`receipt-btn-kitchen-21 ${effectiveUnsentCount > 0 ? 'active-pulse' : 'settled'}`}
+                                style={{
+                                    width: '100%',
+                                    minHeight: '44px',
+                                    borderRadius: '12px',
+                                    padding: '10px 14px',
+                                    fontWeight: 800,
+                                    fontSize: '13.5px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '8px',
+                                    cursor: effectiveUnsentCount > 0 ? 'pointer' : 'default',
+                                    background: effectiveUnsentCount > 0
+                                        ? 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)'
+                                        : 'rgba(255, 255, 255, 0.04)',
+                                    border: effectiveUnsentCount > 0
+                                        ? '1.5px solid rgba(255, 255, 255, 0.4)'
+                                        : '1px solid rgba(255, 255, 255, 0.08)',
+                                    color: effectiveUnsentCount > 0 ? '#ffffff' : 'var(--text-muted, #94a3b8)',
+                                    boxShadow: effectiveUnsentCount > 0 ? '0 4px 18px rgba(234, 88, 12, 0.45)' : 'none',
+                                    transition: 'all 0.2s ease'
+                                }}
+                                title={effectiveUnsentCount > 0 ? "Bekleyen sıcak yemekleri mutfak ekranına ilet" : "Mutfak siparişleri güncel"}
                             >
-                                <Printer size={17} />
-                                <span>Mutfak Fişi Yazdır</span>
+                                <ChefHat size={18} />
+                                <span>
+                                    {effectiveUnsentCount > 0
+                                        ? `Mutfağa Gönder (${effectiveUnsentCount} Yeni Ürün)`
+                                        : '✓ Mutfak Siparişleri Güncel'}
+                                </span>
                             </button>
                         </div>
                     )}
                 </div>
 
-                {/* MOBILE COMPACT ACTIONS (Single Row: Mutfak + Sipariş + İndirim + Fiş) */}
-                <div className="receipt-actions-mobile">
-                    {onSendToKitchen && (
-                        <button
-                            onClick={onSendToKitchen}
-                            disabled={unsentKitchenCount === 0}
-                            style={{
-                                background: unsentKitchenCount > 0 ? 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)' : undefined,
-                                color: unsentKitchenCount > 0 ? '#ffffff' : undefined,
-                                border: unsentKitchenCount > 0 ? '1px solid rgba(255, 255, 255, 0.35)' : undefined,
-                                opacity: unsentKitchenCount === 0 ? 0.4 : 1
-                            }}
-                            className={`receipt-mobile-chip-btn ${unsentKitchenCount > 0 ? 'active' : ''}`}
-                            title="Mutfağa Gönder"
-                        >
-                            <ChefHat size={14} />
-                            <span>{unsentKitchenCount > 0 ? `Mutfak (${unsentKitchenCount})` : 'Mutfak'}</span>
-                        </button>
-                    )}
-
-                    <button
-                        onClick={() => {
-                            if (onNavigateToTable) {
-                                onNavigateToTable(tableNo);
-                            }
-                        }}
-                        className="receipt-mobile-chip-btn"
-                        title="Sipariş Menüsüne Git / Kapat"
-                    >
-                        <Plus size={14} />
-                        <span>Sipariş</span>
-                    </button>
-
-                    {onOpenDiscount && (
-                        <button
-                            onClick={onOpenDiscount}
-                            disabled={totalCount === 0}
-                            style={{ opacity: totalCount === 0 ? 0.4 : 1 }}
-                            className={`receipt-mobile-chip-btn ${orderDiscount > 0 ? 'active' : ''}`}
-                            title="İndirim / İkram"
-                        >
-                            <Tag size={14} />
-                            <span>{orderDiscount > 0 ? formatMoney(orderDiscount) : 'İndirim'}</span>
-                        </button>
-                    )}
-
-                    {onPrintKitchen && (
-                        <button
-                            onClick={onPrintKitchen}
-                            disabled={totalCount === 0}
-                            style={{ opacity: totalCount === 0 ? 0.4 : 1 }}
-                            className="receipt-mobile-chip-btn"
-                            title="Mutfak Fişi Yazdır"
-                        >
-                            <Printer size={14} />
-                            <span>Fiş</span>
-                        </button>
-                    )}
-                </div>
-
-                {/* Satır 3: 3 Checkout Butonu (Nakit Kapat, Kart Kapat, Hesap Fişi - Reference 1) */}
+                {/* Satır 3: 3 Checkout Butonu (Nakit Kapat, Kart Kapat, Birleşik Fiş) */}
                 <div className="checkout-actions-3col" style={{ marginTop: '2px' }}>
                     <button
                         onClick={() => onCheckout && onCheckout('cash')}
@@ -809,17 +767,222 @@ export default function LiveOrderDrawer({
                     </button>
 
                     <button
-                        onClick={onPrintCustomerBill}
+                        onClick={() => setShowPrintOptionsModal(true)}
                         disabled={totalCount === 0}
                         style={{ opacity: totalCount === 0 ? 0.35 : 1, cursor: totalCount === 0 ? 'not-allowed' : 'pointer' }}
                         className="receipt-btn-checkout-21 bill"
-                        title="Müşteri Hesap Fişini Yazdır (Hesap Açık Kalır)"
+                        title="Fiş Yazdır (Mutfak Fişi / Hesap Fişi)"
                     >
-                        <Receipt size={18} />
-                        <span>Hesap Fişi</span>
+                        <Printer size={18} />
+                        <span>Fiş</span>
                     </button>
                 </div>
             </div>
+
+            {/* FİŞ SEÇİM MODALI (MUTFAK FİŞİ / HESAP FİŞİ BİRLEŞİK SEÇİMİ) */}
+            <AnimatePresence>
+                {showPrintOptionsModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15 }}
+                        style={{
+                            position: 'fixed',
+                            inset: 0,
+                            background: 'rgba(0, 0, 0, 0.75)',
+                            backdropFilter: 'blur(8px)',
+                            WebkitBackdropFilter: 'blur(8px)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            zIndex: 10000,
+                            padding: '16px'
+                        }}
+                        onClick={() => setShowPrintOptionsModal(false)}
+                    >
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            transition={{ duration: 0.18 }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                                width: '100%',
+                                maxWidth: '370px',
+                                background: '#1c1514',
+                                border: '1px solid rgba(247, 103, 7, 0.35)',
+                                borderRadius: '18px',
+                                padding: '20px',
+                                boxShadow: '0 20px 40px rgba(0, 0, 0, 0.7), 0 0 25px rgba(247, 103, 7, 0.2)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '14px',
+                                position: 'relative'
+                            }}
+                        >
+                            {/* Modal Header */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{
+                                        width: '36px',
+                                        height: '36px',
+                                        borderRadius: '10px',
+                                        background: 'rgba(247, 103, 7, 0.12)',
+                                        border: '1px solid rgba(247, 103, 7, 0.3)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'var(--brand-primary, #f76707)'
+                                    }}>
+                                        <Printer size={18} />
+                                    </div>
+                                    <div>
+                                        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 900, color: '#fffaf5' }}>
+                                            Fiş Yazdır
+                                        </h3>
+                                        <div style={{ fontSize: '11.5px', color: 'var(--text-muted, #8d736b)', marginTop: '2px' }}>
+                                            Masa {tableNo} için fiş türünü seçin
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPrintOptionsModal(false)}
+                                    style={{
+                                        background: 'rgba(255, 255, 255, 0.06)',
+                                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                                        color: '#d1b8af',
+                                        width: '28px',
+                                        height: '28px',
+                                        borderRadius: '8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <X size={15} />
+                                </button>
+                            </div>
+
+                            {/* Option 1: Mutfak Fişi */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowPrintOptionsModal(false);
+                                    if (onPrintKitchen) onPrintKitchen();
+                                }}
+                                disabled={totalCount === 0}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px',
+                                    padding: '13px 15px',
+                                    borderRadius: '14px',
+                                    background: 'rgba(247, 103, 7, 0.08)',
+                                    border: '1.5px solid rgba(247, 103, 7, 0.35)',
+                                    color: '#fffaf5',
+                                    cursor: totalCount === 0 ? 'not-allowed' : 'pointer',
+                                    textAlign: 'left',
+                                    transition: 'all 0.15s ease'
+                                }}
+                                className="btn-print-option"
+                            >
+                                <div style={{
+                                    width: '40px',
+                                    height: '40px',
+                                    borderRadius: '11px',
+                                    background: 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#ffffff',
+                                    flexShrink: 0,
+                                    boxShadow: '0 4px 12px rgba(247, 103, 7, 0.4)'
+                                }}>
+                                    <ChefHat size={20} />
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#ffffff' }}>
+                                        Mutfak Fişi Yazdır
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#d1b8af', marginTop: '2px' }}>
+                                        Aşçı için mutfak hazırlık fişi
+                                    </div>
+                                </div>
+                            </button>
+
+                            {/* Option 2: Hesap Fişi */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowPrintOptionsModal(false);
+                                    if (onPrintCustomerBill) onPrintCustomerBill();
+                                }}
+                                disabled={totalCount === 0}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px',
+                                    padding: '13px 15px',
+                                    borderRadius: '14px',
+                                    background: 'rgba(16, 185, 129, 0.08)',
+                                    border: '1.5px solid rgba(16, 185, 129, 0.35)',
+                                    color: '#fffaf5',
+                                    cursor: totalCount === 0 ? 'not-allowed' : 'pointer',
+                                    textAlign: 'left',
+                                    transition: 'all 0.15s ease'
+                                }}
+                                className="btn-print-option"
+                            >
+                                <div style={{
+                                    width: '40px',
+                                    height: '40px',
+                                    borderRadius: '11px',
+                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#ffffff',
+                                    flexShrink: 0,
+                                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)'
+                                }}>
+                                    <Receipt size={20} />
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#ffffff' }}>
+                                        Hesap Fişi Yazdır
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#d1b8af', marginTop: '2px' }}>
+                                        Müşteri için adisyon hesap dökümü
+                                    </div>
+                                </div>
+                            </button>
+
+                            {/* Cancel */}
+                            <button
+                                type="button"
+                                onClick={() => setShowPrintOptionsModal(false)}
+                                style={{
+                                    width: '100%',
+                                    padding: '9px',
+                                    borderRadius: '10px',
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                                    color: 'var(--text-secondary, #d1b8af)',
+                                    fontSize: '12px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Vazgeç
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 

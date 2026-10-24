@@ -638,47 +638,7 @@ export default function TableDetailView() {
 
             {/* LEFT / CENTER: MENU & MODERN STICKY CATEGORIES */}
             <section className="menu-side" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                {/* 0. HENÜZ MUTFAĞA İLETİLMEMİŞ SİPARİŞ UYARI BARI */}
-                {unsentKitchenItemsCount > 0 && (
-                    <div style={{
-                        background: 'linear-gradient(90deg, rgba(245, 158, 11, 0.16) 0%, rgba(234, 88, 12, 0.22) 100%)',
-                        borderBottom: '1px solid rgba(245, 158, 11, 0.4)',
-                        padding: '10px 18px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '12px',
-                        zIndex: 10
-                    }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', fontSize: '13px', color: '#fef08a', fontWeight: 700 }}>
-                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#f59e0b', boxShadow: '0 0 10px #f59e0b', flexShrink: 0 }} />
-                            <span>Mutfağa iletilmemiş <strong>{unsentKitchenItemsCount} yeni ürün</strong> var. Yanlış eklenenleri adisyondan silebilir veya butona basarak mutfağa gönderebilirsiniz.</span>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={handleSendToKitchen}
-                            style={{
-                                background: 'linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)',
-                                border: '1px solid rgba(255, 255, 255, 0.35)',
-                                color: '#ffffff',
-                                padding: '6px 14px',
-                                borderRadius: '10px',
-                                fontSize: '12.5px',
-                                fontWeight: 800,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                cursor: 'pointer',
-                                boxShadow: '0 4px 14px rgba(234, 88, 12, 0.45)',
-                                whiteSpace: 'nowrap',
-                                flexShrink: 0
-                            }}
-                        >
-                            <ChefHat size={15} />
-                            <span>Mutfağa Gönder ({unsentKitchenItemsCount})</span>
-                        </button>
-                    </div>
-                )}
+
 
                 {/* 1. 21ST.DEV & MOTION KULLANICI DOSTU KATEGORİ VE ARAMA BARI */}
                 <div className="category-bar-modern">
