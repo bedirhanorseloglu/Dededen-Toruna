@@ -2,30 +2,30 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../context/AppContext';
 import { db, doc, updateDoc } from '../config/firebase';
-import { 
-    playNotificationSound, 
-    playOrderReadySound, 
-    playDeliveryAlertSound, 
-    speakAnnouncement, 
+import {
+    playNotificationSound,
+    playOrderReadySound,
+    playDeliveryAlertSound,
+    speakAnnouncement,
     announceKitchenOrder,
     playKeypadBeep,
     warmUpAudio,
     testVoiceAnnouncement
 } from '../services/audioService';
-import { 
-    ChefHat, 
-    ArrowLeft, 
-    Clock, 
-    CheckCircle2, 
-    Volume2, 
-    VolumeX, 
-    Maximize2, 
-    Minimize2, 
-    Flame, 
-    Check, 
-    AlertCircle, 
-    Sparkles, 
-    Send, 
+import {
+    ChefHat,
+    ArrowLeft,
+    Clock,
+    CheckCircle2,
+    Volume2,
+    VolumeX,
+    Maximize2,
+    Minimize2,
+    Flame,
+    Check,
+    AlertCircle,
+    Sparkles,
+    Send,
     CheckCheck,
     MessageSquare,
     Filter,
@@ -36,14 +36,14 @@ import {
 } from 'lucide-react';
 
 export default function KitchenView() {
-    const { 
-        activeOrders, 
-        navigateTo, 
-        currentUser, 
-        soundEnabled, 
-        toggleSound, 
-        isFullscreen, 
-        toggleFullscreen, 
+    const {
+        activeOrders,
+        navigateTo,
+        currentUser,
+        soundEnabled,
+        toggleSound,
+        isFullscreen,
+        toggleFullscreen,
         showToast,
         logout
     } = useApp();
@@ -63,7 +63,7 @@ export default function KitchenView() {
         setLayoutMode(mode);
         try {
             localStorage.setItem('kds_layout_mode', mode);
-        } catch (e) {}
+        } catch (e) { }
     };
 
     const prevOrdersRef = useRef({});
@@ -88,7 +88,7 @@ export default function KitchenView() {
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
                 }
-            } catch (err) {}
+            } catch (err) { }
         };
         requestWakeLock();
 
@@ -111,7 +111,7 @@ export default function KitchenView() {
             window.removeEventListener('touchstart', handleFirstTouch);
             window.removeEventListener('click', handleFirstTouch);
             if (wakeLock) {
-                wakeLock.release().catch(() => {});
+                wakeLock.release().catch(() => { });
             }
         };
     }, []);
@@ -315,12 +315,12 @@ export default function KitchenView() {
     };
 
     return (
-        <div 
-            className="kitchen-page-container" 
-            style={{ 
-                padding: '6px 10px', 
-                maxWidth: '100%', 
-                margin: '0 auto', 
+        <div
+            className="kitchen-page-container"
+            style={{
+                padding: '6px 10px',
+                maxWidth: '100%',
+                margin: '0 auto',
                 height: '100vh',
                 maxHeight: '100dvh',
                 display: 'flex',
@@ -365,7 +365,7 @@ export default function KitchenView() {
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span style={{ fontWeight: 900, fontSize: '14.5px', color: '#fffaf5', letterSpacing: '-0.02em' }}>
-                            DEDEDEN TORUNA • MUTFAK KDS
+                            DEDEDEN TORUNA • MUTFAK
                         </span>
                         <span style={{
                             background: 'rgba(247, 103, 7, 0.15)',
@@ -433,7 +433,7 @@ export default function KitchenView() {
 
                 {/* Sağ: Filtre Sekmeleri, Görünüm Modu, Saat ve Kontroller */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    
+
                     {/* Hızlı Filtre Butonları */}
                     <div style={{ display: 'flex', background: 'rgba(0, 0, 0, 0.35)', borderRadius: '9px', padding: '2px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
                         <button
@@ -630,20 +630,19 @@ export default function KitchenView() {
             {/* ============================================================== */}
             {/* 2. CANLI KDS KARTLARI (YATAY ŞERİT VEYA IZGARA)                */}
             {/* ============================================================== */}
-            <div 
-                className="kitchen-board" 
+            <div
+                className="kitchen-board"
                 style={layoutMode === 'horizontal' ? {
                     flex: 1,
                     minHeight: 0,
-                    display: 'grid',
-                    gridAutoFlow: 'column',
-                    gridTemplateRows: 'repeat(2, auto)',
-                    gridAutoColumns: 'minmax(270px, 320px)',
-                    gap: '8px 10px',
-                    overflowX: 'auto',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '10px 12px',
+                    alignContent: 'flex-start',
+                    alignItems: 'flex-start',
+                    overflowX: 'hidden',
                     overflowY: 'auto',
-                    alignItems: 'start',
-                    paddingBottom: '8px'
+                    paddingBottom: '14px'
                 } : {
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))',
@@ -684,8 +683,8 @@ export default function KitchenView() {
                                 <ChefHat size={32} strokeWidth={2.2} />
                             </div>
                             <div style={{ fontWeight: 800, fontSize: '18px', color: '#fffaf5' }}>
-                                {currentFilter === 'ready' 
-                                    ? 'Servise hazır bekleyen masa bulunmuyor' 
+                                {currentFilter === 'ready'
+                                    ? 'Servise hazır bekleyen masa bulunmuyor'
                                     : (currentFilter === 'cooking' ? 'Tüm siparişler hazırlandı! Mutfak tertemiz 👨‍🍳✨' : 'Mutfakta Bekleyen Yemek Yok')}
                             </div>
                             <div style={{ fontSize: '12.5px', color: 'var(--text-muted, #8d736b)', marginTop: '4px' }}>
@@ -742,11 +741,11 @@ export default function KitchenView() {
                                     exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.2 } }}
                                     transition={{ type: 'spring', stiffness: 450, damping: 28 }}
                                     style={layoutMode === 'horizontal' ? {
-                                        width: '305px',
-                                        minWidth: '270px',
-                                        maxWidth: '330px',
+                                        width: 'fit-content',
+                                        minWidth: '240px',
+                                        maxWidth: '380px',
                                         height: 'fit-content',
-                                        flexShrink: 0,
+                                        flex: '0 0 auto',
                                         display: 'flex',
                                         flexDirection: 'column',
                                         background: allDelivered ? 'rgba(16, 185, 129, 0.08)' : 'rgba(28, 21, 20, 0.94)',
@@ -754,8 +753,8 @@ export default function KitchenView() {
                                             ? '1.5px solid rgba(16, 185, 129, 0.5)' 
                                             : (isDelayed ? '1.5px solid #ef4444' : '1px solid rgba(247, 103, 7, 0.35)'),
                                         borderRadius: '12px',
-                                        padding: '9px 11px',
-                                        gap: '6px',
+                                        padding: '8px 11px',
+                                        gap: '5px',
                                         boxShadow: isDelayed 
                                             ? '0 0 20px rgba(239, 68, 68, 0.25), 0 6px 16px rgba(0, 0, 0, 0.5)' 
                                             : '0 4px 16px rgba(0, 0, 0, 0.45)',
@@ -763,16 +762,16 @@ export default function KitchenView() {
                                         boxSizing: 'border-box'
                                     } : {
                                         background: allDelivered ? 'rgba(16, 185, 129, 0.08)' : 'rgba(28, 21, 20, 0.94)',
-                                        border: allDelivered 
-                                            ? '1.5px solid rgba(16, 185, 129, 0.5)' 
+                                        border: allDelivered
+                                            ? '1.5px solid rgba(16, 185, 129, 0.5)'
                                             : (isDelayed ? '1.5px solid #ef4444' : '1px solid rgba(247, 103, 7, 0.35)'),
                                         borderRadius: '14px',
                                         padding: '14px',
                                         display: 'flex',
                                         flexDirection: 'column',
                                         gap: '10px',
-                                        boxShadow: isDelayed 
-                                            ? '0 0 25px rgba(239, 68, 68, 0.3), 0 8px 20px rgba(0, 0, 0, 0.5)' 
+                                        boxShadow: isDelayed
+                                            ? '0 0 25px rgba(239, 68, 68, 0.3), 0 8px 20px rgba(0, 0, 0, 0.5)'
                                             : '0 6px 20px rgba(0, 0, 0, 0.45)',
                                         position: 'relative',
                                         overflow: 'hidden'
@@ -780,7 +779,7 @@ export default function KitchenView() {
                                 >
                                     {/* Kart Üst Başlığı (Dokunulduğunda Yana Detay Açar) */}
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                                        <div 
+                                        <div
                                             onClick={() => setSelectedTableNo(ord.table_no)}
                                             style={{ cursor: 'pointer', flex: 1 }}
                                             title="Detayları Yana Açmak İçin Tıklayın"
@@ -903,9 +902,9 @@ export default function KitchenView() {
                                     </div>
 
                                     {/* Sipariş Kalemleri Listesi (Sipariş uzunluğuna göre doğal uzar, kart içi kaydırma olmaz) */}
-                                    <div style={{ 
-                                        display: 'flex', 
-                                        flexDirection: 'column', 
+                                    <div style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
                                         gap: '5px'
                                     }}>
                                         {/* 1. Hazırlanan / Pişen Ürünler */}
@@ -915,27 +914,27 @@ export default function KitchenView() {
                                                 style={{
                                                     background: 'rgba(0, 0, 0, 0.35)',
                                                     border: '1px solid rgba(247, 103, 7, 0.25)',
-                                                    padding: '7px 9px',
-                                                    borderRadius: '10px',
+                                                    padding: '5px 7px',
+                                                    borderRadius: '8px',
                                                     display: 'flex',
                                                     flexDirection: 'column',
-                                                    gap: '4px'
+                                                    gap: '3px'
                                                 }}
                                             >
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
                                                         <span style={{
                                                             background: 'linear-gradient(135deg, #f76707 0%, #d9480f 100%)',
                                                             color: 'white',
                                                             fontWeight: 900,
-                                                            fontSize: '12px',
-                                                            padding: '2px 6px',
+                                                            fontSize: '11.5px',
+                                                            padding: '2px 5px',
                                                             borderRadius: '5px',
                                                             flexShrink: 0
                                                         }}>
                                                             {item.quantity}x
                                                         </span>
-                                                        <span style={{ fontWeight: 800, fontSize: '13px', color: '#fffaf5', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        <span style={{ fontWeight: 800, fontSize: '12.5px', color: '#fffaf5', whiteSpace: 'nowrap' }}>
                                                             {item.name}
                                                         </span>
                                                     </div>
@@ -946,9 +945,9 @@ export default function KitchenView() {
                                                         onClick={() => handleToggleItemStatus(ord, item.realIdx)}
                                                         className="btn-outline"
                                                         style={{
-                                                            padding: '4px 8px',
-                                                            borderRadius: '7px',
-                                                            fontSize: '11px',
+                                                            padding: '3px 7px',
+                                                            borderRadius: '6px',
+                                                            fontSize: '10.5px',
                                                             fontWeight: 800,
                                                             color: '#10b981',
                                                             borderColor: 'rgba(16, 185, 129, 0.4)',
@@ -1025,6 +1024,7 @@ export default function KitchenView() {
                                                     color: 'white',
                                                     fontWeight: 800,
                                                     fontSize: '11.5px',
+                                                    whiteSpace: 'nowrap',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
@@ -1051,6 +1051,7 @@ export default function KitchenView() {
                                                     color: 'white',
                                                     fontWeight: 800,
                                                     fontSize: '11.5px',
+                                                    whiteSpace: 'nowrap',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
