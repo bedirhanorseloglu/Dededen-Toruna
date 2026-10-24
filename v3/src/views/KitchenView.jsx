@@ -34,7 +34,8 @@ import {
     X,
     ChevronRight,
     History,
-    RotateCcw
+    RotateCcw,
+    LogOut
 } from 'lucide-react';
 
 // Tabletlerde kasma ve donmayı önlemek için saniyede 1 çalışan dijital saati izole memo bileşeni yapıyoruz
@@ -794,22 +795,42 @@ export default function KitchenView() {
                         {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
                     </button>
 
-                    {/* Geri Dön / Çıkış */}
-                    <button
-                        type="button"
-                        onClick={() => {
-                            if (currentUser?.role === 'kitchen') {
-                                logout();
-                            } else {
-                                navigateTo(currentUser?.role === 'admin' ? 'admin' : 'waiter');
-                            }
-                        }}
-                        className="btn-outline"
-                        style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', borderRadius: '8px', padding: '5px 8px', cursor: 'pointer' }}
-                    >
-                        <ArrowLeft size={13} />
-                        <span>{currentUser?.role === 'kitchen' ? 'Çıkış' : 'Masalar'}</span>
-                    </button>
+                    {/* Geri Dön / Çıkış (Mutfak personeli garson ekranına geçemez, sadece oturumu kapatabilir) */}
+                    {currentUser?.role === 'admin' ? (
+                        <button
+                            type="button"
+                            onClick={() => navigateTo('admin')}
+                            className="btn-outline"
+                            title="Yönetici Paneline Dön"
+                            style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11.5px', borderRadius: '8px', padding: '5px 8px', cursor: 'pointer' }}
+                        >
+                            <ArrowLeft size={13} />
+                            <span>Yönetici</span>
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={logout}
+                            className="btn-outline"
+                            title="Oturumu Kapat ve Çıkış Yap"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '11.5px',
+                                fontWeight: 700,
+                                borderRadius: '8px',
+                                padding: '5px 9px',
+                                cursor: 'pointer',
+                                color: '#ef4444',
+                                borderColor: 'rgba(239, 68, 68, 0.4)',
+                                background: 'rgba(239, 68, 68, 0.1)'
+                            }}
+                        >
+                            <LogOut size={13} />
+                            <span>Çıkış Yap</span>
+                        </button>
+                    )}
                 </div>
             </div>
 

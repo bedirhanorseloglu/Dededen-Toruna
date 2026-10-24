@@ -41,16 +41,31 @@ function AppContent() {
             return <LoginView />;
         }
 
+        // KATI ROL ERİŞİM KONTROLÜ (Role-Based Access Control)
+        // 1. Mutfak personeli SADECE mutfak ekranını görebilir; garson veya adisyon ekranlarını asla göremez
+        if (currentUser.role === 'kitchen') {
+            return <KitchenView />;
+        }
+
+        // 2. Garson personeli SADECE masaları ve masa adisyon detayını görebilir; yönetici veya mutfak ekranlarını göremez
+        if (currentUser.role === 'waiter') {
+            if (currentView === 'table') {
+                return <TableDetailView />;
+            }
+            return <WaiterView />;
+        }
+
+        // 3. Yönetici tüm ekranlara serbestçe geçiş yapabilir
         switch (currentView) {
             case 'table':
                 return <TableDetailView />;
-            case 'admin':
-                return currentUser.role === 'admin' ? <AdminView /> : <WaiterView />;
             case 'kitchen':
                 return <KitchenView />;
             case 'waiter':
-            default:
                 return <WaiterView />;
+            case 'admin':
+            default:
+                return <AdminView />;
         }
     };
 

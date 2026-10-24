@@ -140,6 +140,16 @@ export function AppProvider({ children }) {
         sessionStorage.setItem('adisyon_view', currentView);
     }, [currentView]);
 
+    // Katı Rol Senkronizasyonu: Personelin yetkisi dışındaki bir ekranda kalmasını kesin olarak önler
+    useEffect(() => {
+        if (!currentUser) return;
+        if (currentUser.role === 'kitchen' && currentView !== 'kitchen') {
+            setCurrentView('kitchen');
+        } else if (currentUser.role === 'waiter' && (currentView === 'admin' || currentView === 'kitchen')) {
+            setCurrentView('waiter');
+        }
+    }, [currentUser, currentView]);
+
     // Listen to Fullscreen changes (standart + webkit)
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -541,6 +551,18 @@ export function AppProvider({ children }) {
     };
 
     const navigateTo = (view, tableId = null) => {
+        if (currentUser?.role === 'kitchen') {
+            // Mutfak personeli garson veya yönetici ekranlarına geçemez
+            if (currentView !== 'kitchen') setCurrentView('kitchen');
+            return;
+        }
+        if (currentUser?.role === 'waiter') {
+            // Garson personeli mutfak veya yönetici ekranına geçemez
+            if (view === 'admin' || view === 'kitchen') {
+                setCurrentView('waiter');
+                return;
+            }
+        }
         if (tableId) setSelectedTableId(String(tableId));
         setCurrentView(view);
     };
