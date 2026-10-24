@@ -59,8 +59,8 @@ export default function LiveOrderDrawer({
     if (!isOpen && mode === 'drawer') return null;
 
     const items = order?.items || [];
-    const effectiveUnsentCount = unsentKitchenCount !== undefined 
-        ? unsentKitchenCount 
+    const effectiveUnsentCount = unsentKitchenCount !== undefined
+        ? unsentKitchenCount
         : (items.filter(i => i.status === 'cooking' && i.kitchen_sent === false).length);
     const cookingItems = items.filter(i => i.status !== 'delivered');
     const deliveredItems = items.filter(i => i.status === 'delivered');
@@ -380,7 +380,7 @@ export default function LiveOrderDrawer({
                                                         }}
                                                         title="Henüz mutfağa iletilmedi (Taslak)"
                                                     >
-                                                        ⏳ Gönderilmedi
+                                                        İletilmedi
                                                     </span>
                                                 ) : (
                                                     onToggleItemStatus && (
@@ -786,9 +786,7 @@ export default function LiveOrderDrawer({
                         style={{
                             position: 'fixed',
                             inset: 0,
-                            background: 'rgba(0, 0, 0, 0.75)',
-                            backdropFilter: 'blur(8px)',
-                            WebkitBackdropFilter: 'blur(8px)',
+                            background: 'rgba(0, 0, 0, 0.78)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -987,7 +985,7 @@ export default function LiveOrderDrawer({
         return (
             <>
                 {isOpen && (
-                    <div 
+                    <div
                         className="receipt-mobile-backdrop"
                         onClick={onClose}
                     />
@@ -1009,7 +1007,7 @@ export default function LiveOrderDrawer({
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
+                        transition={{ duration: 0.15 }}
                         onClick={onClose}
                     />
                     <motion.aside
@@ -1023,7 +1021,8 @@ export default function LiveOrderDrawer({
                             x: typeof window !== 'undefined' && window.innerWidth <= 900 ? 0 : '100%',
                             y: typeof window !== 'undefined' && window.innerWidth <= 900 ? '100%' : 0
                         }}
-                        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+                        transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                        style={{ willChange: 'transform', transform: 'translateZ(0)' }}
                     >
                         {drawerContent}
                     </motion.aside>
