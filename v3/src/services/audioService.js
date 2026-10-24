@@ -318,12 +318,29 @@ function processNextAnnouncement() {
     }
 }
 
+const recentSpokenMap = new Map();
+
 export function speakAnnouncement(text, withChime = false) {
     if (isSoundMuted || !text) return;
-    // Aynı anons zaten kuyrukta bekliyorsa mükerrer ekleme
+    const now = Date.now();
+
+    // Son 6 saniye içinde aynı anons çalındıysa veya halihazırda kuyrukta bekliyorsa mükerrer ses çalma
+    const lastSpoken = recentSpokenMap.get(text) || 0;
+    if (now - lastSpoken < 6000) {
+        return;
+    }
     if (speechQueue.some(item => item.text === text)) {
         return;
     }
+
+    recentSpokenMap.set(text, now);
+    if (recentSpokenMap.size > 40) {
+        const cutoff = now - 20000;
+        for (const [k, v] of recentSpokenMap.entries()) {
+            if (v < cutoff) recentSpokenMap.delete(k);
+        }
+    }
+
     speechQueue.push({ text, withChime });
     if (!isSpeechProcessing) {
         processNextAnnouncement();

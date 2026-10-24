@@ -113,6 +113,7 @@ export default function KitchenView() {
     const isFirstLoadRef = useRef(true);
     const mountTimeRef = useRef(Date.now());
     const restoredOrdersRef = useRef(new Set());
+    const lastCancelAnnouncedRef = useRef({});
 
     // Günlük tamamlanan sipariş geçmişi paneli state'i
     const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
@@ -290,10 +291,31 @@ export default function KitchenView() {
 
                 // Yalnızca sipariş tamamlanmadıysa VE ürün hazır olarak işaretlenmediyse VE gerçekten silindiyse sesli iptal anonsu yap:
                 if (!isCompleted && !itemsMarkedReady && itemActuallyRemoved) {
-                    if (soundEnabled) {
-                        speakAnnouncement(`Dikkat! Masa ${tableNo} siparişi iptal edildi. ... Tekrar ediyorum: Masa ${tableNo} siparişi iptal edildi!`, true);
+                    const lastAnnounced = lastCancelAnnouncedRef.current[tableNo] || 0;
+                    if (now - lastAnnounced >= 8000) {
+                        lastCancelAnnouncedRef.current[tableNo] = now;
+                        if (soundEnabled) {
+                            speakAnnouncement(`Dikkat! Masa ${tableNo} siparişi iptal edildi.`, true);
+                        }
+                        showToast(`⚠️ Masa ${tableNo} siparişi iptal edildi / güncellendi.`, 'info');
                     }
-                    showToast(`⚠️ Masa ${tableNo} siparişi iptal edildi / güncellendi.`, 'info');
+                }
+            }
+        });
+
+        // Masanın/siparişin tamamen iptal edilip silinmesi durumu (prevOrder vardı ama activeOrders'ta yok):
+        Object.entries(prevOrdersRef.current).forEach(([prevTableNo, prevOrder]) => {
+            if (!activeOrders[prevTableNo]) {
+                const prevSentCookingCount = (prevOrder?.items || []).filter(i => i.status === 'cooking' && i.kitchen_sent !== false).length;
+                if (prevSentCookingCount > 0) {
+                    const lastAnnounced = lastCancelAnnouncedRef.current[prevTableNo] || 0;
+                    if (now - lastAnnounced >= 8000) {
+                        lastCancelAnnouncedRef.current[prevTableNo] = now;
+                        if (soundEnabled) {
+                            speakAnnouncement(`Dikkat! Masa ${prevTableNo} siparişi iptal edildi.`, true);
+                        }
+                        showToast(`⚠️ Masa ${prevTableNo} siparişi iptal edildi.`, 'info');
+                    }
                 }
             }
         });

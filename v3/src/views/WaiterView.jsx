@@ -6,12 +6,12 @@ import { recordCompletedOrder } from '../services/analyticsService';
 import { printCustomerReceipt, printKitchenOrderTicket } from '../services/printService';
 import { playChimeSound, playDeliveryAlertSound, playNotificationSound } from '../services/audioService';
 import { db, doc, deleteDoc, updateDoc, setDoc } from '../config/firebase';
-import { 
-    Search, 
-    X, 
-    CheckCircle2, 
+import {
+    Search,
+    X,
+    CheckCircle2,
     Check,
-    Clock, 
+    Clock,
     Printer,
     MoveHorizontal,
     Scissors,
@@ -389,7 +389,7 @@ export default function WaiterView() {
                 items: updated
             }, printerSettings);
             playNotificationSound();
-            showToast(`🍳 ${unsent.length} yeni ürün mutfağa iletildi!`, 'success');
+            showToast(`${unsent.length} yeni ürün mutfağa iletildi!`, 'success');
             // Otomatik masalar ekranına dön (çekmeceyi kapat)
             setSelectedTableForReceipt(null);
         } catch (e) {
