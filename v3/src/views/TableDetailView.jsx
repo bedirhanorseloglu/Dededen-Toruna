@@ -637,12 +637,6 @@ export default function TableDetailView() {
 
     return (
         <div className="order-screen-layout">
-            {/* MOBİL BACKDROP */}
-            <div 
-                className={`receipt-backdrop ${isMobileCartOpen ? 'active' : ''}`}
-                onClick={() => setIsMobileCartOpen(false)}
-            />
-
             {/* LEFT / CENTER: MENU & MODERN STICKY CATEGORIES */}
             <section className="menu-side" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 

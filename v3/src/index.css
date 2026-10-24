@@ -1152,30 +1152,21 @@ body {
     border-left: 1px solid var(--border-subtle);
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 767px) {
     .receipt-mobile-backdrop {
         display: block !important;
         position: fixed !important;
         inset: 0 !important;
         background: rgba(0, 0, 0, 0.75) !important;
-        z-index: 1550 !important;
+        z-index: 2900 !important;
         opacity: 1 !important;
         pointer-events: auto !important;
         will-change: opacity !important;
     }
 
     .receipt-backdrop {
-        display: block;
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, 0.75);
-        z-index: 1500;
-        opacity: 0;
-        pointer-events: none;
-    }
-    .receipt-backdrop.active {
-        opacity: 1;
-        pointer-events: auto;
+        display: none !important;
+        pointer-events: none !important;
     }
 
     .receipt-side {
@@ -1191,7 +1182,7 @@ body {
         border-left: none !important;
         border-top: 1.5px solid rgba(247, 103, 7, 0.5) !important;
         box-shadow: 0 -8px 25px rgba(0, 0, 0, 0.8) !important;
-        z-index: 1600 !important;
+        z-index: 3000 !important;
         transform: translateY(105%) translateZ(0) !important;
         transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
         background: #140e0c !important;
@@ -1209,9 +1200,27 @@ body {
     }
 }
 
-@media (min-width: 1024px) {
-    .receipt-mobile-backdrop {
+@media (min-width: 768px) {
+    .receipt-mobile-backdrop,
+    .receipt-backdrop {
         display: none !important;
+        pointer-events: none !important;
+    }
+
+    .receipt-side {
+        display: flex !important;
+        position: relative !important;
+        width: 340px !important;
+        height: 100% !important;
+        max-height: 100% !important;
+        transform: none !important;
+        border-left: 1px solid var(--border-subtle) !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        z-index: 20 !important;
+        pointer-events: auto !important;
+        visibility: visible !important;
+        opacity: 1 !important;
     }
 }
 
@@ -2462,7 +2471,9 @@ body {
         font-weight: 800;
         letter-spacing: -0.2px;
         box-shadow: 0 4px 14px rgba(247, 103, 7, 0.4);
-        pointer-events: none;
+        pointer-events: auto !important;
+        touch-action: manipulation !important;
+        cursor: pointer !important;
     }
 }
 
@@ -5990,7 +6001,8 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.75);
-    z-index: 1550;
+    z-index: 2900 !important;
+    pointer-events: auto !important;
     will-change: opacity;
 }
 
@@ -6006,12 +6018,12 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
     background: #140e0c;
     border-left: 1px solid rgba(245, 159, 0, 0.15);
     box-shadow: -8px 0 24px rgba(0, 0, 0, 0.6);
-    z-index: 1600;
+    z-index: 3000 !important;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    pointer-events: auto !important;
     will-change: transform;
-    transform: translateZ(0);
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
 }
@@ -6031,6 +6043,8 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
         border-top: 1.5px solid rgba(247, 103, 7, 0.5);
         border-radius: 24px 24px 0 0;
         box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.7);
+        z-index: 3000 !important;
+        pointer-events: auto !important;
     }
 }
 
@@ -7384,7 +7398,7 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
    - 2 Sütun POS Düzeni Korunur (Menü + Sağ Adisyon)
    - Masalar 3 Sütun Dengeli Dağılır
    -------------------------------------------------------------------------- */
-@media screen and (min-width: 768px) and (max-width: 850px) {
+@media screen and (min-width: 768px) and (max-width: 1023px) {
     .waiter-page-container,
     .admin-page-container {
         padding: 14px 16px;
@@ -7401,23 +7415,29 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
         min-height: 124px !important;
     }
 
-    /* Sipariş ekranında dikey tablet için bölünmüş ekran POS rahatlığı */
+    /* Sipariş ekranında tablet için bölünmüş ekran POS rahatlığı */
     .order-screen-layout {
-        grid-template-columns: 1fr 325px !important;
+        display: grid !important;
+        grid-template-columns: 1fr 330px !important;
         height: calc(100vh - 64px) !important;
         height: calc(100dvh - 64px) !important;
         max-height: calc(100dvh - 64px) !important;
+        overflow: hidden !important;
     }
 
     .receipt-side {
         display: flex !important;
         position: relative !important;
-        width: 325px !important;
+        width: 330px !important;
         height: 100% !important;
         transform: none !important;
         border-left: 1px solid var(--border-subtle) !important;
         border-radius: 0 !important;
         box-shadow: none !important;
+        z-index: 20 !important;
+        pointer-events: auto !important;
+        visibility: visible !important;
+        opacity: 1 !important;
     }
 
     .mobile-cart-bar {
@@ -7491,4 +7511,55 @@ button:active, .role-btn:active, .num-btn:active, .category-btn:active, .table-c
         font-size: 17px !important;
     }
 }
+
+/* ==========================================================================
+   14. TELEFON & TABLET ADİSYON DOKUNMATİK TIKLAMA VE POINTER-EVENTS GARANTİSİ
+   ========================================================================== */
+.receipt-side,
+.receipt-side.mobile-open,
+.admin-receipt-drawer {
+    pointer-events: auto !important;
+    touch-action: pan-y !important;
+}
+
+.receipt-side button,
+.receipt-side input,
+.receipt-side [role="button"],
+.admin-receipt-drawer button,
+.admin-receipt-drawer input,
+.admin-receipt-drawer [role="button"],
+.receipt-footer-glass button,
+.receipt-header-unified button,
+.receipt-item-card-21 button,
+.receipt-btn-checkout-21,
+.receipt-btn-kitchen-21,
+.receipt-stepper-btn,
+.receipt-trash-btn,
+.receipt-btn-add-order,
+.receipt-btn-discount,
+.btn-print-option,
+.receipt-telemetry-deliver-btn,
+.mobile-cart-bar,
+.mobile-cart-btn {
+    pointer-events: auto !important;
+    touch-action: manipulation !important;
+    cursor: pointer !important;
+    -webkit-tap-highlight-color: transparent !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
+
+.receipt-footer-glass {
+    position: relative !important;
+    z-index: 10 !important;
+    pointer-events: auto !important;
+    flex-shrink: 0 !important;
+}
+
+.receipt-items-list {
+    pointer-events: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-y !important;
+}
+
 

@@ -668,6 +668,7 @@ export default function LiveOrderDrawer({
                     {/* Satır 1: Sipariş Ekle & İndirim / İkram */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                         <button
+                            type="button"
                             onClick={() => {
                                 if (onNavigateToTable) {
                                     onNavigateToTable(tableNo);
@@ -682,6 +683,7 @@ export default function LiveOrderDrawer({
 
                         {onOpenDiscount && (
                             <button
+                                type="button"
                                 onClick={onOpenDiscount}
                                 disabled={totalCount === 0}
                                 style={{ opacity: totalCount === 0 ? 0.45 : 1, cursor: totalCount === 0 ? 'not-allowed' : 'pointer' }}
@@ -743,6 +745,7 @@ export default function LiveOrderDrawer({
                 {/* Satır 3: 3 Checkout Butonu (Nakit Kapat, Kart Kapat, Birleşik Fiş) */}
                 <div className="checkout-actions-3col" style={{ marginTop: '2px' }}>
                     <button
+                        type="button"
                         onClick={() => onCheckout && onCheckout('cash')}
                         disabled={totalCount === 0}
                         style={{ opacity: totalCount === 0 ? 0.35 : 1, cursor: totalCount === 0 ? 'not-allowed' : 'pointer' }}
@@ -753,6 +756,7 @@ export default function LiveOrderDrawer({
                     </button>
 
                     <button
+                        type="button"
                         onClick={() => onCheckout && onCheckout('card')}
                         disabled={totalCount === 0}
                         style={{ opacity: totalCount === 0 ? 0.35 : 1, cursor: totalCount === 0 ? 'not-allowed' : 'pointer' }}
@@ -763,6 +767,7 @@ export default function LiveOrderDrawer({
                     </button>
 
                     <button
+                        type="button"
                         onClick={() => setShowPrintOptionsModal(true)}
                         disabled={totalCount === 0}
                         style={{ opacity: totalCount === 0 ? 0.35 : 1, cursor: totalCount === 0 ? 'not-allowed' : 'pointer' }}
@@ -990,7 +995,10 @@ export default function LiveOrderDrawer({
                         onClick={onClose}
                     />
                 )}
-                <aside className={`receipt-side ${isOpen ? 'mobile-open' : ''}`}>
+                <aside 
+                    className={`receipt-side ${isOpen ? 'mobile-open' : ''}`}
+                    onClick={(e) => e.stopPropagation()}
+                >
                     {drawerContent}
                 </aside>
             </>
@@ -1022,7 +1030,8 @@ export default function LiveOrderDrawer({
                             y: typeof window !== 'undefined' && window.innerWidth <= 900 ? '100%' : 0
                         }}
                         transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                        style={{ willChange: 'transform', transform: 'translateZ(0)' }}
+                        style={{ willChange: 'transform' }}
+                        onClick={(e) => e.stopPropagation()}
                     >
                         {drawerContent}
                     </motion.aside>
