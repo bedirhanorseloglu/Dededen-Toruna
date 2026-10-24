@@ -221,7 +221,7 @@ export default function KitchenView() {
             } else if (prevSentCookingCount > 0 && sentCookingItems.length < prevSentCookingCount) {
                 // Daha önce mutfağa gönderilmiş pişmekte olan ürün silindiyse / iptal edildiyse:
                 if (soundEnabled) {
-                    speakAnnouncement(`DİKKAT! MASA ${tableNo} SİPARİŞİ İPTAL EDİLDİ!`, true);
+                    speakAnnouncement(`Dikkat! Masa ${tableNo} siparişi iptal edildi. ... Tekrar ediyorum: Masa ${tableNo} siparişi iptal edildi!`, true);
                 }
                 showToast(`⚠️ Masa ${tableNo} siparişi iptal edildi / güncellendi.`, 'info');
             }

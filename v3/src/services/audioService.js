@@ -336,15 +336,16 @@ export const speakTurkish = speakAnnouncement;
 export function announceKitchenOrder(tableNo, items = [], isExtra = false) {
     if (isSoundMuted) return;
     try {
-        const text = isExtra 
-            ? `Dikkat! Masa ${tableNo} için ek sipariş geldi. Tekrar ediyorum, Masa ${tableNo} ek sipariş!` 
-            : `Dikkat! Masa ${tableNo} için yeni sipariş geldi. Tekrar ediyorum, Masa ${tableNo} yeni sipariş!`;
+        const orderType = isExtra ? 'ek sipariş' : 'yeni sipariş';
+        const message = `Masa ${tableNo} için ${orderType} geldi`;
+        const text = `Dikkat! ${message}. ... Tekrar ediyorum: ${message}!`;
         speakAnnouncement(text, true);
     } catch (e) {}
 }
 
 export function testVoiceAnnouncement() {
-    speakAnnouncement("Dikkat! Mutfak ses sistemi testi. Masa 1 için yeni sipariş geldi!", true);
+    const message = "Masa 1 için yeni sipariş geldi";
+    speakAnnouncement(`Dikkat! Mutfak ses sistemi testi. ${message}. ... Tekrar ediyorum: ${message}!`, true);
 }
 
 // Tuş Takımı Hafif Tıklama Sesi (Tactile Keypad Click)
